@@ -1,8 +1,8 @@
 import HomeView from "@/sections/home/view/HomeView";
 
 export const metadata = {
-  title: `Home`,
-  description: `Social media app home page`,
+  title: `Calea Destinului - YDestiny`,
+  description: `Descoperă-ți destinul prin compatibilitate astrală și conexiuni cosmice. Împărtășește-ți gândurile pe Calea Destinului.`,
 };
 
 const HomePage = async () => {

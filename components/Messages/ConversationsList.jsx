@@ -8,6 +8,7 @@ import { getDisplayName } from "@/utils/profileHelpers";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import { getMyCompatibleUsers } from "@/actions/admin";
 import { createConversation } from "@/actions/chat";
+import { OnlineStatusAvatar } from "../OnlineStatusIndicator";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
@@ -67,11 +68,14 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
 
   const handleStartConversation = async (user) => {
     try {
+      console.log("Starting conversation with user:", user);
       const result = await createConversation({
         user1Id: currentUser.id,
         user2Id: user.id
       });
 
+      console.log("Create conversation result:", result);
+      
       if (result.success) {
         // Create a conversation object to pass to the parent
         const newConversation = {
@@ -80,14 +84,23 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
           otherUser: user,
           lastMessage: null,
           unreadCount: 0,
-          isNew: result.isNew
+          isNew: result.isNew,
+          createdAt: new Date(),
+          updatedAt: new Date()
         };
         
+        console.log("Selecting new conversation:", newConversation);
         onSelectConversation(newConversation);
+        
+        // Switch to conversations tab to show the new conversation
         setActiveTab("conversations");
+        
+        // Remove user from compatible users list since they now have a conversation
+        setCompatibleUsers(prev => prev.filter(u => u.id !== user.id));
       }
     } catch (error) {
       console.error("Error starting conversation:", error);
+      // You could add a toast notification here to inform the user
     }
   };
 
@@ -116,13 +129,15 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
             size="small"
             offset={[-5, 5]}
           >
-            <Avatar 
-              src={mainImage} 
-              size={48}
-            >
-              {otherUser?.firstName?.[0] || otherUser?.username?.[0] || otherUser?.email?.[0]}
-              {otherUser?.lastName?.[0]}
-            </Avatar>
+            <OnlineStatusAvatar userId={otherUser?.id} size="medium">
+              <Avatar 
+                src={mainImage} 
+                size={48}
+              >
+                {otherUser?.firstName?.[0] || otherUser?.username?.[0] || otherUser?.email?.[0]}
+                {otherUser?.lastName?.[0]}
+              </Avatar>
+            </OnlineStatusAvatar>
           </Badge>
         </div>
 
@@ -177,15 +192,18 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         key={user.id}
         className={css.conversationItem}
         style={{ cursor: 'pointer' }}
+        onClick={() => handleStartConversation(user)}
       >
         <div className={css.avatarContainer}>
-          <Avatar 
-            src={mainImage} 
-            size={48}
-          >
-            {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
-            {user?.lastName?.[0]}
-          </Avatar>
+          <OnlineStatusAvatar userId={user?.id} size="medium">
+            <Avatar 
+              src={mainImage} 
+              size={48}
+            >
+              {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
+              {user?.lastName?.[0]}
+            </Avatar>
+          </OnlineStatusAvatar>
         </div>
 
         <div className={css.conversationContent}>
@@ -193,22 +211,41 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
             <Typography.Text className={css.participantName}>
               {displayName}
             </Typography.Text>
-            <Button 
-              type="primary" 
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStartConversation(user);
-              }}
-              style={{ 
-                background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '11px'
-              }}
-            >
-              Message
-            </Button>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <Button 
+                size="small"
+                icon={<Iconify icon="eva:person-fill" width="12px" />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(`/user/${user.id}`, '_blank');
+                }}
+                style={{ 
+                  border: '1px solid #d9d9d9',
+                  borderRadius: '8px',
+                  fontSize: '10px',
+                  padding: '0 8px'
+                }}
+                title="View Profile"
+              />
+              
+              <Button 
+                type="primary" 
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStartConversation(user);
+                }}
+                style={{ 
+                  background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '10px',
+                  padding: '0 12px'
+                }}
+              >
+                Message
+              </Button>
+            </div>
           </div>
 
           <div className={css.lastMessageContainer}>

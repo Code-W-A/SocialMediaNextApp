@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Alert, Skeleton, Typography, Card, Button, Avatar, Space, Tag, Row, Col, Modal, message } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMyCompatibilities } from "@/actions/admin";
@@ -15,8 +15,23 @@ import css from "@/styles/Home.module.css";
 const { Title, Text, Paragraph } = Typography;
 
 const MatchCard = ({ user, currentUser, onStartChat }) => {
+  const router = useRouter();
   const [showCompatibility, setShowCompatibility] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Check for mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 480);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   const mainImage = getMainProfileImage(user.images);
   const compatibility = getFullCompatibility(currentUser, user);
   const relationshipCompatible = areRelationshipTypesCompatible(currentUser, user);
@@ -434,26 +449,64 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
         {/* Action Buttons */}
         <div style={{ 
           display: 'flex', 
-          gap: '12px',
-          marginTop: 'auto'
+          gap: isMobile ? '4px' : '8px',
+          marginTop: 'auto',
+          padding: '0 8px',
+          flexWrap: 'wrap'
         }}>
           <Button
             type="default"
-            size="large"
-            icon={<Iconify icon="eva:star-outline" width="20px" />}
-            onClick={() => setShowCompatibility(true)}
+            size={isMobile ? "middle" : "large"}
+            icon={<Iconify icon="eva:person-fill" width={isMobile ? "14px" : "18px"} />}
+            onClick={() => router.push(`/user/${user.id}`)}
             style={{
               flex: 1,
-              height: '48px',
+              minWidth: isMobile ? '80px' : '100px',
+              height: isMobile ? '40px' : '48px',
               borderRadius: '12px',
               border: '2px solid #f0f0f0',
               fontWeight: '600',
-              fontSize: '15px',
+              fontSize: isMobile ? '11px' : '14px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px',
-              transition: 'all 0.3s ease'
+              gap: isMobile ? '3px' : '6px',
+              transition: 'all 0.3s ease',
+              padding: '0 4px'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.borderColor = '#722ed1';
+              e.target.style.color = '#722ed1';
+              e.target.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.borderColor = '#f0f0f0';
+              e.target.style.color = '';
+              e.target.style.transform = 'translateY(0)';
+            }}
+          >
+            {isMobile ? 'View' : 'Profile'}
+          </Button>
+          
+          <Button
+            type="default"
+            size={isMobile ? "middle" : "large"}
+            icon={<Iconify icon="eva:star-outline" width={isMobile ? "14px" : "18px"} />}
+            onClick={() => setShowCompatibility(true)}
+            style={{
+              flex: 1,
+              minWidth: isMobile ? '80px' : '100px',
+              height: isMobile ? '40px' : '48px',
+              borderRadius: '12px',
+              border: '2px solid #f0f0f0',
+              fontWeight: '600',
+              fontSize: isMobile ? '11px' : '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: isMobile ? '3px' : '6px',
+              transition: 'all 0.3s ease',
+              padding: '0 4px'
             }}
             onMouseEnter={(e) => {
               e.target.style.borderColor = 'var(--primary)';
@@ -466,28 +519,30 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
               e.target.style.transform = 'translateY(0)';
             }}
           >
-            Compatibility
+            {isMobile ? 'Info' : 'Details'}
           </Button>
           
           <Button
             type="primary"
-            size="large"
-            icon={<Iconify icon="eva:message-circle-fill" width="20px" />}
+            size={isMobile ? "middle" : "large"}
+            icon={<Iconify icon="eva:message-circle-fill" width={isMobile ? "14px" : "18px"} />}
             onClick={() => onStartChat(user)}
             style={{
-              flex: 1,
-              height: '48px',
+              flex: isMobile ? 1 : 1.5,
+              minWidth: isMobile ? '90px' : '120px',
+              height: isMobile ? '40px' : '48px',
               borderRadius: '12px',
               background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
               border: 'none',
               fontWeight: '600',
-              fontSize: '15px',
+              fontSize: isMobile ? '11px' : '14px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px',
+              gap: isMobile ? '3px' : '6px',
               boxShadow: '0 4px 16px rgba(249, 170, 17, 0.3)',
-              transition: 'all 0.3s ease'
+              transition: 'all 0.3s ease',
+              padding: '0 4px'
             }}
             onMouseEnter={(e) => {
               e.target.style.transform = 'translateY(-2px)';

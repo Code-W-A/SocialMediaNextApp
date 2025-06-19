@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import css from "@/styles/Post.module.css";
 import Box from "../Box";
 import {
@@ -10,9 +10,9 @@ import {
   Image,
   Popconfirm,
   Typography,
+  Input,
 } from "antd";
 // import Image from "next/image";
-import LikeButton from "./LikeButton";
 import CommentButton from "./CommentButton";
 import CommentSection from "./CommentSection";
 import dayjs from "dayjs";
@@ -21,14 +21,18 @@ import Link from "next/link";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import Iconify from "../Iconify";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { deletePost } from "@/actions/post";
+import { deletePost, editPost } from "@/actions/post";
 import { getUserDisplayName, getDisplayName } from "@/utils/profileHelpers";
+import LikeButton from "./LikeButton";
 
 const Post = ({ data, queryId }) => {
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(data?.postText || "");
+
   const { mutate } = useMutation({
-    mutationFn: () => deletePost(data?.id),
+    mutationFn: () => deletePost(data?.id, currentUser?.id),
 
     // This function will be run just before the mutation function
     onMutate: async () => {
@@ -40,7 +44,6 @@ const Post = ({ data, queryId }) => {
 
       // Optimistically update to the new value
       queryClient.setQueryData(["posts", queryId], (old) => {
-        console.log(old);
         return {
           ...old,
           pages: old.pages.map((page) => {
@@ -57,18 +60,48 @@ const Post = ({ data, queryId }) => {
     },
     onError: (err, variables, context) => {
       console.log("this is error", err);
-      queryClient.setQueryData(["posts"], context.previousPosts);
+      queryClient.setQueryData(["posts", queryId], context.previousPosts);
     },
 
     // // Always refetch after error or success:
     onSettled: () => {
-      queryClient.invalidateQueries(["posts"]);
+      queryClient.invalidateQueries(["posts", queryId]);
     },
   });
+
+  const { mutate: editMutate } = useMutation({
+    mutationFn: ({ postId, newText }) => editPost(postId, newText, currentUser?.id),
+    onSuccess: () => {
+      setIsEditing(false);
+      queryClient.invalidateQueries(["posts", queryId]);
+    },
+    onError: (err) => {
+      console.log("Edit error:", err);
+    },
+  });
+
+  const handleEdit = () => {
+    if (editText.trim() !== data?.postText) {
+      editMutate({ postId: data?.id, newText: editText.trim() });
+    } else {
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditText(data?.postText || "");
+    setIsEditing(false);
+  };
 
   const items = [
     {
       key: "1",
+      label: "Edit Post",
+      icon: <Iconify icon="eva:edit-fill" width="16px" />,
+      onClick: () => setIsEditing(true),
+    },
+    {
+      key: "2",
       danger: true,
       label: (
         <Popconfirm
@@ -76,7 +109,7 @@ const Post = ({ data, queryId }) => {
           description="Are you sure to delete this post?"
           onConfirm={mutate}
         >
-          Delete
+          Delete Post
         </Popconfirm>
       ),
     },
@@ -123,7 +156,7 @@ const Post = ({ data, queryId }) => {
                   type="secondary"
                   strong
                 >
-                  {dayjs(data?.created_at).format("DD MMM YYYY")}
+                  {dayjs(data?.createdAt || data?.created_at).format("DD MMM YYYY")}
                 </Typography.Text>
               </Flex>
             </Flex>
@@ -140,13 +173,48 @@ const Post = ({ data, queryId }) => {
           </Flex>
 
           {/* caption */}
-          <Typography.Text className="typoBody2">
-            <div
-              dangerouslySetInnerHTML={{
-                __html: (data?.postText)?.replace(/\n/g, "<br/>"),
-              }}
-            ></div>
-          </Typography.Text>
+          {isEditing ? (
+            <div style={{ marginBottom: '1rem' }}>
+              <Input.TextArea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                placeholder="Actualizează postarea ta..."
+                autoSize={{ minRows: 3, maxRows: 6 }}
+                style={{ marginBottom: '8px' }}
+              />
+              <Flex gap="8px" justify="flex-end">
+                <Button size="small" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+                <Button 
+                  type="primary" 
+                  size="small" 
+                  onClick={handleEdit}
+                  disabled={!editText.trim() || editText.trim() === data?.postText}
+                >
+                  Save Changes
+                </Button>
+              </Flex>
+            </div>
+          ) : (
+            <div>
+              <Typography.Text className="typoBody2">
+                <div
+                  dangerouslySetInnerHTML={{
+                    __html: (data?.postText)?.replace(/\n/g, "<br/>"),
+                  }}
+                ></div>
+              </Typography.Text>
+              {data?.edited && (
+                <Typography.Text 
+                  type="secondary" 
+                  style={{ fontSize: '12px', fontStyle: 'italic', marginLeft: '8px' }}
+                >
+                  (edited)
+                </Typography.Text>
+              )}
+            </div>
+          )}
 
           {/* media */}
           {getFileTypeFromUrl(data?.media) === "image" && (
@@ -176,7 +244,7 @@ const Post = ({ data, queryId }) => {
             justify="space-between"
             style={{ padding: ".5rem 0rem" }}
           >
-            {/* left side like and comment */}
+            {/* left side reactions and comment */}
             <Flex>
               <LikeButton
                 postId={data?.id}
@@ -186,8 +254,55 @@ const Post = ({ data, queryId }) => {
               <CommentButton comments={data?.comments?.length} />
             </Flex>
 
-            {/* right side share */}
-            {/* <ShareButton /> */}
+            {/* right side compatibility and share */}
+            <Flex gap={".5rem"}>
+              {/* Compatibility button - only show for other users */}
+              {data?.authorId !== currentUser?.id && (
+                <Link href={`/user/${data?.authorId}`} passHref>
+                  <Button
+                    size="small"
+                    style={{
+                      background: "linear-gradient(135deg, #667eea15, #764ba215)",
+                      border: "1px solid #667eea30",
+                      borderRadius: "6px",
+                      color: "#667eea"
+                    }}
+                  >
+                    <Flex align="center" gap={".3rem"}>
+                      <Iconify icon="eva:heart-fill" width="14px" style={{ color: "#667eea" }} />
+                      <Typography.Text style={{ fontSize: "12px", color: "#667eea" }}>
+                        Compatibilitate
+                      </Typography.Text>
+                    </Flex>
+                  </Button>
+                </Link>
+              )}
+
+              {/* Share button */}
+              <Button
+                size="small"
+                style={{
+                  background: "transparent",
+                  border: "1px solid #f0f0f0",
+                  borderRadius: "6px"
+                }}
+                onClick={() => {
+                  // TODO: Implement share to social media functionality
+                  navigator.share?.({
+                    title: `${getDisplayName(data?.author)} pe YDestiny`,
+                    text: data?.postText,
+                    url: window.location.href
+                  });
+                }}
+              >
+                <Flex align="center" gap={".3rem"}>
+                  <Iconify icon="eva:share-fill" width="14px" style={{ color: "#999" }} />
+                  <Typography.Text style={{ fontSize: "12px", color: "#999" }}>
+                    Distribuie
+                  </Typography.Text>
+                </Flex>
+              </Button>
+            </Flex>
           </Flex>
 
           {/* comments */}

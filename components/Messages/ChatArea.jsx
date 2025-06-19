@@ -5,8 +5,21 @@ import { Avatar, Button, Input, Typography, theme, message } from "antd";
 import Iconify from "../Iconify";
 import { 
   subscribeToConversationMessages, 
-  sendMessage as sendFirebaseMessage 
+  sendMessage as sendFirebaseMessage,
+  setTyping,
+  subscribeToTyping,
+  markConversationAsRead,
+  addReaction,
+  removeReaction
 } from "@/actions/chat";
+import MessageReactions from "./MessageReactions";
+import ReadReceiptIndicator from "./ReadReceiptIndicator";
+import ChatSearch from "./ChatSearch";
+import ImageUpload from "./ImageUpload";
+import ImageMessage from "./ImageMessage";
+import EditMessage from "./EditMessage";
+import MessageHoverActions from "./MessageHoverActions";
+import OnlineStatusIndicator, { OnlineStatusAvatar } from "../OnlineStatusIndicator";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import dayjs from "dayjs";
@@ -19,7 +32,13 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [typingUsers, setTypingUsers] = useState([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState(null);
+  const [activePopoverId, setActivePopoverId] = useState(null);
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
   const otherUser = conversation?.otherUser;
 
   // Subscribe to messages in real-time
@@ -36,10 +55,70 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     return unsubscribe;
   }, [conversation?.id]);
 
+  // Subscribe to typing indicators
+  useEffect(() => {
+    if (!conversation?.id || !currentUser?.id) return;
+
+    const unsubscribe = subscribeToTyping(
+      conversation.id,
+      currentUser.id,
+      (typingUserIds) => {
+        setTypingUsers(typingUserIds);
+      }
+    );
+
+    return unsubscribe;
+  }, [conversation?.id, currentUser?.id]);
+
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Mark messages as read when conversation is viewed
+  useEffect(() => {
+    if (!conversation?.id || !currentUser?.id || messages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      markConversationAsRead(conversation.id, currentUser.id);
+    }, 1000); // Wait 1 second before marking as read
+
+    return () => clearTimeout(timer);
+  }, [conversation?.id, currentUser?.id, messages]);
+
+  // Handle reaction toggle for hover actions
+  const handleReactionToggle = async (messageId, emoji, currentReactions) => {
+    try {
+      // Check if user already reacted with any emoji
+      let currentUserReaction = null;
+      for (const [reactionEmoji, reactionList] of Object.entries(currentReactions)) {
+        if (reactionList.some(r => r.userId === currentUser?.id)) {
+          currentUserReaction = reactionEmoji;
+          break;
+        }
+      }
+
+      if (currentUserReaction) {
+        // Remove current reaction first
+        await removeReaction(conversation.id, messageId, currentUser.id, currentUserReaction);
+      }
+      
+      // If clicking different emoji, add new reaction
+      if (currentUserReaction !== emoji) {
+        await addReaction(conversation.id, messageId, currentUser.id, emoji);
+      }
+    } catch (error) {
+      console.error("Error toggling reaction:", error);
+      throw error;
+    }
+  };
+
+  // Cleanup typing indicator on unmount
+  useEffect(() => {
+    return () => {
+      handleStopTyping();
+    };
+  }, []);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !conversation?.id || !currentUser?.id) return;
@@ -47,6 +126,9 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     setSending(true);
     const messageText = newMessage.trim();
     setNewMessage(""); // Clear immediately for better UX
+
+    // Stop typing indicator when sending
+    handleStopTyping();
 
     try {
       await sendFirebaseMessage({
@@ -61,6 +143,33 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       setNewMessage(messageText); // Restore message on error
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleStartTyping = () => {
+    if (!conversation?.id || !currentUser?.id) return;
+    
+    setTyping(conversation.id, currentUser.id, true);
+    
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    // Set timeout to stop typing after 3 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      handleStopTyping();
+    }, 3000);
+  };
+
+  const handleStopTyping = () => {
+    if (!conversation?.id || !currentUser?.id) return;
+    
+    setTyping(conversation.id, currentUser.id, false);
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
   };
 
@@ -131,6 +240,21 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     border: `1px solid ${currentTheme === 'dark' ? '#444' : '#e8e8e8'}`
   };
 
+  const textareaStyle = {
+    flex: 1,
+    border: 'none',
+    outline: 'none',
+    resize: 'none',
+    fontSize: '14px',
+    padding: '8px 0',
+    background: 'transparent',
+    color: currentTheme === 'dark' ? '#fff' : '#000',
+    fontFamily: 'inherit',
+    lineHeight: '1.4',
+    maxHeight: '100px',
+    minHeight: '20px'
+  };
+
   if (!conversation || !otherUser) {
     return null;
   }
@@ -139,6 +263,59 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
 
   return (
     <div className={css.wrapper}>
+      {/* Custom CSS for textarea placeholder and typing animation */}
+      <style jsx>{`
+        .custom-textarea::placeholder {
+          color: ${currentTheme === 'dark' ? '#aaa' : '#666'} !important;
+          opacity: 1;
+        }
+        .custom-textarea::-webkit-input-placeholder {
+          color: ${currentTheme === 'dark' ? '#aaa' : '#666'} !important;
+        }
+        .custom-textarea::-moz-placeholder {
+          color: ${currentTheme === 'dark' ? '#aaa' : '#666'} !important;
+        }
+        .custom-textarea:-ms-input-placeholder {
+          color: ${currentTheme === 'dark' ? '#aaa' : '#666'} !important;
+        }
+        
+        .typing-dots {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+        }
+        
+        .typing-dots span {
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background-color: ${currentTheme === 'dark' ? '#666' : '#999'};
+          animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dots span:nth-child(1) {
+          animation-delay: 0s;
+        }
+        
+        .typing-dots span:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        
+        .typing-dots span:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+          0%, 60%, 100% {
+            transform: translateY(0px);
+            opacity: 0.4;
+          }
+          30% {
+            transform: translateY(-6px);
+            opacity: 1;
+          }
+        }
+      `}</style>
       {/* Chat Header */}
       <div className={css.header}>
         {isMobile && (
@@ -151,20 +328,31 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
         )}
         
         <div className={css.participantInfo}>
-          <Avatar src={mainImage} size={40}>
-            {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
-          </Avatar>
+          <OnlineStatusAvatar userId={otherUser.id} size="medium">
+            <Avatar src={mainImage} size={40}>
+              {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
+            </Avatar>
+          </OnlineStatusAvatar>
           <div className={css.participantDetails}>
             <Typography.Text className={css.participantName} strong>
-              {otherUser.firstName} {otherUser.lastName}
+              {(otherUser.firstName && otherUser.lastName) 
+                ? `${otherUser.firstName} ${otherUser.lastName}` 
+                : otherUser.username || 'User'}
             </Typography.Text>
-            <Typography.Text className={css.status} type="secondary">
-              {otherUser.lastTimeActive ? 'Active recently' : 'Active now'}
-            </Typography.Text>
+            <OnlineStatusIndicator 
+              userId={otherUser.id} 
+              showText={true}
+            />
           </div>
         </div>
 
         <div className={css.actions}>
+          <Button 
+            type="text" 
+            icon={<Iconify icon="eva:search-fill" width="20px" />}
+            className={css.actionButton}
+            onClick={() => setShowSearch(true)}
+          />
           <Button 
             type="text" 
             icon={<Iconify icon="eva:phone-fill" width="20px" />}
@@ -203,7 +391,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                 Start a conversation
               </Typography.Title>
               <Typography.Text type="secondary">
-                Send a message to {otherUser.firstName} to start your conversation.
+                Send a message to {otherUser.firstName || otherUser.username || 'this person'} to start your conversation.
               </Typography.Text>
             </div>
           ) : (
@@ -226,34 +414,174 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                     </div>
                   )}
                   
-                  <div className={`${css.messageWrapper} ${isCurrentUser ? css.sent : css.received}`}>
+                  <div 
+                    className={`${css.messageWrapper} ${isCurrentUser ? css.sent : css.received} message-hover-container`}
+                    style={{ position: 'relative' }}
+                    data-message-id={messageItem.id}
+                    onMouseEnter={() => setHoveredMessageId(messageItem.id)}
+                    onMouseLeave={() => {
+                      // Don't hide if a popover is active for this message
+                      if (activePopoverId !== messageItem.id) {
+                        setHoveredMessageId(null);
+                      }
+                    }}
+                  >
                     {!isCurrentUser && (
-                      <Avatar 
-                        src={mainImage} 
-                        size={32} 
-                        className={css.messageAvatar}
-                      >
-                        {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
-                      </Avatar>
+                      <OnlineStatusAvatar userId={otherUser.id} size="small">
+                        <Avatar 
+                          src={mainImage} 
+                          size={32} 
+                          className={css.messageAvatar}
+                        >
+                          {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
+                        </Avatar>
+                      </OnlineStatusAvatar>
                     )}
                     
-                    <div className={css.messageContent}>
+                    <div className={css.messageContent} style={{ position: 'relative' }}>
                       <div 
                         className={`${css.messageBubble} ${isCurrentUser ? css.sentBubble : css.receivedBubble}`}
-                        style={!isCurrentUser ? receivedBubbleStyle : {}}
+                        style={{
+                          ...((!isCurrentUser) ? receivedBubbleStyle : {}),
+                          position: 'relative'
+                        }}
                       >
-                        <Typography.Text className={css.messageText}>
-                          {messageItem.text}
-                        </Typography.Text>
+                        {messageItem.type === "image" ? (
+                          <ImageMessage 
+                            messageItem={messageItem}
+                            isCurrentUser={isCurrentUser}
+                          />
+                        ) : messageItem.deleted ? (
+                          <Typography.Text 
+                            className={css.messageText}
+                            style={{ 
+                              fontStyle: 'italic', 
+                              color: '#999',
+                              fontSize: '13px'
+                            }}
+                          >
+                            {messageItem.text || "This message was deleted"}
+                          </Typography.Text>
+                        ) : (
+                          <EditMessage
+                            messageItem={messageItem}
+                            conversationId={conversation.id}
+                            currentUserId={currentUser?.id}
+                            isEditing={editingMessageId === messageItem.id}
+                            onStartEdit={() => setEditingMessageId(messageItem.id)}
+                            onCancelEdit={() => setEditingMessageId(null)}
+                            onSaveEdit={() => setEditingMessageId(null)}
+                          />
+                        )}
+
+                        {/* Hover Actions */}
+                        <MessageHoverActions
+                          messageItem={messageItem}
+                          conversationId={conversation.id}
+                          currentUserId={currentUser?.id}
+                          isCurrentUser={isCurrentUser}
+                          isVisible={hoveredMessageId === messageItem.id && editingMessageId !== messageItem.id}
+                          onEdit={() => setEditingMessageId(messageItem.id)}
+                          onDelete={() => {/* Real-time updates will handle this */}}
+                          reactions={{}} // Will be passed from MessageReactions component
+                          onReactionToggle={(emoji) => handleReactionToggle(messageItem.id, emoji, {})}
+                          onPopoverStateChange={(isOpen) => {
+                            if (isOpen) {
+                              setActivePopoverId(messageItem.id);
+                            } else {
+                              setActivePopoverId(null);
+                              // Also check if mouse is still over message
+                              setTimeout(() => {
+                                if (hoveredMessageId === messageItem.id) {
+                                  const messageElement = document.querySelector(`[data-message-id="${messageItem.id}"]`);
+                                  if (messageElement && !messageElement.matches(':hover')) {
+                                    setHoveredMessageId(null);
+                                  }
+                                }
+                              }, 100);
+                            }
+                          }}
+                        />
+                        
+                        {/* Message Reactions - only show if not hovering (to avoid conflict) */}
+                        {hoveredMessageId !== messageItem.id && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-8px',
+                            [isCurrentUser ? 'right' : 'left']: '8px',
+                            zIndex: 10
+                          }}>
+                            <MessageReactions
+                              conversationId={conversation.id}
+                              messageId={messageItem.id}
+                              currentUserId={currentUser?.id}
+                              isCurrentUser={isCurrentUser}
+                            />
+                          </div>
+                        )}
                       </div>
-                      <Typography.Text className={css.messageTime} type="secondary">
-                        {formatMessageTime(messageItem.timestamp)}
-                      </Typography.Text>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: isCurrentUser ? 'flex-end' : 'flex-start', gap: '4px' }}>
+                        <Typography.Text className={css.messageTime} type="secondary">
+                          {formatMessageTime(messageItem.timestamp)}
+                        </Typography.Text>
+                        <ReadReceiptIndicator
+                          conversationId={conversation.id}
+                          messageId={messageItem.id}
+                          senderId={messageItem.senderId}
+                          currentUserId={currentUser?.id}
+                          otherUserId={otherUser?.id}
+                        />
+                      </div>
                     </div>
                   </div>
                 </React.Fragment>
               );
             })
+          )}
+          
+          {/* Typing Indicator */}
+          {typingUsers.length > 0 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              marginBottom: '8px'
+            }}>
+                          <OnlineStatusAvatar userId={otherUser.id} size="small">
+              <Avatar 
+                src={getMainProfileImage(otherUser.images)} 
+                size={24}
+              >
+                {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
+              </Avatar>
+            </OnlineStatusAvatar>
+              <div style={{
+                background: currentTheme === 'dark' ? '#2a2a2a' : '#f0f0f0',
+                borderRadius: '18px',
+                padding: '8px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <div className="typing-dots">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <Typography.Text 
+                  type="secondary" 
+                  style={{ 
+                    fontSize: '12px',
+                    marginLeft: '8px',
+                    color: currentTheme === 'dark' ? '#ccc' : '#666'
+                  }}
+                >
+                  {otherUser.firstName || otherUser.username || 'User'} is typing...
+                </Typography.Text>
+              </div>
+            </div>
           )}
           
           <div ref={messagesEndRef} />
@@ -263,20 +591,36 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       {/* Message Input */}
       <div className={css.inputContainer}>
         <div className={css.inputWrapper} style={inputWrapperStyle}>
-          <Button 
-            type="text" 
-            icon={<Iconify icon="eva:attach-fill" width="20px" />}
-            className={css.attachButton}
+          <ImageUpload
+            conversation={conversation}
+            currentUser={currentUser}
+            onImageSent={() => {
+              // Images will automatically appear through the real-time subscription
+            }}
           />
           
-          <Input.TextArea
+          <textarea
+            className="custom-textarea"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              if (e.target.value.trim()) {
+                handleStartTyping();
+              } else {
+                handleStopTyping();
+              }
+            }}
             onKeyPress={handleKeyPress}
-            placeholder={`Message ${otherUser.firstName}...`}
-            className={css.messageInput}
-            autoSize={{ minRows: 1, maxRows: 4 }}
+            onBlur={handleStopTyping}
+            placeholder={`Message ${otherUser.firstName || otherUser.username || 'user'}...`}
             disabled={sending}
+            rows={1}
+            style={textareaStyle}
+            onInput={(e) => {
+              // Auto-resize functionality
+              e.target.style.height = 'auto';
+              e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
+            }}
           />
           
           <Button 
@@ -289,6 +633,18 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
           />
         </div>
       </div>
+
+      {/* Chat Search */}
+      <ChatSearch
+        conversation={conversation}
+        currentUser={currentUser}
+        isVisible={showSearch}
+        onClose={() => setShowSearch(false)}
+        onMessageClick={(messageItem) => {
+          // Scroll to message if needed - can be enhanced later
+          console.log("Navigate to message:", messageItem);
+        }}
+      />
     </div>
   );
 };

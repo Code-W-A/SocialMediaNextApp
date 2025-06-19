@@ -1,0 +1,114 @@
+.profileBody {
+  width: 100%;
+}
+
+.compatibilityView {
+  width: 100%;
+}
+
+/* Custom styling for cards in user profile - Force light theme */
+.profileBody :global(.ant-card),
+.compatibilityView :global(.ant-card) {
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+  transition: all 0.3s ease;
+  background: #fff !important;
+  color: #262626 !important;
+}
+
+.profileBody :global(.ant-card:hover),
+.compatibilityView :global(.ant-card:hover) {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.profileBody :global(.ant-card-head),
+.compatibilityView :global(.ant-card-head) {
+  border-bottom: 1px solid #f0f0f0;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%) !important;
+}
+
+.profileBody :global(.ant-card-head-title),
+.compatibilityView :global(.ant-card-head-title) {
+  font-weight: 600;
+  font-size: 16px;
+  color: #262626 !important;
+}
+
+.profileBody :global(.ant-card-body),
+.compatibilityView :global(.ant-card-body) {
+  padding: 20px;
+  background: #fff !important;
+  color: #262626 !important;
+}
+
+/* Text styling force light theme */
+.profileBody :global(.ant-typography),
+.compatibilityView :global(.ant-typography) {
+  color: #262626 !important;
+}
+
+.profileBody :global(.ant-typography-caption),
+.compatibilityView :global(.ant-typography-caption) {
+  color: #8c8c8c !important;
+}
+
+/* Image gallery styling */
+.profileBody :global(.ant-image) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.profileBody :global(.ant-image-mask) {
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+/* Progress bar styling */
+.profileBody :global(.ant-progress-bg),
+.compatibilityView :global(.ant-progress-bg) {
+  border-radius: 4px;
+}
+
+/* Tag styling */
+.profileBody :global(.ant-tag),
+.compatibilityView :global(.ant-tag) {
+  border-radius: 16px;
+  border: none;
+  font-weight: 500;
+  padding: 4px 12px;
+  margin: 2px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .profileBody :global(.ant-card-body),
+  .compatibilityView :global(.ant-card-body) {
+    padding: 16px;
+  }
+  
+  .profileBody :global(.ant-card-head-title),
+  .compatibilityView :global(.ant-card-head-title) {
+    font-size: 14px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .profileBody :global(.ant-card) {
+    background: #1f1f1f;
+    border-color: #303030;
+  }
+  
+  .profileBody :global(.ant-card-head) {
+    background: linear-gradient(135deg, #262626 0%, #1f1f1f 100%);
+    border-color: #303030;
+  }
+  
+  .profileBody :global(.ant-card-head-title) {
+    color: #fff;
+  }
+} 

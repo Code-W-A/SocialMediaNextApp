@@ -223,6 +223,11 @@
   font-size: 14px;
   padding: 8px 0 !important;
   background: transparent !important;
+  color: #000 !important;
+}
+
+.messageInput::placeholder {
+  color: #666 !important;
 }
 
 .messageInput:focus {
@@ -396,6 +401,14 @@
   
   .inputWrapper:focus-within {
     border-color: var(--primary);
+  }
+  
+  .messageInput {
+    color: #fff !important;
+  }
+  
+  .messageInput::placeholder {
+    color: #aaa !important;
   }
   
   .messageInput {

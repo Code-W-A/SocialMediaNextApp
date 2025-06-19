@@ -10,7 +10,6 @@ import { updateQueryCacheLikes } from "@/utils";
 
 const LikeButton = ({ postId, likes, queryId }) => {
   const { user } = useUser();
-
   const [isLiked, setIsLiked] = useState(false);
 
   useEffect(() => {
@@ -22,7 +21,7 @@ const LikeButton = ({ postId, likes, queryId }) => {
   const queryClient = useQueryClient();
 
   const { mutate } = useMutation({
-    mutationFn: (postId, actionType) => updatePostLike(postId, actionType),
+    mutationFn: ({ postId, actionType }) => updatePostLike(postId, actionType, user?.id),
 
     // This function will be run just before the mutation function
     onMutate: async () => {
@@ -34,7 +33,6 @@ const LikeButton = ({ postId, likes, queryId }) => {
 
       // Optimistically update to the new value
       queryClient.setQueryData(["posts", queryId], (old) => {
-        console.log(old);
         return {
           ...old,
           pages: old.pages.map((page) => {
@@ -65,12 +63,12 @@ const LikeButton = ({ postId, likes, queryId }) => {
     },
     onError: (err, variables, context) => {
       console.log("this is error", err);
-      queryClient.setQueryData(["posts"], context.previousPosts);
+      queryClient.setQueryData(["posts", queryId], context.previousPosts);
     },
 
     // Always refetch after error or success:
     onSettled: () => {
-      queryClient.invalidateQueries(["posts"]);
+      queryClient.invalidateQueries(["posts", queryId]);
     },
   });
 
@@ -80,7 +78,7 @@ const LikeButton = ({ postId, likes, queryId }) => {
         size="small"
         style={{ background: "transparent", border: "none", boxShadow: "none" }}
         onClick={() => {
-          mutate(postId, actionType);
+          mutate({ postId, actionType });
         }}
       >
         <Flex gap={".5rem"} align="center">

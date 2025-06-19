@@ -113,20 +113,47 @@ const FollowButton = ({ id }) => {
 
   return (
     <Button
-      type="primary"
       disabled={isPending}
       style={{
-        background: "var(--gradient)",
+        background: followed 
+          ? "linear-gradient(135deg, #f093fb15, #f5576c15)"
+          : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+        border: followed 
+          ? "1px solid #f093fb50"
+          : "none",
+        borderRadius: "8px",
+        boxShadow: followed 
+          ? "0 2px 8px rgba(240, 147, 251, 0.2)"
+          : "0 4px 12px rgba(102, 126, 234, 0.3)",
+        width: "100%"
       }}
       onClick={() => mutate({ id, type: followed ? "unfollow" : "follow" })}
     >
       {isPending ? (
-        <Typography className="typoSubtitle2" style={{ color: "white" }}>
-          Loading...
+        <Typography className="typoSubtitle2" style={{ 
+          color: followed ? "#f093fb" : "white" 
+        }}>
+          Se încarcă...
         </Typography>
       ) : (
-        <Typography className="typoSubtitle2" style={{ color: "white" }}>
-          {followed ? "Unfollow" : "Follow"}
+        <Typography className="typoSubtitle2" style={{ 
+          color: followed ? "#f093fb" : "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "6px"
+        }}>
+          {followed ? (
+            <>
+              <span>🔗</span>
+              <span>În rezonanță</span>
+            </>
+          ) : (
+            <>
+              <span>⭐</span>
+              <span>Rezonez</span>
+            </>
+          )}
         </Typography>
       )}
     </Button>

@@ -6,11 +6,12 @@ import ConversationsList from "@/components/Messages/ConversationsList";
 import ChatArea from "@/components/Messages/ChatArea";
 import { subscribeToUserConversations, markMessagesAsRead } from "@/actions/chat";
 import { useUser } from "@/hooks/useFirebaseAuth";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const MessagesPage = () => {
   const { user: currentUser, isLoaded } = useUser();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -76,7 +77,18 @@ const MessagesPage = () => {
   }, [searchParams, conversations]);
 
   const handleConversationSelect = async (conversation) => {
+    console.log("Selecting conversation:", conversation);
     setSelectedConversation(conversation);
+    
+    // If this is a new conversation (just created), add it to the conversations list temporarily
+    if (conversation.isNew && !conversations.find(conv => conv.id === conversation.id)) {
+      setConversations(prev => [conversation, ...prev]);
+    }
+    
+    // Update URL query to reflect selected conversation
+    if (conversation?.id) {
+      router.replace(`/messages?conversation=${conversation.id}`, { scroll: false });
+    }
     
     // Mark messages as read when conversation is selected
     if (conversation.unreadCount > 0) {

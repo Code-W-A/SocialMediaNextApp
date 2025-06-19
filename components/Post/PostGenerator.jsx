@@ -2,12 +2,24 @@
 import React, { useRef, useState } from "react";
 import css from "@/styles/PostGenerator.module.css";
 import Box from "../Box";
-import { Avatar, Button, Flex, Image, Input, Spin, Typography } from "antd";
+import { Avatar, Button, Flex, Image, Input, Spin, Typography, Divider, Card } from "antd";
 import Iconify from "../Iconify";
 import { createPost } from "@/actions/post";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useUser } from "@/hooks/useFirebaseAuth";
+
+const YDestinyPrompts = [
+  "Ce emoție te domină azi?",
+  "La ce te gândești chiar acum?",
+  "Ce te-ar bucura cel mai mult astăzi?",
+  "Dacă ai putea schimba ceva azi, ce ar fi?",
+  "Ce ți-ar plăcea să afle ceilalți despre tine?",
+  "Ce moment ți-a adus un zâmbet astăzi?",
+  "Împărtășește o mică bucurie sau un mic triumf!",
+  "Cum e partenerul perfect pentru tine acum? – 3 calități",
+  "Ce este cel mai important într-o relație pentru tine?"
+];
 
 const PostGenerator = () => {
   const imgInputRef = useRef(null);
@@ -15,9 +27,11 @@ const PostGenerator = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileType, setFileType] = useState(null); // [image, video]
   const [postText, setPostText] = useState(null);
+  const [selectedPrompt, setSelectedPrompt] = useState(null);
+  const [showPrompts, setShowPrompts] = useState(false);
   const queryClient = useQueryClient();
   const { mutate: execute, isPending } = useMutation({
-    mutationFn: (data) => createPost(data),
+    mutationFn: (data) => createPost({ ...data, authorId: user?.id }),
     onSuccess: () => {
       handleSuccess();
       queryClient.invalidateQueries("posts");
@@ -29,7 +43,14 @@ const PostGenerator = () => {
     setSelectedFile(null);
     setFileType(null);
     setPostText("");
-    toast.success("Post created successfully!");
+    setSelectedPrompt(null);
+    toast.success("Postarea ta a fost partajată pe Calea Destinului! ✨");
+  };
+
+  const handlePromptSelect = (prompt) => {
+    setPostText(prompt + " ");
+    setSelectedPrompt(prompt);
+    setShowPrompts(false);
   };
 
   const handleFileChange = async (e) => {
@@ -67,7 +88,7 @@ const PostGenerator = () => {
 
   function handleSubmitPost() {
     if ((postText === "" || !postText) && !selectedFile) {
-      showError("Can't make an empty post");
+      showError("Nu poți face o postare goală");
       return;
     }
     // don't forget to tell about the next.config.js file where we have set the limit of 5mb
@@ -81,12 +102,33 @@ const PostGenerator = () => {
         spinning={isPending}
         tip={
           <Typography className="typoBody1" style={{ marginTop: "1rem" }}>
-            Uploading post...
+            Se publică pe Calea Destinului...
           </Typography>
         }
       >
         <div className={css.postGenWrapper}>
           <Box className={css.container}>
+            {/* Header with YDestiny branding */}
+            <div style={{ 
+              textAlign: 'center', 
+              marginBottom: '1rem',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '12px',
+              padding: '16px',
+              color: 'white'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <Iconify icon="eva:star-fill" width="24px" style={{ color: '#FFD700' }} />
+                <Typography.Title level={4} style={{ margin: 0, color: 'white', fontSize: '18px' }}>
+                  Calea Destinului
+                </Typography.Title>
+                <Iconify icon="eva:star-fill" width="24px" style={{ color: '#FFD700' }} />
+              </div>
+              <Typography.Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px' }}>
+                Împărtășește-ți gândurile cu universul ✨
+              </Typography.Text>
+            </div>
+
             <Flex gap={"1rem"} align={"flex-start"} vertical>
               {/* avatar */}
 
@@ -102,12 +144,87 @@ const PostGenerator = () => {
 
                 <Input.TextArea
                   // maxLength={100}
-                  placeholder={"Share what you are thinking..."}
+                  placeholder={selectedPrompt || "Împărtășește ce simți în această clipă..."}
                   style={{ height: 80, resize: "none", flex: 1 }}
                   value={postText}
                   onChange={(e) => setPostText(e.target.value)}
                 />
               </Flex>
+
+              {/* YDestiny Prompts */}
+              <div style={{ width: '100%' }}>
+                <Button 
+                  type="text" 
+                  onClick={() => setShowPrompts(!showPrompts)}
+                  style={{ 
+                    marginBottom: '12px',
+                    border: '1px dashed #667eea',
+                    borderRadius: '8px',
+                    background: showPrompts ? '#667eea15' : 'transparent'
+                  }}
+                >
+                  <Flex align="center" gap={".5rem"}>
+                    <Iconify icon="eva:bulb-fill" width="16px" style={{ color: '#667eea' }} />
+                    <Typography.Text style={{ color: '#667eea' }}>
+                      {showPrompts ? 'Ascunde inspirația' : 'Inspirație pentru postare'}
+                    </Typography.Text>
+                    <Iconify 
+                      icon={showPrompts ? "eva:chevron-up-fill" : "eva:chevron-down-fill"} 
+                      width="16px" 
+                      style={{ color: '#667eea' }} 
+                    />
+                  </Flex>
+                </Button>
+
+                {showPrompts && (
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                    gap: '8px',
+                    marginBottom: '12px'
+                  }}>
+                    {YDestinyPrompts.map((prompt, index) => (
+                      <Button
+                        key={index}
+                        type="text"
+                        size="small"
+                        onClick={() => handlePromptSelect(prompt)}
+                        style={{
+                          textAlign: 'left',
+                          height: 'auto',
+                          whiteSpace: 'normal',
+                          padding: '8px 12px',
+                          border: '1px solid #f0f0f0',
+                          borderRadius: '8px',
+                          background: selectedPrompt === prompt ? '#667eea15' : '#fafafa',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedPrompt !== prompt) {
+                            e.target.style.background = '#667eea10';
+                            e.target.style.borderColor = '#667eea';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedPrompt !== prompt) {
+                            e.target.style.background = '#fafafa';
+                            e.target.style.borderColor = '#f0f0f0';
+                          }
+                        }}
+                      >
+                        <Typography.Text 
+                          style={{ 
+                            fontSize: '13px',
+                            color: selectedPrompt === prompt ? '#667eea' : '#666'
+                          }}
+                        >
+                          {prompt}
+                        </Typography.Text>
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* file preview */}
               {fileType && (
@@ -156,47 +273,60 @@ const PostGenerator = () => {
                 {/* image upload button */}
                 <Button
                   type="text"
-                  style={{ background: "borderColor" }}
+                  style={{ 
+                    background: "linear-gradient(135deg, #667eea15, #764ba215)",
+                    border: "1px solid #667eea30",
+                    borderRadius: "8px"
+                  }}
                   onClick={() => imgInputRef.current.click()}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify
                       icon="solar:camera-linear"
                       width="1.2rem"
-                      color="var(--primary)"
+                      color="#667eea"
                     />
-                    <Typography className="typoSubtitle2">Image</Typography>
+                    <Typography className="typoSubtitle2" style={{ color: "#667eea" }}>Fotografie</Typography>
                   </Flex>
                 </Button>
 
                 {/* video upload button */}
                 <Button
                   type="text"
-                  style={{ background: "borderColor" }}
+                  style={{ 
+                    background: "linear-gradient(135deg, #764ba215, #667eea15)",
+                    border: "1px solid #764ba230",
+                    borderRadius: "8px"
+                  }}
                   onClick={() => vidInputRef.current.click()}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify
                       icon="gridicons:video"
                       width="1.2rem"
-                      color="#5856D6"
+                      color="#764ba2"
                     />
-                    <Typography className="typoSubtitle2">Video</Typography>
+                    <Typography className="typoSubtitle2" style={{ color: "#764ba2" }}>Video</Typography>
                   </Flex>
                 </Button>
 
                 <Button
-                  type="primary"
-                  style={{ marginLeft: "auto" }}
+                  style={{ 
+                    marginLeft: "auto",
+                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    border: "none",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)"
+                  }}
                   onClick={handleSubmitPost}
                 >
                   <Flex align="center" gap={".5rem"}>
-                    <Iconify icon="iconamoon:send-fill" width="1.2rem" />
+                    <Iconify icon="eva:star-fill" width="1.2rem" style={{ color: "white" }} />
                     <Typography
                       className="typoSubtitle2"
                       style={{ color: "white" }}
                     >
-                      Post
+                      Împărtășește
                     </Typography>
                   </Flex>
                 </Button>

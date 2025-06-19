@@ -11,7 +11,7 @@ const CommentInput = ({ postId, setExpanded, queryId }) => {
   const queryClient = useQueryClient();
   const { user } = useUser();
   const { isPending, mutate } = useMutation({
-    mutationFn: (postId) => addComment(postId, value),
+    mutationFn: (postId) => addComment(postId, value, user?.id),
 
     // This function will be run just before the mutation function
     onMutate: async () => {
@@ -45,6 +45,7 @@ const CommentInput = ({ postId, setExpanded, queryId }) => {
                         },
                       },
                     ],
+                    commentsCount: (post.commentsCount || 0) + 1
                   };
                 } else {
                   return post;
@@ -58,16 +59,18 @@ const CommentInput = ({ postId, setExpanded, queryId }) => {
       // Return a context object with the snapshotted value
       return { previousPosts };
     },
+    onSuccess: () => {
+      setValue(""); // Reset input on success
+    },
     onError: (err, variables, context) => {
-      console.log("this executed");
+      console.log("this is error", err);
       toast.error("Something wrong happened. Try again!");
-      queryClient.setQueryData(["posts"], context.previousPosts);
+      queryClient.setQueryData(["posts", queryId], context.previousPosts);
     },
 
     // Always refetch after error or success:
     onSettled: () => {
-      queryClient.invalidateQueries(["posts"]);
-      setValue("");
+      queryClient.invalidateQueries(["posts", queryId]);
     },
   });
 

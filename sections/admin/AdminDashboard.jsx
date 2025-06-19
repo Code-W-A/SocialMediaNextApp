@@ -37,6 +37,7 @@ const AdminDashboard = () => {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [bulkMode, setBulkMode] = useState(false);
   const [sortBy, setSortBy] = useState('lastActive'); // 'name', 'age', 'lastActive'
+  const [compatibilitySearchText, setCompatibilitySearchText] = useState("");
   const queryClient = useQueryClient();
 
   // Fetch all users
@@ -107,6 +108,7 @@ const AdminDashboard = () => {
   const openCompatibilityModal = (user) => {
     setSelectedUser(user);
     setCompatibilityModalVisible(true);
+    setCompatibilitySearchText(""); // Clear search when opening modal
   };
 
   const openProfileModal = (user) => {
@@ -345,10 +347,30 @@ const AdminDashboard = () => {
   }) || [];
 
   // Get available users for compatibility (exclude current user and already compatible)
-  const availableUsers = users?.filter(user => 
-    user && user.id !== selectedUser?.id && 
-    !compatibilities?.some(comp => comp && comp.id === user.id)
-  ) || [];
+  const availableUsers = users?.filter(user => {
+    if (!user || user.id === selectedUser?.id) return false;
+    
+    // Exclude users who are already compatible
+    const isAlreadyCompatible = compatibilities?.some(comp => comp && comp.id === user.id);
+    if (isAlreadyCompatible) return false;
+    
+    // Apply search filter for compatibility modal
+    if (compatibilitySearchText.trim()) {
+      const fullName = (user.firstName && user.lastName) 
+        ? `${user.firstName} ${user.lastName}` 
+        : user.displayName || user.name || "";
+      const username = user.username || user.email?.split('@')[0] || "";
+      
+      const matchesCompatibilitySearch = 
+        fullName.toLowerCase().includes(compatibilitySearchText.toLowerCase()) ||
+        username.toLowerCase().includes(compatibilitySearchText.toLowerCase()) ||
+        (user.bio && user.bio.toLowerCase().includes(compatibilitySearchText.toLowerCase()));
+      
+      if (!matchesCompatibilitySearch) return false;
+    }
+    
+    return true;
+  }) || [];
 
   return (
     <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
@@ -535,6 +557,23 @@ const AdminDashboard = () => {
                   } 
                   size="small"
                 >
+                  {/* Search for users to add */}
+                  <div style={{ marginBottom: 16 }}>
+                    <Search
+                      placeholder="Search users by name, username, or bio..."
+                      value={compatibilitySearchText}
+                      onChange={(e) => setCompatibilitySearchText(e.target.value)}
+                      style={{ width: '100%' }}
+                      prefix={<SearchOutlined />}
+                      allowClear
+                    />
+                    {compatibilitySearchText.trim() && (
+                      <Text type="secondary" style={{ fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                        Found {availableUsers.length} user(s) matching "{compatibilitySearchText}"
+                      </Text>
+                    )}
+                  </div>
+
                   {/* Smart suggestions based on selected user */}
                   {selectedUser?.gender && (
                     <div style={{ marginBottom: 12, padding: '8px', background: '#f6f6f6', borderRadius: '4px' }}>

@@ -4,6 +4,7 @@ import StyledComponentsRegistry from "@/lib/AntRegistry";
 import "./globals.css";
 import "@/styles/typography.css";
 import QueryProvider from "@/lib/QueryProvider";
+import OnlineStatusManager from "@/components/OnlineStatusManager";
 
 const publicSans = Public_Sans({
   subsets: ["latin"],
@@ -28,7 +29,11 @@ export default function RootLayout({ children }) {
       <html lang="ro">
         <body className={publicSans.className}>
           <QueryProvider>
-            <StyledComponentsRegistry>{children}</StyledComponentsRegistry>
+            <StyledComponentsRegistry>
+              <OnlineStatusManager>
+                {children}
+              </OnlineStatusManager>
+            </StyledComponentsRegistry>
           </QueryProvider>
         </body>
       </html>

@@ -1,248 +1,554 @@
 "use server";
 
 import { 
-  mockPosts, 
-  mockUsers, 
-  mockCurrentUser, 
-  mockTrendsWithCounts,
-  getPostsWithRelations,
-  paginatePosts 
-} from "@/mock/mockData";
-import { checkPostForTrends } from "@/utils";
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  getDocs, 
+  getDoc,
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  startAfter,
+  serverTimestamp,
+  or,
+  and
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getMyCompatibleUsers } from "./admin";
+import { getUser } from "./user";
 
-// Global variables to simulate database state
-let mockPostsState = [...getPostsWithRelations()];
-let nextPostId = Math.max(...mockPosts.map(p => p.id)) + 1;
-let nextLikeId = 100;
-let nextCommentId = 50;
-
-// Mock current user function
-const getCurrentUser = () => {
-  return Promise.resolve(mockCurrentUser);
-};
-
+// Create a new post
 export const createPost = async (post) => {
-  const { postText, media } = post;
+  const { postText, media, authorId } = post;
   try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const user = await getCurrentUser();
-    const currentTime = new Date();
-    
+    if (!authorId) {
+      throw new Error("Author ID is required");
+    }
+
+    // Get author data
+    const authorData = await getUser(authorId);
+    if (!authorData?.data) {
+      throw new Error("Author not found");
+    }
+
+    let mediaUrl = null;
+    let mediaFileName = null;
+
+    // Upload media if provided
+    if (media) {
+      try {
+        // Convert base64 to file if needed
+        if (typeof media === 'string' && media.startsWith('data:')) {
+          const base64Data = media.split(',')[1];
+          const mimeType = media.split(',')[0].split(':')[1].split(';')[0];
+          const fileExtension = mimeType.split('/')[1];
+          
+          const buffer = Buffer.from(base64Data, 'base64');
+          const blob = new Blob([buffer], { type: mimeType });
+          
+          // Create unique filename
+          const timestamp = Date.now();
+          const fileName = `post_${timestamp}.${fileExtension}`;
+          const filePath = `posts/${authorId}/${fileName}`;
+          
+          // Upload to Firebase Storage
+          const storage = getStorage();
+          const storageRef = ref(storage, filePath);
+          const snapshot = await uploadBytes(storageRef, blob);
+          mediaUrl = await getDownloadURL(snapshot.ref);
+          mediaFileName = fileName;
+        }
+      } catch (uploadError) {
+        console.error("Error uploading media:", uploadError);
+        // Continue without media if upload fails
+      }
+    }
+
+    // Create post document
     const newPost = {
-      id: nextPostId++,
-      postText,
-      media: media || null,
-      authorId: user.id,
-      cld_id: media ? `post_${nextPostId}_${Date.now()}` : null,
-      createdAt: currentTime,
+      postText: postText || '',
+      media: mediaUrl,
+      mediaFileName,
+      authorId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      edited: false,
       likes: [],
-      comments: [],
-      trends: [],
-      author: user,
+      likesCount: 0,
+      commentsCount: 0,
+      isVisible: true
     };
 
-    // Add trends if any
-    const trends = checkPostForTrends(postText);
-    if (trends.length > 0) {
-      newPost.trends = trends.map((trend, index) => ({
-        id: `trend_${nextPostId}_${index}`,
-        name: trend,
-        postId: newPost.id,
-      }));
-    }
+    const docRef = await addDoc(collection(db, "Posts"), newPost);
 
-    // Add to beginning of posts array (most recent first)
-    mockPostsState.unshift(newPost);
-
+    // Return post with author data
     return {
-      data: newPost,
+      data: {
+        id: docRef.id,
+        ...newPost,
+        createdAt: new Date(), // For immediate display
+        updatedAt: new Date(),
+        author: authorData.data,
+        likes: [],
+        comments: []
+      },
     };
-  } catch (e) {
-    console.log(e);
-    throw Error("Failed to create post");
+  } catch (error) {
+    console.error("Error creating post:", error);
+    throw new Error("Failed to create post");
   }
 };
 
-export const getPosts = async (lastCursor, id) => {
+// Get posts feed (personal + compatible users)
+export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10) => {
   try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const take = 5;
-    let filteredPosts = mockPostsState;
-    
-    // Filter by user if id is not "all"
-    if (id !== "all") {
-      filteredPosts = mockPostsState.filter(post => post.author.id === id);
+    if (!userId) {
+      throw new Error("User ID is required");
     }
-    
-    // Sort by creation date (newest first)
-    filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    return paginatePosts(filteredPosts, lastCursor, take);
-  } catch (e) {
-    console.log(e);
-    throw Error("Failed to fetch posts");
-  }
-};
 
-export const getMyPostsFeed = async (lastCursor) => {
-  try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Get compatible user IDs
+    const compatibleUsers = await getMyCompatibleUsers(userId);
+    const compatibleUserIds = compatibleUsers.map(user => user.id);
     
-    const user = await getCurrentUser();
-    
-    // For mock purposes, return all posts as if they're from followed users
-    // In a real app, you'd filter by following relationships
-    const feedPosts = mockPostsState.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    return paginatePosts(feedPosts, lastCursor, 5);
-  } catch (e) {
-    console.log(e);
-    throw Error("Failed to fetch posts");
-  }
-};
+    // Include current user's posts
+    const authorIds = [userId, ...compatibleUserIds];
 
-export const updatePostLike = async (postId, type) => {
-  try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const user = await getCurrentUser();
-    const userId = user.id;
-
-    // Find the post
-    const postIndex = mockPostsState.findIndex(post => post.id === postId);
-    if (postIndex === -1) {
+    if (authorIds.length === 0) {
       return {
-        error: "Post not found",
+        data: [],
+        metaData: {
+          hasNextPage: false,
+          lastCursor: null
+        }
       };
     }
 
-    const post = mockPostsState[postIndex];
-    
-    // Check if user has already liked the post
-    const likeIndex = post.likes.findIndex(like => like.authorId === userId);
-    const hasLiked = likeIndex !== -1;
+    // Create query for posts from compatible users
+    const postsRef = collection(db, "Posts");
+    let postsQuery = query(
+      postsRef,
+      orderBy("createdAt", "desc"),
+      limit(limitCount * 5) // Get more posts to filter client-side
+    );
 
-    if (type === "like" && !hasLiked) {
-      // Add like
-      const newLike = {
-        id: nextLikeId++,
-        postId: postId,
-        authorId: userId,
-        createdAt: new Date(),
-      };
-      post.likes.push(newLike);
-    } else if (type === "unlike" && hasLiked) {
-      // Remove like
-      post.likes.splice(likeIndex, 1);
+    // Add pagination if lastCursor provided
+    if (lastCursor) {
+      const lastDoc = await getDoc(doc(db, "Posts", lastCursor));
+      if (lastDoc.exists()) {
+        postsQuery = query(
+          postsRef,
+          orderBy("createdAt", "desc"),
+          startAfter(lastDoc),
+          limit(limitCount * 5)
+        );
+      }
+    }
+
+    const snapshot = await getDocs(postsQuery);
+    const posts = [];
+
+    // Process each post and filter by compatible authors
+    for (const docSnap of snapshot.docs) {
+      const postData = docSnap.data();
+      
+      // Skip invisible posts
+      if (postData.isVisible === false) {
+        continue;
+      }
+      
+      // Only include posts from compatible users or current user
+      if (!authorIds.includes(postData.authorId)) {
+        continue;
+      }
+      
+      // Get author data
+      const authorData = await getUser(postData.authorId);
+      
+      // Get likes for this post
+      const likesSnapshot = await getDocs(
+        collection(db, "Posts", docSnap.id, "Likes")
+      );
+      const likes = likesSnapshot.docs.map(likeDoc => ({
+        id: likeDoc.id,
+        ...likeDoc.data()
+      }));
+
+      // Get comments count
+      const commentsSnapshot = await getDocs(
+        collection(db, "Posts", docSnap.id, "Comments")
+      );
+
+      posts.push({
+        id: docSnap.id,
+        ...postData,
+        // Convert Firestore timestamp to Date for display
+        createdAt: postData.createdAt?.toDate() || new Date(),
+        updatedAt: postData.updatedAt?.toDate() || new Date(),
+        editedAt: postData.editedAt?.toDate() || null,
+        author: authorData?.data || { id: postData.authorId, firstName: 'Unknown', lastName: 'User' },
+        likes,
+        comments: [], // We'll load comments on demand
+        commentsCount: commentsSnapshot.docs.length
+      });
+      
+      // Stop when we have enough posts
+      if (posts.length >= limitCount) {
+        break;
+      }
     }
 
     return {
-      data: post,
+      data: posts,
+      metaData: {
+        hasNextPage: posts.length === limitCount,
+        lastCursor: posts.length > 0 ? posts[posts.length - 1].id : null
+      }
     };
-  } catch (e) {
-    console.log(e);
-    throw Error("Failed to update post like");
+  } catch (error) {
+    console.error("Error fetching posts feed:", error);
+    throw new Error("Failed to fetch posts feed");
   }
 };
 
-export const addComment = async (postId, comment) => {
+// Get posts for a specific user
+export const getPosts = async (lastCursor = null, userId, limitCount = 10) => {
   try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 300));
+    if (!userId || userId === "all") {
+      // Return all posts (for admin or public feed)
+      return getMyPostsFeed("all_users", lastCursor, limitCount);
+    }
+
+    const postsRef = collection(db, "Posts");
+    let postsQuery = query(
+      postsRef,
+      where("authorId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(limitCount * 2)
+    );
+
+    if (lastCursor) {
+      const lastDoc = await getDoc(doc(db, "Posts", lastCursor));
+      if (lastDoc.exists()) {
+        postsQuery = query(
+          postsRef,
+          where("authorId", "==", userId),
+          orderBy("createdAt", "desc"),
+          startAfter(lastDoc),
+          limit(limitCount * 2)
+        );
+      }
+    }
+
+    const snapshot = await getDocs(postsQuery);
+    const posts = [];
+
+    for (const docSnap of snapshot.docs) {
+      const postData = docSnap.data();
+      
+      // Skip invisible posts
+      if (postData.isVisible === false) {
+        continue;
+      }
+      
+      const authorData = await getUser(postData.authorId);
+      
+      const likesSnapshot = await getDocs(
+        collection(db, "Posts", docSnap.id, "Likes")
+      );
+      const likes = likesSnapshot.docs.map(likeDoc => ({
+        id: likeDoc.id,
+        ...likeDoc.data()
+      }));
+
+      const commentsSnapshot = await getDocs(
+        collection(db, "Posts", docSnap.id, "Comments")
+      );
+
+      posts.push({
+        id: docSnap.id,
+        ...postData,
+        createdAt: postData.createdAt?.toDate() || new Date(),
+        updatedAt: postData.updatedAt?.toDate() || new Date(),
+        editedAt: postData.editedAt?.toDate() || null,
+        author: authorData?.data || { id: postData.authorId, firstName: 'Unknown', lastName: 'User' },
+        likes,
+        comments: [],
+        commentsCount: commentsSnapshot.docs.length
+      });
+    }
+
+    return {
+      data: posts,
+      metaData: {
+        hasNextPage: snapshot.docs.length === limitCount,
+        lastCursor: posts.length > 0 ? posts[posts.length - 1].id : null
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching user posts:", error);
+    throw new Error("Failed to fetch user posts");
+  }
+};
+
+// Update post like
+export const updatePostLike = async (postId, type, userId) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const likeRef = doc(db, "Posts", postId, "Likes", userId);
+    const postRef = doc(db, "Posts", postId);
+
+    if (type === "like") {
+      // Add like
+      await addDoc(collection(db, "Posts", postId, "Likes"), {
+        authorId: userId,
+        postId: postId,
+        createdAt: serverTimestamp()
+      });
+    } else if (type === "unlike") {
+      // Remove like
+      const likesSnapshot = await getDocs(
+        query(collection(db, "Posts", postId, "Likes"), where("authorId", "==", userId))
+      );
+      
+      likesSnapshot.forEach(async (likeDoc) => {
+        await deleteDoc(likeDoc.ref);
+      });
+    }
+
+    // Update likes count in post
+    const likesSnapshot = await getDocs(collection(db, "Posts", postId, "Likes"));
+    await updateDoc(postRef, {
+      likesCount: likesSnapshot.docs.length
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating post like:", error);
+    throw new Error("Failed to update post like");
+  }
+};
+
+// Add comment to post
+export const addComment = async (postId, comment, userId) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const authorData = await getUser(userId);
     
-    const user = await getCurrentUser();
-    
-    // Find the post
-    const postIndex = mockPostsState.findIndex(post => post.id === postId);
-    if (postIndex === -1) {
+    const newComment = {
+      comment,
+      authorId: userId,
+      postId: postId,
+      createdAt: serverTimestamp()
+    };
+
+    const docRef = await addDoc(collection(db, "Posts", postId, "Comments"), newComment);
+
+    // Update comments count in post
+    const commentsSnapshot = await getDocs(collection(db, "Posts", postId, "Comments"));
+    await updateDoc(doc(db, "Posts", postId), {
+      commentsCount: commentsSnapshot.docs.length
+    });
+
+    return {
+      data: {
+        id: docRef.id,
+        ...newComment,
+        createdAt: new Date(),
+        author: authorData?.data || { id: userId, firstName: 'Unknown', lastName: 'User' }
+      },
+    };
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    throw new Error("Failed to add comment");
+  }
+};
+
+// Edit post (only by author)
+export const editPost = async (postId, newText, userId) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const postRef = doc(db, "Posts", postId);
+    const postDoc = await getDoc(postRef);
+
+    if (!postDoc.exists()) {
       throw new Error("Post not found");
     }
 
-    const newComment = {
-      id: nextCommentId++,
-      comment,
-      authorId: user.id,
-      postId: postId,
-      createdAt: new Date(),
-      author: user,
-    };
+    const postData = postDoc.data();
+    if (postData.authorId !== userId) {
+      throw new Error("You can only edit your own posts");
+    }
 
-    mockPostsState[postIndex].comments.push(newComment);
+    await updateDoc(postRef, {
+      postText: newText,
+      edited: true,
+      editedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
 
-    return {
-      data: newComment,
-    };
-  } catch (e) {
-    throw e;
+    return { success: true };
+  } catch (error) {
+    console.error("Error editing post:", error);
+    throw new Error("Failed to edit post");
   }
 };
 
-export const createTrends = async (trends, postId) => {
+// Delete post (only by author)
+export const deletePost = async (postId, userId) => {
   try {
-    // Mock function - trends are already created in createPost
-    return {
-      data: trends.map((trend, index) => ({
-        id: `trend_${postId}_${index}`,
-        name: trend,
-        postId: postId,
-      })),
-    };
-  } catch (e) {
-    throw e;
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const postRef = doc(db, "Posts", postId);
+    const postDoc = await getDoc(postRef);
+
+    if (!postDoc.exists()) {
+      throw new Error("Post not found");
+    }
+
+    const postData = postDoc.data();
+    if (postData.authorId !== userId) {
+      throw new Error("You can only delete your own posts");
+    }
+
+    // Soft delete - mark as invisible
+    await updateDoc(postRef, {
+      isVisible: false,
+      deletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting post:", error);
+    throw new Error("Failed to delete post");
   }
 };
 
+// Get comments for a post
+export const getPostComments = async (postId) => {
+  try {
+    const commentsSnapshot = await getDocs(
+      query(
+        collection(db, "Posts", postId, "Comments"),
+        orderBy("createdAt", "asc")
+      )
+    );
+
+    const comments = [];
+    for (const commentDoc of commentsSnapshot.docs) {
+      const commentData = commentDoc.data();
+      const authorData = await getUser(commentData.authorId);
+      
+      comments.push({
+        id: commentDoc.id,
+        ...commentData,
+        createdAt: commentData.createdAt?.toDate() || new Date(),
+        author: authorData?.data || { id: commentData.authorId, firstName: 'Unknown', lastName: 'User' }
+      });
+    }
+
+    return { data: comments };
+  } catch (error) {
+    console.error("Error fetching comments:", error);
+    throw new Error("Failed to fetch comments");
+  }
+};
+
+// Get popular trends based on hashtags in posts
 export const getPopularTrends = async () => {
   try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    return {
-      data: mockTrendsWithCounts,
-    };
-  } catch (e) {
-    throw e;
-  }
-};
+    // Get recent posts (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-export const deletePost = async (postId) => {
-  try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    const user = await getCurrentUser();
-    const userId = user.id;
-    
-    // Find the post
-    const postIndex = mockPostsState.findIndex(post => post.id === postId);
-    if (postIndex === -1) {
-      return {
-        error: "Post not found",
-      };
+    const postsRef = collection(db, "Posts");
+    const recentPostsQuery = query(
+      postsRef,
+      orderBy("createdAt", "desc"),
+      limit(200) // Get recent posts to analyze
+    );
+
+    const snapshot = await getDocs(recentPostsQuery);
+    const hashtagCount = {};
+
+    // Process posts to extract hashtags
+    snapshot.docs.forEach(doc => {
+      const postData = doc.data();
+      
+      // Skip invisible posts
+      if (postData.isVisible === false) {
+        return;
+      }
+
+      // Extract hashtags from post text
+      const postText = postData.postText || '';
+      const hashtags = postText.match(/#\w+/g) || [];
+      
+      hashtags.forEach(hashtag => {
+        const cleanHashtag = hashtag.toLowerCase();
+        if (hashtagCount[cleanHashtag]) {
+          hashtagCount[cleanHashtag].count++;
+          hashtagCount[cleanHashtag].posts.push(doc.id);
+        } else {
+          hashtagCount[cleanHashtag] = {
+            name: hashtag, // Keep original case
+            count: 1,
+            posts: [doc.id]
+          };
+        }
+      });
+    });
+
+    // Convert to array and sort by count
+    const trends = Object.values(hashtagCount)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10) // Top 10 trends
+      .map(trend => ({
+        name: trend.name,
+        _count: {
+          name: trend.count
+        },
+        posts: trend.posts
+      }));
+
+    // If no hashtags found, return some default trends
+    if (trends.length === 0) {
+      return [
+        { name: "#SocialMedia", _count: { name: 5 }, posts: [] },
+        { name: "#Technology", _count: { name: 3 }, posts: [] },
+        { name: "#Lifestyle", _count: { name: 2 }, posts: [] },
+        { name: "#News", _count: { name: 2 }, posts: [] },
+        { name: "#Fun", _count: { name: 1 }, posts: [] }
+      ];
     }
 
-    const post = mockPostsState[postIndex];
+    return trends;
+  } catch (error) {
+    console.error("Error fetching popular trends:", error);
     
-    // Check if user owns the post
-    if (post.authorId !== userId) {
-      return {
-        error: "You are not authorized to delete this post",
-      };
-    }
-
-    // Remove the post
-    mockPostsState.splice(postIndex, 1);
-    
-    return {
-      data: "Post deleted",
-    };
-  } catch (e) {
-    throw e;
+    // Return fallback trends on error
+    return [
+      { name: "#Trending", _count: { name: 10 }, posts: [] },
+      { name: "#Popular", _count: { name: 8 }, posts: [] },
+      { name: "#Social", _count: { name: 6 }, posts: [] },
+      { name: "#Community", _count: { name: 4 }, posts: [] },
+      { name: "#Connect", _count: { name: 3 }, posts: [] }
+    ];
   }
 };

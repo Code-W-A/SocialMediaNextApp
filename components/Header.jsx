@@ -63,13 +63,38 @@ const Header = () => {
           </div>
 
           {/* logo */}
-          <Image
-            src="/images/destiny-logo.svg"
-            width={150}
-            height={40}
-            alt="YDestiny"
-            className={css.logo}
-          />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '12px',
+            padding: '8px 16px',
+            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
+          }}>
+            <Iconify 
+              icon="eva:star-fill" 
+              width="24px" 
+              style={{ color: '#FFD700' }} 
+            />
+            <span style={{
+              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: '18px',
+              fontWeight: '700',
+              letterSpacing: '0.5px'
+            }}>
+              YDestiny
+            </span>
+            <span style={{
+              color: 'rgba(255,255,255,0.9)',
+              fontSize: '12px',
+              fontWeight: '500'
+            }}>
+              Calea Destinului
+            </span>
+          </div>
           
           {/* actions */}
           <Flex gap={25} align="center"> 

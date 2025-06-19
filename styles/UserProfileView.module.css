@@ -1,0 +1,52 @@
+.wrapper {
+  height: auto;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  padding: 0;
+  overflow: visible;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+  background: transparent;
+  min-height: calc(100vh - 200px);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .container {
+    padding: 0.5rem;
+    padding-bottom: 120px; /* Extra space for bottom navbar */
+  }
+}
+
+/* Tab customization */
+.wrapper :global(.ant-tabs-tab) {
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.wrapper :global(.ant-tabs-tab-active) {
+  background: linear-gradient(135deg, var(--primary), #FFB84D);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card styling */
+.wrapper :global(.ant-card) {
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+}
+
+.wrapper :global(.ant-card-head) {
+  border-bottom: 1px solid #f0f0f0;
+  border-radius: 12px 12px 0 0;
+}
+
+.wrapper :global(.ant-card-head-title) {
+  font-weight: 600;
+  font-size: 16px;
+} 

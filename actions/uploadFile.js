@@ -1,46 +1,38 @@
 "use server";
-import { cld } from "@/lib/cloudinary";
+
+// Mock file upload functions
 
 export const uploadFile = async (file, folder) => {
   try {
-    // Upload image to Cloudinary
-    const res = cld.v2.uploader.upload(
-      file,
-      { folder: `socialhop/${folder}`, resource_type: "auto" },
-      (error, result) => {
-        if (error) {
-          console.error("Error uploading image:", error);
-        } else {
-          console.log("file uploaded successfully");
-          return result;
-        }
-      }
-    );
-    return res;
-  } catch (e) {
-    console.log(e);
-    return {
-      error: "Failed to upload",
+    // Simulate upload delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Generate mock response similar to Cloudinary
+    const mockResponse = {
+      public_id: `mock_${folder.replace(/\//g, '_')}_${Date.now()}`,
+      secure_url: file, // In mock, we'll just return the data URL as is
+      url: file,
+      format: 'auto',
+      resource_type: 'auto',
     };
+    
+    console.log('Mock file uploaded:', mockResponse);
+    return mockResponse;
+  } catch (error) {
+    console.error('Mock upload error:', error);
+    throw error;
   }
 };
 
-export const deleteFile = async (public_id) => {
+export const deleteFile = async (publicId) => {
   try {
-    // Delete image from Cloudinary
-    const res = cld.v2.uploader.destroy(public_id, (error, result) => {
-      if (error) {
-        console.error("Error deleting image:", error);
-      } else {
-        console.log("file deleted successfully");
-        return result;
-      }
-    });
-    return res;
-  } catch (e) {
-    console.log(e);
-    return {
-      error: "Failed to delete",
-    };
+    // Simulate delete delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    console.log('Mock file deleted:', publicId);
+    return { result: 'ok' };
+  } catch (error) {
+    console.error('Mock delete error:', error);
+    throw error;
   }
 };

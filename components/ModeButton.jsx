@@ -10,13 +10,14 @@ const ModeButton = () => {
   } = useSettingsContext();
   return (
     <Button
-      style={{ padding: 0, border: "none" }}
+      style={{ padding: 0, border: "none", opacity: 0.5 }}
+      disabled={true}
       onClick={() => {
-        setSettings((prev) => ({
-            ...prev, theme: prev.theme === "dark" ? "light" : "dark",
-        }));
+        // Temporarily disabled - app forced to light mode
+        console.log("Theme switching temporarily disabled");
       }}
       icon={<Icon icon="icon-park-solid:dark-mode" width={"35px"} />}
+      title="Theme switching temporarily disabled"
     />
   );
 };

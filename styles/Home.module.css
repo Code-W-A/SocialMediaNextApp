@@ -14,6 +14,13 @@
     margin-left: auto;
     margin-right: auto;
     padding-bottom: 4rem;
+    
+    /* Mobile: Add extra padding for bottom navbar */
+    @media (max-width: 1023px) {
+        padding-bottom: 120px;
+        max-width: 100%;
+        margin: 0;
+    }
 }
 
 .rightSide{

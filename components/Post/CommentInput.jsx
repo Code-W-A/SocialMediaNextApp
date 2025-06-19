@@ -4,7 +4,7 @@ import Iconify from "../Iconify";
 import { addComment } from "@/actions/post";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 
 const CommentInput = ({ postId, setExpanded, queryId }) => {
   const [value, setValue] = useState("");

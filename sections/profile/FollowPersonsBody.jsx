@@ -4,7 +4,7 @@ import { Alert, Skeleton, Typography } from "antd";
 import UserBox from "@/components/UserBox";
 import { useQuery } from "@tanstack/react-query";
 import { getAllFollowersAndFollowings } from "@/actions/user";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 const FollowPersonsBody = ({ id, type }) => {
   const { user: currentUser } = useUser();
   const {

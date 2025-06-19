@@ -8,8 +8,20 @@ export function SettingsContextProvider({ children }) {
     isSidebarOpen: false,
   });
 
+  // Override setSettings to always keep theme as "light"
+  const forcedSetSettings = (newSettings) => {
+    if (typeof newSettings === 'function') {
+      setSettings(prev => {
+        const updated = newSettings(prev);
+        return { ...updated, theme: "light" };
+      });
+    } else {
+      setSettings({ ...newSettings, theme: "light" });
+    }
+  };
+
   return (
-    <SettingsContext.Provider value={{ settings, setSettings }}>
+    <SettingsContext.Provider value={{ settings, setSettings: forcedSetSettings }}>
       {children}
     </SettingsContext.Provider>
   );

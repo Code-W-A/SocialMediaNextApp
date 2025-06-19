@@ -26,3 +26,19 @@
     display: block;
   }
 }
+
+/* Hide sidebar button on mobile when using bottom navbar */
+@media (max-width: 1023px) {
+  .sidebarButton{
+    display: none;
+  }
+  
+  .logo{
+    display: block;
+  }
+  
+  .container {
+    padding: 1rem;
+    justify-content: center;
+  }
+}

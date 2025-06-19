@@ -3,7 +3,7 @@ import { Button, Flex, Typography } from "antd";
 import React, { useEffect, useState } from "react";
 import Iconify from "../Iconify";
 import { HappyProvider } from "@ant-design/happy-work-theme";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 import { updatePostLike } from "@/actions/post";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateQueryCacheLikes } from "@/utils";

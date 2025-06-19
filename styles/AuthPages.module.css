@@ -1,0 +1,311 @@
+.authContainer {
+  width: 100%;
+  max-width: 600px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  height: 100%;
+  justify-content: center;
+}
+
+.signUpContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* Header Section */
+.authHeader {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.authTitle {
+  color: var(--text-color) !important;
+  margin-bottom: 0.5rem !important;
+  font-weight: 700 !important;
+  font-size: 1.75rem !important;
+}
+
+.authSubtitle {
+  font-size: 15px !important;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.65) !important;
+}
+
+/* Form Styling */
+.authForm {
+  width: 100%;
+}
+
+.authForm .ant-form-item-label > label {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 14px;
+}
+
+.authInput {
+  border-radius: 12px !important;
+  border: 1.5px solid #e8e8e8 !important;
+  transition: all 0.3s ease !important;
+  font-size: 15px !important;
+}
+
+.authInput:hover {
+  border-color: var(--primary) !important;
+}
+
+.authInput:focus,
+.authInput.ant-input-focused {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-low) !important;
+}
+
+.authInput .ant-input-prefix {
+  color: #999;
+  margin-right: 12px;
+}
+
+/* Name Fields (Side by Side) */
+.nameFields {
+  display: flex;
+  gap: 1rem;
+}
+
+.halfField {
+  flex: 1;
+}
+
+/* Auth Options */
+.authOptions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.forgotLink {
+  color: var(--primary) !important;
+  font-weight: 500;
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.forgotLink:hover {
+  color: var(--primary) !important;
+  text-decoration: underline;
+}
+
+/* Primary Button */
+.authButton {
+  height: 48px !important;
+  border-radius: 12px !important;
+  background: var(--primary) !important;
+  border: none !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  box-shadow: 0 4px 12px rgba(249, 170, 17, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+.authButton:hover {
+  background: var(--primary) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(249, 170, 17, 0.4) !important;
+}
+
+.authButton:active {
+  transform: translateY(0);
+}
+
+/* Divider */
+.authDivider {
+  margin: 1.5rem 0 1rem !important;
+}
+
+.authDivider .ant-divider-inner-text {
+  font-size: 13px !important;
+  color: #999 !important;
+}
+
+/* Social Buttons */
+.socialButtons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.socialButton {
+  flex: 1;
+  height: 44px !important;
+  border-radius: 10px !important;
+  border: 1.5px solid #e8e8e8 !important;
+  background: white !important;
+  color: var(--text-color) !important;
+  font-weight: 500 !important;
+  transition: all 0.3s ease !important;
+}
+
+.socialButton:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--primary-low) !important;
+  transform: translateY(-1px);
+}
+
+/* Footer */
+.authFooter {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.authLink {
+  color: var(--primary) !important;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.authLink:hover {
+  color: var(--primary) !important;
+  text-decoration: underline;
+}
+
+/* Terms Checkbox */
+.termsCheckbox {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.termsCheckbox .ant-checkbox {
+  margin-right: 8px;
+}
+
+.termsCheckbox .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Form Validation */
+.authForm .ant-form-item-has-error .authInput {
+  border-color: #ff4d4f !important;
+}
+
+.authForm .ant-form-item-has-error .authInput:focus {
+  border-color: #ff4d4f !important;
+  box-shadow: 0 0 0 3px rgba(255, 77, 79, 0.1) !important;
+}
+
+.authForm .ant-form-item-explain-error {
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+/* Success State */
+.authForm .ant-form-item-has-success .authInput {
+  border-color: #52c41a !important;
+}
+
+/* Loading State */
+.authButton.ant-btn-loading {
+  pointer-events: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .authContainer {
+    padding: 1.5rem;
+    max-width: 100%;
+  }
+
+  .signUpContainer {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .authTitle {
+    font-size: 1.5rem !important;
+  }
+  
+  .authSubtitle {
+    font-size: 14px !important;
+  }
+  
+  .nameFields {
+    flex-direction: column;
+    gap: 0;
+  }
+  
+  .halfField {
+    flex: none;
+  }
+  
+  .socialButtons {
+    flex-direction: column;
+  }
+  
+  .socialButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .authContainer {
+    padding: 1rem;
+  }
+  
+  .authTitle {
+    font-size: 1.375rem !important;
+  }
+  
+  .authInput {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+  
+  .authButton {
+    height: 44px !important;
+    font-size: 15px !important;
+  }
+}
+
+/* Animation for form appearance */
+.authContainer {
+  animation: slideUp 0.6s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus states for better accessibility */
+.authInput:focus-visible,
+.authButton:focus-visible,
+.socialButton:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Password strength indicator styling */
+.authForm .ant-form-item-has-feedback .ant-input-suffix {
+  right: 12px;
+}
+
+/* Custom scrollbar for mobile */
+@media (max-width: 768px) {
+  .authContainer::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .authContainer {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+} 

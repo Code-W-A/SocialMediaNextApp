@@ -7,7 +7,7 @@ import UserBox from "./UserBox";
 import {
   getFollowSuggestions,
 } from "@/actions/user";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 import { useQuery } from "@tanstack/react-query";
 const FollowSuggestions = () => {
   const { user: currentUser } = useUser();

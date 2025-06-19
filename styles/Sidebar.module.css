@@ -4,6 +4,11 @@
   overflow: hidden;
   display: flex;
   min-height: 88vh;
+  
+  /* Hide sidebar on mobile screens */
+  @media (max-width: 1023px) {
+    display: none;
+  }
 }
 
 .container {

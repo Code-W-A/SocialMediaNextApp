@@ -1,39 +1,32 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import css from "@/styles/ProfileHead.module.css";
-import { Button, Flex, Image, Skeleton, Spin, Tabs } from "antd";
+import { Button, Flex, Image, Skeleton, Spin, Tooltip } from "antd";
 import Box from "@/components/Box";
 import { Typography } from "antd";
 import { Icon } from "@iconify/react";
-import { useUser } from "@clerk/nextjs";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { getUser, updateBanner } from "@/actions/user";
+import { useUser } from "@/hooks/useFirebaseAuth";
+import { useMutation } from "@tanstack/react-query";
+import { updateBanner } from "@/actions/user";
 import toast from "react-hot-toast";
+import { getMainProfileImage } from "@/utils/imageHelpers";
+import { useRouter } from "next/navigation";
+
 const { Text } = Typography;
-const TABS = [
-  {
-    label: "Profile",
-    icon: "solar:user-id-bold",
-  },
-  {
-    label: "Followers",
-    icon: "ph:heart-fill",
-  },
-  {
-    label: "Followings",
-    icon: "fluent:people-20-filled",
-  },
-];
+
 const ProfileHead = ({
   userId,
   data,
   isLoading,
   isError,
-  selectedTab,
-  setSelectedTab,
+  getDisplayName,
+  getUsername,
+  onEditProfile,
+  isCurrentUserProfile,
 }) => {
   const [bannerPreview, setBannerPreview] = useState(false);
-  const { user } = useUser();
+  const { user: currentUser } = useUser();
+  const router = useRouter();
   const inputRef = useRef(null);
   const [banner, setBanner] = useState(null);
 
@@ -53,6 +46,25 @@ const ProfileHead = ({
     }
   }, [data, setBanner]);
 
+  // Check if user has completed questionnaire
+  const hasCompletedQuestionnaire = () => {
+    const userData = data?.data || currentUser;
+    
+    // Check multiple conditions for questionnaire completion
+    const hasQuestionnaireObject = userData?.questionnaire && typeof userData.questionnaire === 'object';
+    const hasRequiredFields = userData?.questionnaire?.zodiacSign && 
+                             userData?.questionnaire?.birthDate && 
+                             userData?.questionnaire?.relationshipType;
+    const hasEnoughKeys = userData?.questionnaire && Object.keys(userData.questionnaire).length >= 3;
+    
+    return hasQuestionnaireObject && (hasRequiredFields || hasEnoughKeys);
+  };
+
+  // Handle questionnaire restart
+  const handleRestartQuestionnaire = () => {
+    router.push('/onboarding/questionnaire');
+  };
+
   const handleBannerChange = async (e) => {
     const file = e.target.files[0];
     // put a limit of 5mb file size
@@ -69,7 +81,7 @@ const ProfileHead = ({
       reader.onload = () => {
         setBanner(reader.result);
         mutate({
-          id: user?.id,
+          id: currentUser?.id,
           banner: reader.result,
           prevBannerId: data?.data?.banner_id,
         });
@@ -77,7 +89,24 @@ const ProfileHead = ({
     }
   };
 
-  if (isError) return <div>Error</div>;
+  // Function to get profile image with multiple fallbacks
+  const getProfileImage = () => {
+    if (isCurrentUserProfile) {
+      // For current user, try multiple sources
+      return getMainProfileImage(currentUser?.images) || 
+             currentUser?.imageUrl || 
+             currentUser?.image_url || 
+             data?.data?.image_url || 
+             "/images/placeholder-avatar.png";
+    } else {
+      // For other users
+      return data?.data?.image_url || 
+             getMainProfileImage(data?.data?.images) || 
+             "/images/placeholder-avatar.png";
+    }
+  };
+
+  if (isError) return <div>Error loading profile</div>;
 
   return (
     <div className={css.container}>
@@ -95,7 +124,7 @@ const ProfileHead = ({
             height={"15rem"}
           />
 
-          {userId === user?.id && (
+          {isCurrentUserProfile && (
             <div
               className={css.editButton}
               onClick={(e) => {
@@ -125,15 +154,11 @@ const ProfileHead = ({
 
       <Box>
         <div className={css.footer}>
-          {/* left side */}
-          <div className={css.left}>
-            {/* profile */}
-            <div className={css.profile}>
-              <div className={css.profileImage}>
+          {/* profile */}
+          <div className={css.profileContainer}>
+            <div className={css.profileImage}>
                 <Image
-                  src={
-                    data?.data?.image_url || "/images/placeholder-avatar.png"
-                  }
+                  src={getProfileImage()}
                   alt="profile"
                   preview={{ mask: null }}
                 />
@@ -141,41 +166,123 @@ const ProfileHead = ({
               <div className={css.profileInfo}>
                 {!isLoading ? (
                   <>
-                    <Text className={"typoH6"}>
-                      {data?.data?.first_name} {data?.data?.last_name}
-                    </Text>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Text className={"typoH6"}>
+                        {getDisplayName ? getDisplayName(data) : "Unknown User"}
+                      </Text>
+                      {isCurrentUserProfile && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          {onEditProfile && (
+                            <Tooltip title="Edit Profile">
+                              <Button
+                                type="text"
+                                size="small"
+                                shape="circle"
+                                icon={<Icon icon="eva:edit-2-fill" width="16px" />}
+                                onClick={onEditProfile}
+                                style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  minWidth: '24px',
+                                  height: '24px'
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                          {hasCompletedQuestionnaire() && (
+                            <Tooltip title="Retake Questionnaire">
+                              <Button
+                                type="text"
+                                size="small"
+                                shape="circle"
+                                icon={<Icon icon="eva:refresh-fill" width="16px" />}
+                                onClick={handleRestartQuestionnaire}
+                                style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center',
+                                  minWidth: '24px',
+                                  height: '24px',
+                                  color: '#722ed1'
+                                }}
+                              />
+                            </Tooltip>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <Text className={"typoBody1"} type="secondary">
-                      @{data?.data?.username}
+                      @{getUsername ? getUsername(data) : "unknown"}
                     </Text>
+                    {/* Location only - bio moved to right side */}
+                    {data?.data?.location && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.25rem' }}>
+                        <Icon icon="eva:pin-fill" width="14px" color="#666" />
+                        <Text className={"typoCaption"} type="secondary">
+                          {data.data.location}
+                        </Text>
+                      </div>
+                    )}
                   </>
                 ) : (
-                  <Skeleton style={{ width: "9rem" }} paragraph={{ rows: 2 }} />
+                  <Skeleton style={{ width: "9rem" }} paragraph={{ rows: 3 }} />
                 )}
               </div>
             </div>
-          </div>
 
-          {/* right side */}
+          {/* right side - bio and interests */}
           <div className={css.right}>
-            <div className={css.tabs}>
-              <Tabs
-                centered
-                defaultActiveKey={selectedTab}
-                onChange={(key) => setSelectedTab(key)}
-                items={TABS.map((tab, i) => {
-                  const id = String(i + 1);
-                  return {
-                    key: id,
-                    label: (
-                      <Flex align="center" gap={".5rem"}>
-                        <Icon icon={tab.icon} width={"20px"} />
-                        <span className="typoSubtitle2">{tab.label}</span>
-                      </Flex>
-                    ),
-                  };
-                })}
-              />
-            </div>
+            
+            {!isLoading && data?.data && (
+              <div style={{ textAlign: 'right' }}>
+                {/* Bio above interests */}
+                {data.data.bio && (
+                  <div style={{ marginBottom: '1rem' }}>
+                    <Text 
+                      className={"typoBody2"} 
+                      type="secondary"
+                      style={{ 
+                        maxWidth: '300px',
+                        display: 'block',
+                        textAlign: 'right'
+                      }}
+                    >
+                      {data.data.bio}
+                    </Text>
+                  </div>
+                )}
+                {data.data.interests && data.data.interests.length > 0 && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      {data.data.interests.slice(0, 3).join(' • ')}
+                      {data.data.interests.length > 3 && ` +${data.data.interests.length - 3} more`}
+                    </Text>
+                  </div>
+                )}
+                {data.data.website && (
+                  <div>
+                    <a 
+                      href={data.data.website} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ 
+                        color: '#1890ff', 
+                        textDecoration: 'none',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: '4px'
+                      }}
+                    >
+                      <Icon icon="eva:external-link-fill" width="12px" />
+                      Visit Website
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </Box>

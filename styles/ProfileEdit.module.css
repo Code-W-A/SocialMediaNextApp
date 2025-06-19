@@ -1,0 +1,115 @@
+.container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.form {
+  width: 100%;
+}
+
+/* Photo Section - Uses PhotoUpload.module.css for actual styling */
+
+/* Interests Grid Styles */
+.interestsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.interestCard {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  background: white;
+  user-select: none;
+}
+
+.interestCard:hover {
+  border-color: #1890ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+}
+
+.interestCard.selected {
+  background: linear-gradient(135deg, #1890ff, #722ed1);
+  border-color: #1890ff;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+}
+
+.interestCard span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.selectedIndicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  background: #52c41a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .container {
+    padding: 0.5rem;
+  }
+  
+  .interestsGrid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.5rem;
+  }
+  
+  .interestCard {
+    padding: 0.5rem 0.75rem;
+    font-size: 12px;
+  }
+  
+  .interestCard span {
+    font-size: 12px;
+  }
+}
+
+/* Global Styles - Applied to container */
+.container :global(.ant-card-head-title) {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.container :global(.ant-form-item-label > label) {
+  font-weight: 500;
+}
+
+.container :global(.ant-upload-drag:not(.ant-upload-disabled):hover) {
+  border-color: #40a9ff !important;
+}
+
+.container :global(.ant-btn-primary) {
+  background: linear-gradient(135deg, #1890ff, #722ed1);
+  border: none;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3);
+}
+
+.container :global(.ant-btn-primary:hover) {
+  background: linear-gradient(135deg, #40a9ff, #9254de);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+} 

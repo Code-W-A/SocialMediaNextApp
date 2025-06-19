@@ -7,7 +7,7 @@ import Iconify from "../Iconify";
 import { createPost } from "@/actions/post";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 
 const PostGenerator = () => {
   const imgInputRef = useRef(null);

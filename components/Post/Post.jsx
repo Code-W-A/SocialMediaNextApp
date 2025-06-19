@@ -18,10 +18,12 @@ import CommentSection from "./CommentSection";
 import dayjs from "dayjs";
 import { getFileTypeFromUrl } from "@/utils";
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 import Iconify from "../Iconify";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deletePost } from "@/actions/post";
+import { getUserDisplayName, getDisplayName } from "@/utils/profileHelpers";
+
 const Post = ({ data, queryId }) => {
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
@@ -80,6 +82,11 @@ const Post = ({ data, queryId }) => {
     },
   ];
 
+  // Function to get author display name with fallbacks for URL
+  const getAuthorDisplayName = (author) => {
+    return getUserDisplayName(author);
+  };
+
   return (
     <div className={css.wrapper}>
       <Box>
@@ -88,7 +95,7 @@ const Post = ({ data, queryId }) => {
           <Flex align="center" justify="space-between">
             <Flex gap={".5rem"} align="center">
               <Link
-                href={`/profile/${data?.author?.id}?person=${data?.author?.first_name}`}
+                href={`/profile/${data?.author?.id}?person=${getAuthorDisplayName(data?.author)}`}
                 passHref
               >
                 <Avatar
@@ -104,11 +111,11 @@ const Post = ({ data, queryId }) => {
               {/* name and post date */}
               <Flex vertical>
                 <Link
-                  href={`/profile/${data?.author?.id}?person=${data?.author?.first_name}`}
+                  href={`/profile/${data?.author?.id}?person=${getAuthorDisplayName(data?.author)}`}
                   passHref
                 >
                   <Typography className="typoSubtitle2">
-                    {data?.author?.first_name} {data?.author?.last_name}
+                    {getDisplayName(data?.author)}
                   </Typography>
                 </Link>
                 <Typography.Text

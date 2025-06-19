@@ -1,0 +1,154 @@
+/* Interest Cards Container */
+.interestsContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+  position: relative;
+}
+
+/* Individual Interest Card */
+.interestCard {
+  position: relative;
+  padding: 12px 16px;
+  border: 2px solid #e8e8e8;
+  border-radius: 20px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.interestCard:hover {
+  border-color: #1890ff;
+  background: #f0f7ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15);
+}
+
+/* Selected State */
+.interestCard.selected {
+  border-color: #1890ff;
+  background: #1890ff;
+  color: white;
+  font-weight: 500;
+  z-index: 5;
+}
+
+.interestCard.selected:hover {
+  border-color: #40a9ff;
+  background: #40a9ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+}
+
+/* Interest Text */
+.interestText {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
+  transition: color 0.2s ease;
+}
+
+.interestCard.selected .interestText {
+  color: white;
+}
+
+/* Selected Indicator */
+.selectedIndicator {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  background: #52c41a;
+  border: 2px solid white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
+}
+
+.interestCard.selected .selectedIndicator {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Counter */
+.counterText {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+}
+
+.counterText.warning {
+  color: #ff7875;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .interestsContainer {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
+  }
+  
+  .interestCard {
+    padding: 10px 12px;
+    min-height: 40px;
+  }
+  
+  .interestText {
+    font-size: 13px;
+  }
+  
+  .selectedIndicator {
+    width: 18px;
+    height: 18px;
+    top: -5px;
+    right: -5px;
+    z-index: 10;
+  }
+}
+
+@media (max-width: 480px) {
+  .interestsContainer {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .interestCard {
+    padding: 8px 10px;
+    border-radius: 16px;
+    min-height: 36px;
+  }
+  
+  .interestCard div {
+    gap: 4px !important;
+  }
+  
+  .interestText {
+    font-size: 12px;
+  }
+}
+
+/* Animation for new selections */
+@keyframes selectPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.interestCard.justSelected {
+  animation: selectPulse 0.3s ease;
+} 

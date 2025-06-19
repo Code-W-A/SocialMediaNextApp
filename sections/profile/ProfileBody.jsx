@@ -5,17 +5,36 @@ import FollowInfoBox from "./FollowInfoBox";
 import FriendsSuggestion from "@/components/FriendsSuggestion";
 import PostGenerator from "@/components/Post/PostGenerator";
 import Posts from "@/components/Post/Posts";
-import { useUser } from "@clerk/nextjs";
+import CompatibilityCard from "@/components/CompatibilityCard";
+import { useUser } from "@/hooks/useFirebaseAuth";
 import { useQuery } from "@tanstack/react-query";
-const ProfileBody = ({ userId }) => {
+import { getUser } from "@/actions/user";
+const ProfileBody = ({ userId, data }) => {
   const { user: currentUser } = useUser();
   const isCurrentUser = currentUser?.id === userId;
+
+  // Get profile user data for compatibility
+  const { data: profileUserData } = useQuery({
+    queryKey: ["user", userId],
+    queryFn: () => getUser(userId),
+    enabled: !!userId && !isCurrentUser,
+  });
+
+  const profileUser = data?.data || profileUserData?.data;
 
   return (
     <div className={css.profileBody}>
       <div className={css.left}>
         <div className={css.sticky}>
           {!isCurrentUser && <FollowButton id={userId} />}
+
+          {/* Compatibility Card - only show for other users */}
+          {!isCurrentUser && (
+            <CompatibilityCard 
+              currentUser={currentUser} 
+              profileUser={profileUser}
+            />
+          )}
 
           {/* start from here */}
           <FollowInfoBox id={userId} />

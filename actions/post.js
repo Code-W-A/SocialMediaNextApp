@@ -1,40 +1,60 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { currentUser } from "@clerk/nextjs";
-import { uploadFile } from "./uploadFile";
+import { 
+  mockPosts, 
+  mockUsers, 
+  mockCurrentUser, 
+  mockTrendsWithCounts,
+  getPostsWithRelations,
+  paginatePosts 
+} from "@/mock/mockData";
 import { checkPostForTrends } from "@/utils";
-import { getAllFollowersAndFollowings } from "./user";
+
+// Global variables to simulate database state
+let mockPostsState = [...getPostsWithRelations()];
+let nextPostId = Math.max(...mockPosts.map(p => p.id)) + 1;
+let nextLikeId = 100;
+let nextCommentId = 50;
+
+// Mock current user function
+const getCurrentUser = () => {
+  return Promise.resolve(mockCurrentUser);
+};
 
 export const createPost = async (post) => {
   const { postText, media } = post;
   try {
-    let cld_id;
-    let assetUrl;
-    const user = await currentUser();
-    if (media) {
-      const res = await uploadFile(media, `/posts/${user?.id}`);
-      const { public_id, secure_url } = res;
-      cld_id = public_id;
-      assetUrl = secure_url;
-    }
-    const newPost = await db.post.create({
-      data: {
-        postText,
-        media: assetUrl,
-        cld_id,
-        author: {
-          connect: {
-            id: user?.id,
-          },
-        },
-      },
-    });
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const user = await getCurrentUser();
+    const currentTime = new Date();
+    
+    const newPost = {
+      id: nextPostId++,
+      postText,
+      media: media || null,
+      authorId: user.id,
+      cld_id: media ? `post_${nextPostId}_${Date.now()}` : null,
+      createdAt: currentTime,
+      likes: [],
+      comments: [],
+      trends: [],
+      author: user,
+    };
 
+    // Add trends if any
     const trends = checkPostForTrends(postText);
     if (trends.length > 0) {
-      createTrends(trends, newPost.id);
+      newPost.trends = trends.map((trend, index) => ({
+        id: `trend_${nextPostId}_${index}`,
+        name: trend,
+        postId: newPost.id,
+      }));
     }
+
+    // Add to beginning of posts array (most recent first)
+    mockPostsState.unshift(newPost);
 
     return {
       data: newPost,
@@ -47,59 +67,21 @@ export const createPost = async (post) => {
 
 export const getPosts = async (lastCursor, id) => {
   try {
-    // const { id: userId } = await currentUser();
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     const take = 5;
-    const where = id !== "all" ? { author: { id } } : {};
-    const posts = await db.post.findMany({
-      include: {
-        author: true,
-        likes: true,
-        comments: {
-          include: {
-            author: true,
-          },
-        },
-      },
-      where,
-      take,
-      ...(lastCursor && {
-        skip: 1,
-        cursor: {
-          id: lastCursor,
-        },
-      }),
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    if (posts.length === 0) {
-      return {
-        data: [],
-        metaData: {
-          lastCursor: null,
-          hasMore: false,
-        },
-      };
+    let filteredPosts = mockPostsState;
+    
+    // Filter by user if id is not "all"
+    if (id !== "all") {
+      filteredPosts = mockPostsState.filter(post => post.author.id === id);
     }
-    const lastPostInResults = posts[posts.length - 1];
-    const cursor = lastPostInResults?.id;
-
-    const morePosts = await db.post.findMany({
-      where,
-      take,
-      skip: 1,
-      cursor: {
-        id: cursor,
-      },
-    });
-    return {
-      data: posts,
-      metaData: {
-        lastCursor: cursor,
-        hasMore: morePosts.length > 0,
-      },
-    };
+    
+    // Sort by creation date (newest first)
+    filteredPosts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    return paginatePosts(filteredPosts, lastCursor, take);
   } catch (e) {
     console.log(e);
     throw Error("Failed to fetch posts");
@@ -108,65 +90,16 @@ export const getPosts = async (lastCursor, id) => {
 
 export const getMyPostsFeed = async (lastCursor) => {
   try {
-    const { id } = await currentUser();
-    const { followers, following } = await getAllFollowersAndFollowings(id);
-    const followingIds = following.map((f) => f.followingId);
-    const followerIds = followers.map((f) => f.followerId);
-
-    // Combine the lists and include your own id
-    const userIds = [...new Set([...followingIds, ...followerIds, id])];
-
-    const take = 5;
-    const where = { author: { id: { in: userIds } } };
-    const posts = await db.post.findMany({
-      include: {
-        author: true,
-        likes: true,
-        comments: {
-          include: {
-            author: true,
-          },
-        },
-      },
-      where,
-      take,
-      ...(lastCursor && {
-        skip: 1,
-        cursor: {
-          id: lastCursor,
-        },
-      }),
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    if (posts.length === 0) {
-      return {
-        data: [],
-        metaData: {
-          lastCursor: null,
-          hasMore: false,
-        },
-      };
-    }
-    const lastPostInResults = posts[posts.length - 1];
-    const cursor = lastPostInResults?.id;
-    const morePosts = await db.post.findMany({
-      where,
-      take,
-      skip: 1,
-      cursor: {
-        id: cursor,
-      },
-    });
-    return {
-      data: posts,
-      metaData: {
-        lastCursor: cursor,
-        hasMore: morePosts.length > 0,
-      },
-    };
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const user = await getCurrentUser();
+    
+    // For mock purposes, return all posts as if they're from followed users
+    // In a real app, you'd filter by following relationships
+    const feedPosts = mockPostsState.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    return paginatePosts(feedPosts, lastCursor, 5);
   } catch (e) {
     console.log(e);
     throw Error("Failed to fetch posts");
@@ -174,85 +107,43 @@ export const getMyPostsFeed = async (lastCursor) => {
 };
 
 export const updatePostLike = async (postId, type) => {
-  // type is either "like" or "unlike"
   try {
-    const { id: userId } = await currentUser();
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const user = await getCurrentUser();
+    const userId = user.id;
 
-    // find the post in db
-    const post = await db.post.findUnique({
-      where: {
-        id: postId,
-      },
-      include: {
-        likes: true,
-      },
-    });
-    if (!post) {
+    // Find the post
+    const postIndex = mockPostsState.findIndex(post => post.id === postId);
+    if (postIndex === -1) {
       return {
         error: "Post not found",
       };
     }
 
-    // check if user has already liked the post
-    const like = post.likes.find((like) => like.authorId === userId);
+    const post = mockPostsState[postIndex];
+    
+    // Check if user has already liked the post
+    const likeIndex = post.likes.findIndex(like => like.authorId === userId);
+    const hasLiked = likeIndex !== -1;
 
-    // if user has already liked the post,
-    if (like) {
-      // if user is trying to like the post again, return the post
-      if (type === "like") {
-        return {
-          data: post,
-        };
-      }
-      // otherwise, delete the like
-      else {
-        await db.like.delete({
-          where: {
-            id: like.id,
-          },
-        });
-        console.log("like deleted");
-      }
+    if (type === "like" && !hasLiked) {
+      // Add like
+      const newLike = {
+        id: nextLikeId++,
+        postId: postId,
+        authorId: userId,
+        createdAt: new Date(),
+      };
+      post.likes.push(newLike);
+    } else if (type === "unlike" && hasLiked) {
+      // Remove like
+      post.likes.splice(likeIndex, 1);
     }
-    // if user has not already liked the post
-    else {
-      // if user is trying to unlike the post, return the post
-      if (type === "unlike") {
-        return {
-          data: post,
-        };
-      }
-      // if user is trying to like the post, create a new like
-      else {
-        await db.like.create({
-          data: {
-            post: {
-              connect: {
-                id: postId,
-              },
-            },
-            author: {
-              connect: {
-                id: userId,
-              },
-            },
-          },
-        });
-        console.log("like created");
-      }
-    }
-    const updatedPost = await db.post.findUnique({
-      where: {
-        id: postId,
-      },
-      include: {
-        likes: true,
-      },
-    });
 
-    console.log("updated post", updatedPost);
     return {
-      data: updatedPost,
+      data: post,
     };
   } catch (e) {
     console.log(e);
@@ -262,23 +153,28 @@ export const updatePostLike = async (postId, type) => {
 
 export const addComment = async (postId, comment) => {
   try {
-    const { id: userId } = await currentUser();
-    const newComment = await db.comment.create({
-      data: {
-        comment,
-        post: {
-          connect: {
-            id: postId,
-          },
-        },
-        author: {
-          connect: {
-            id: userId,
-          },
-        },
-      },
-    });
-    console.log("comment created", newComment);
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const user = await getCurrentUser();
+    
+    // Find the post
+    const postIndex = mockPostsState.findIndex(post => post.id === postId);
+    if (postIndex === -1) {
+      throw new Error("Post not found");
+    }
+
+    const newComment = {
+      id: nextCommentId++,
+      comment,
+      authorId: user.id,
+      postId: postId,
+      createdAt: new Date(),
+      author: user,
+    };
+
+    mockPostsState[postIndex].comments.push(newComment);
+
     return {
       data: newComment,
     };
@@ -289,14 +185,13 @@ export const addComment = async (postId, comment) => {
 
 export const createTrends = async (trends, postId) => {
   try {
-    const newTrends = await db.trend.createMany({
-      data: trends.map((trend) => ({
+    // Mock function - trends are already created in createPost
+    return {
+      data: trends.map((trend, index) => ({
+        id: `trend_${postId}_${index}`,
         name: trend,
         postId: postId,
       })),
-    });
-    return {
-      data: newTrends,
     };
   } catch (e) {
     throw e;
@@ -305,20 +200,11 @@ export const createTrends = async (trends, postId) => {
 
 export const getPopularTrends = async () => {
   try {
-    const trends = await db.trend.groupBy({
-      by: ["name"],
-      _count: {
-        name: true,
-      },
-      orderBy: {
-        _count: {
-          name: "desc",
-        },
-      },
-      take: 3,
-    });
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     return {
-      data: trends,
+      data: mockTrendsWithCounts,
     };
   } catch (e) {
     throw e;
@@ -327,22 +213,32 @@ export const getPopularTrends = async () => {
 
 export const deletePost = async (postId) => {
   try {
-    const { id: userId } = await currentUser();
-    const post = await db.post.findUnique({
-      where: {
-        id: postId,
-      },
-    });
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const user = await getCurrentUser();
+    const userId = user.id;
+    
+    // Find the post
+    const postIndex = mockPostsState.findIndex(post => post.id === postId);
+    if (postIndex === -1) {
+      return {
+        error: "Post not found",
+      };
+    }
+
+    const post = mockPostsState[postIndex];
+    
+    // Check if user owns the post
     if (post.authorId !== userId) {
       return {
         error: "You are not authorized to delete this post",
       };
     }
-    await db.post.delete({
-      where: {
-        id: postId,
-      },
-    });
+
+    // Remove the post
+    mockPostsState.splice(postIndex, 1);
+    
     return {
       data: "Post deleted",
     };

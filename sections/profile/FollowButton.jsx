@@ -1,6 +1,6 @@
 "use client";
 import { getAllFollowersAndFollowings, updateFollow } from "@/actions/user";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Skeleton, Typography } from "antd";
 import React, { useEffect, useState } from "react";

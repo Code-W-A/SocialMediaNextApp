@@ -8,8 +8,9 @@
 }
 
 .container{
-    min-height: 85vh;
-    width: 90%;
+    min-height: 95vh;
+    width: 95%;
+    max-width: 1200px;
     background: white;
     border-radius: 20px;
     box-shadow: 0px 4px 32.3px 0px rgba(0, 0, 0, 0.07);
@@ -21,6 +22,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 2rem;
 }
 .right{
     flex: .9;
@@ -28,4 +30,5 @@
     align-items: center;
     justify-content: center;
     background: var(--primary);
+    min-height: 95vh;
 }

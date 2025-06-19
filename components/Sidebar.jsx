@@ -3,20 +3,23 @@ import React, { useCallback, useEffect, useState } from "react";
 import Box from "./Box";
 import css from "@/styles/Sidebar.module.css";
 import { sidebarRoutes } from "@/lib/sidebar";
-import { Typography } from "antd";
+import { Typography, message } from "antd";
 import Iconify from "./Iconify";
 import cx from "classnames";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import SidebarContainer from "./SidebarContainer";
 import { useSettingsContext } from "@/context/settings/settings-context";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useUser, useAuth } from "@/hooks/useFirebaseAuth";
+import { getUserDisplayName } from "@/utils/profileHelpers";
+
 const Sidebar = () => {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const { signOut } = useClerk();
   const router = useRouter();
   const { user } = useUser();
+  const { signOut } = useAuth();
+  
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -39,6 +42,21 @@ const Sidebar = () => {
     }
   }, [pathname, handleDrawerClose]);
 
+  const handleSignOut = async () => {
+    try {
+      const result = await signOut();
+      if (result.success) {
+        message.success("Signed out successfully!");
+        router.push("/sign-in");
+      } else {
+        message.error("Failed to sign out. Please try again.");
+      }
+    } catch (error) {
+      console.error("Sign out error:", error);
+      message.error("Something went wrong. Please try again.");
+    }
+  };
+
   const isActive = (route) => {
     if (route.route === pathname) return css.active;
   };
@@ -60,7 +78,7 @@ const Sidebar = () => {
                 // if the route is profile, then add the person query
                 href={
                   route.route === `/profile/${user?.id}`
-                    ? `${route.route}?person=${user?.firstName}`
+                    ? `${route.route}?person=${getUserDisplayName(user)}`
                     : `${route.route}`
                 }
                 key={index}
@@ -81,12 +99,10 @@ const Sidebar = () => {
               </Link>
             ))}
 
-            <Link
-              href={""}
+            <div
               className={cx(css.item)}
-              onClick={() => {
-                signOut(() => router.push("/sign-in"));
-              }}
+              onClick={handleSignOut}
+              style={{ cursor: "pointer" }}
             >
               {/* icon */}
               <Typography>
@@ -95,7 +111,7 @@ const Sidebar = () => {
 
               {/* name */}
               <Typography className="typoSubtitle2">Sign out</Typography>
-            </Link>
+            </div>
           </Box>
         </div>
       </SidebarContainer>

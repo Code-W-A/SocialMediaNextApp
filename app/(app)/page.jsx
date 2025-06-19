@@ -1,29 +1,29 @@
-import {  getMyPostsFeed } from "@/actions/post";
-import HomeView from "@/sections/home/view/HomeView";
-import { currentUser } from "@clerk/nextjs";
-import { QueryClient } from "@tanstack/react-query";
+"use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-export const metadata = () => {
-  return {
-    title: `Socialhop`,
-    description: `New way to feel freedom`,
-  };
-};
+export default function RootPage() {
+  const router = useRouter();
 
-const HomePage = async () => {
-  // const queryClient = new QueryClient();
-  // const user = await currentUser()
-  // // get posts
-  // await queryClient.prefetchInfiniteQuery({
-  //   queryKey: ["posts", "all"],
-  //   queryFn: ({ pageParam = "" }) => getMyPostsFeed(pageParam),
-  //   getNextPageParam: (lastPage) => {
-  //     return lastPage?.metaData.lastCursor;
-  //   },
-  //   enabled: !!user,
-  // });
+  useEffect(() => {
+    router.push("/home");
+  }, [router]);
 
-  return <HomeView />;
-};
-
-export default HomePage;
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100vh',
+      background: 'linear-gradient(135deg, #FFEDC9 0%, #FFF8E7 50%, #FFEDC9 100%)'
+    }}>
+      <div style={{
+        textAlign: 'center',
+        color: '#f9aa11',
+        fontSize: '1.2rem'
+      }}>
+        Loading...
+      </div>
+    </div>
+  );
+}

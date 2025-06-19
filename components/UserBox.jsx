@@ -4,7 +4,7 @@ import css from "@/styles/UserBox.module.css";
 import Box from "./Box";
 import { Avatar, Button, Flex, Typography } from "antd";
 import { Icon } from "@iconify/react";
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/hooks/useFirebaseAuth";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateFollow } from "@/actions/user";
 import toast from "react-hot-toast";

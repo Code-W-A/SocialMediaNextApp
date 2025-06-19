@@ -1,33 +1,48 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { deleteFile, uploadFile } from "./uploadFile";
-import { currentUser } from "@clerk/nextjs";
+import { 
+  mockUsers, 
+  mockCurrentUser, 
+  mockFollows 
+} from "@/mock/mockData";
+import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+// Global variables to simulate database state
+let mockUsersState = [...mockUsers];
+let mockFollowsState = [...mockFollows];
+let nextFollowId = Math.max(...mockFollows.map(f => f.id)) + 1;
+
+// Mock current user function
+const getCurrentUser = () => {
+  return Promise.resolve(mockCurrentUser);
+};
 
 export const createUser = async (user) => {
-  const { id, first_name, last_name, email_address, image_url, username } =
-    user;
+  const { id, first_name, last_name, email_address, image_url, username } = user;
   try {
-    const userExists = await db.user.findUnique({
-      where: {
-        id,
-      },
-    });
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const userExists = mockUsersState.find(u => u.id === id);
     if (userExists) {
       updateUser(user);
       return;
     }
-    await db.user.create({
-      data: {
+    
+    const newUser = {
         id,
         first_name,
         last_name,
         email_address,
         image_url,
         username,
-      },
-    });
-    console.log("New user created in db");
+      banner_url: null,
+      banner_id: null,
+    };
+    
+    mockUsersState.push(newUser);
+    console.log("New user created in mock db");
   } catch (e) {
     console.log(e);
     return {
@@ -35,25 +50,26 @@ export const createUser = async (user) => {
     };
   }
 
-  console.log("User created in supabase");
+  console.log("User created in mock database");
 };
 
 export const updateUser = async (user) => {
-  const { id, first_name, last_name, email_address, image_url, username } =
-    user;
+  const { id, first_name, last_name, email_address, image_url, username } = user;
   try {
-    await db.user.update({
-      where: {
-        id,
-      },
-      data: {
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const userIndex = mockUsersState.findIndex(u => u.id === id);
+    if (userIndex !== -1) {
+      mockUsersState[userIndex] = {
+        ...mockUsersState[userIndex],
         first_name,
         last_name,
         email_address,
         image_url,
         username,
-      },
-    });
+      };
+    }
   } catch (e) {
     console.log(e);
     return {
@@ -61,39 +77,117 @@ export const updateUser = async (user) => {
     };
   }
 
-  console.log("User updated in supabase");
+  console.log("User updated in mock database");
 };
 
 export const getUser = async (id) => {
   try {
-    const user = await db.user.findUnique({
-      where: {
-        id,
-      },
-      select: {
-        id: true,
-        first_name: true,
-        last_name: true,
-        email_address: true,
-        image_url: true,
-        username: true,
-        banner_url: true,
-        banner_id: true,
-      },
-    });
-    return { data: user };
-  } catch (e) {
-    throw e;
+    // Get user data from Firestore
+    const userDoc = await getDoc(doc(db, 'Users', id));
+    
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      console.log('Firestore user data retrieved:', userData);
+      
+      return { 
+        data: {
+          id: userDoc.id,
+          // Firebase structure fields
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          username: userData.username,
+          email: userData.email,
+          bio: userData.bio || '',
+          location: userData.location || '',
+          website: userData.website || '',
+          relationshipStatus: userData.relationshipStatus || '',
+          interests: userData.interests || [],
+          images: userData.images || [],
+          gpsCoordinates: userData.gpsCoordinates || null,
+          banner_url: userData.banner_url || null,
+          banner_id: userData.banner_id || null,
+          verified: userData.verified || false,
+          followers: userData.followers || [],
+          following: userData.following || [],
+          createdAt: userData.createdAt,
+          updatedAt: userData.updatedAt,
+          lastTimeActive: userData.lastTimeActive,
+          
+          // Legacy field mappings for backward compatibility
+          first_name: userData.firstName || userData.first_name,
+          last_name: userData.lastName || userData.last_name,
+          email_address: userData.email || userData.email_address,
+          image_url: userData.image_url,
+          
+          isIncomplete: false,
+        }
+      };
+    } else {
+      // User document doesn't exist, return incomplete profile data
+      console.log('User document not found for ID:', id);
+      return { 
+        data: {
+          id: id,
+          firstName: null,
+          lastName: null,
+          first_name: null,
+          last_name: null,
+          email_address: null,
+          email: null,
+          image_url: null,
+          username: null,
+          bio: '',
+          location: '',
+          website: '',
+          relationshipStatus: '',
+          interests: [],
+          images: [],
+          gpsCoordinates: null,
+          banner_url: null,
+          banner_id: null,
+          isIncomplete: true,
+        }
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching user from Firestore:", error);
+    // Return incomplete data even on error
+    return { 
+      data: {
+        id: id,
+        firstName: null,
+        lastName: null,
+        first_name: null,
+        last_name: null,
+        email_address: null,
+        email: null,
+        image_url: null,
+        username: null,
+        bio: '',
+        location: '',
+        website: '',
+        relationshipStatus: '',
+        interests: [],
+        images: [],
+        gpsCoordinates: null,
+        banner_url: null,
+        banner_id: null,
+        isIncomplete: true,
+        error: true,
+      }
+    };
   }
 };
 
 export const deleteUser = async (id) => {
   try {
-    await db.user.delete({
-      where: {
-        id,
-      },
-    });
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const userIndex = mockUsersState.findIndex(u => u.id === id);
+    if (userIndex !== -1) {
+      mockUsersState.splice(userIndex, 1);
+    }
   } catch (e) {
     console.log(e);
     return {
@@ -101,35 +195,33 @@ export const deleteUser = async (id) => {
     };
   }
 
-  console.log("User deleted in supabase");
+  console.log("User deleted in mock database");
 };
 
 export const updateBanner = async (params) => {
   const { id, banner, prevBannerId } = params;
   try {
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     let banner_id;
     let banner_url;
 
     if (banner) {
-      const res = await uploadFile(banner, `/users/${id}`);
-      const { public_id, secure_url } = res;
-      banner_id = public_id;
-      banner_url = secure_url;
-
-      // Delete previous banner
-      if (prevBannerId) {
-        await deleteFile(prevBannerId);
-      }
+      // Mock file upload - just use the provided banner as URL
+      banner_id = `banner_${id}_${Date.now()}`;
+      banner_url = banner; // In mock, we'll just use the provided banner
     }
-    await db.user.update({
-      where: {
-        id,
-      },
-      data: {
+    
+    const userIndex = mockUsersState.findIndex(u => u.id === id);
+    if (userIndex !== -1) {
+      mockUsersState[userIndex] = {
+        ...mockUsersState[userIndex],
         banner_url,
         banner_id,
-      },
-    });
+      };
+    }
+    
     console.log("user banner updated");
   } catch (e) {
     console.log("Error updating user banner");
@@ -141,31 +233,36 @@ export const updateFollow = async (params) => {
   const { id, type } = params;
   // type = follow or unfollow, id is target user id
   try {
-    const loggedInUser = await currentUser();
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const loggedInUser = await getCurrentUser();
+    
     if (type === "follow") {
-      await db.follow.create({
-        data: {
-          follower: {
-            connect: {
-              id: loggedInUser.id,
-            },
-          },
-          following: {
-            connect: {
-              id,
-            },
-          },
-        },
-      });
-      console.log("User followed");
-    } else if (type === "unfollow") {
-      await db.follow.deleteMany({
-        where: {
+      // Check if already following
+      const existingFollow = mockFollowsState.find(
+        f => f.followerId === loggedInUser.id && f.followingId === id
+      );
+      
+      if (!existingFollow) {
+        const newFollow = {
+          id: nextFollowId++,
           followerId: loggedInUser.id,
           followingId: id,
-        },
-      });
+          createdAt: new Date(),
+        };
+        mockFollowsState.push(newFollow);
+        console.log("User followed");
+      }
+    } else if (type === "unfollow") {
+      const followIndex = mockFollowsState.findIndex(
+        f => f.followerId === loggedInUser.id && f.followingId === id
+      );
+      
+      if (followIndex !== -1) {
+        mockFollowsState.splice(followIndex, 1);
       console.log("User unfollowed");
+      }
     }
   } catch (e) {
     console.log(e);
@@ -175,22 +272,23 @@ export const updateFollow = async (params) => {
 
 export const getAllFollowersAndFollowings = async (id) => {
   try {
-    const followers = await db.follow.findMany({
-      where: {
-        followingId: id,
-      },
-      include: {
-        follower: true,
-      },
-    });
-    const following = await db.follow.findMany({
-      where: {
-        followerId: id,
-      },
-      include: {
-        following: true,
-      },
-    });
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    const followers = mockFollowsState
+      .filter(f => f.followingId === id)
+      .map(f => ({
+        ...f,
+        follower: mockUsersState.find(u => u.id === f.followerId),
+      }));
+    
+    const following = mockFollowsState
+      .filter(f => f.followerId === id)
+      .map(f => ({
+        ...f,
+        following: mockUsersState.find(u => u.id === f.followingId),
+      }));
+    
     return {
       followers,
       following,
@@ -203,30 +301,109 @@ export const getAllFollowersAndFollowings = async (id) => {
 
 export const getFollowSuggestions = async () => {
   try {
-    const loggedInUser = await currentUser();
-    // Fetch all users that the given user is already following
-    const following = await db.follow.findMany({
-      where: {
-        followerId: loggedInUser?.id,
-      },
-    });
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const currentUser = await getCurrentUser();
 
-    // Extract the IDs of the users that the given user is already following
-    const followingIds = following.map((follow) => follow.followingId);
-
-    // Fetch all users that the given user is not already following
-    const suggestions = await db.user.findMany({
-      where: {
-        AND: [
-          { id: { not: loggedInUser?.id } }, // Exclude the user themselves
-          { id: { notIn: followingIds } }, // Exclude users they're already following
-        ],
-      },
-    });
-
-    return suggestions;
+    // Get users that the current user is not following
+    const currentUserFollowing = mockFollowsState
+      .filter(f => f.followerId === currentUser.id)
+      .map(f => f.followingId);
+    
+    const suggestions = mockUsersState
+      .filter(u => u.id !== currentUser.id && !currentUserFollowing.includes(u.id))
+      .slice(0, 5); // Return max 5 suggestions
+    
+    return {
+      data: suggestions,
+    };
   } catch (e) {
-    console.log(e);
     throw e;
+  }
+};
+
+export const updateUserProfile = async (userData) => {
+  try {
+    const {
+      id,
+      firstName,
+      lastName,
+      username,
+      bio,
+      location,
+      website,
+      relationshipStatus,
+      interests,
+      images,
+      gpsCoordinates,
+      email_address,
+      image_url,
+      // Legacy fields for backward compatibility
+      first_name,
+      last_name,
+    } = userData;
+
+    // Prepare update data with proper field mapping
+    const updateData = {
+      // Use new field names as primary, fallback to legacy
+      firstName: firstName || first_name,
+      lastName: lastName || last_name,
+      first_name: firstName || first_name, // Keep legacy field for compatibility
+      last_name: lastName || last_name, // Keep legacy field for compatibility
+      username,
+      bio: bio || '',
+      location: location || '',
+      website: website || '',
+      relationshipStatus: relationshipStatus || '',
+      interests: interests || [],
+      email_address,
+      image_url,
+      updatedAt: serverTimestamp(),
+    };
+
+    // Add GPS coordinates if provided
+    if (gpsCoordinates) {
+      updateData.gpsCoordinates = gpsCoordinates;
+    }
+
+    // Add images if provided
+    if (images && Array.isArray(images)) {
+      updateData.images = images;
+    }
+
+    // Remove undefined values to avoid overwriting existing data with undefined
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    console.log('Updating user profile with data:', updateData);
+
+    const userRef = doc(db, "Users", id);
+    await updateDoc(userRef, updateData);
+
+    return { success: true, message: "Profile updated successfully" };
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    throw new Error(error.message || "Failed to update profile");
+  }
+};
+
+// Update last time active for user
+export const updateLastTimeActive = async (userId) => {
+  try {
+    if (!userId) return;
+    
+    const userRef = doc(db, 'Users', userId);
+    await updateDoc(userRef, {
+      lastTimeActive: serverTimestamp()
+    });
+    
+    console.log('Last time active updated for user:', userId);
+  } catch (error) {
+    console.error('Error updating last time active:', error);
+    // Don't throw error as this is not critical functionality
   }
 };

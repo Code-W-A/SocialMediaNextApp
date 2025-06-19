@@ -32,13 +32,14 @@
   z-index: 2;
 }
 .footer {
-  padding: 2rem;
-  padding-bottom: 0;
-  display: flex;
-  justify-content: space-between;
+  position: relative;
+  padding: 1rem 2rem 1.5rem 2rem;
+  min-height: 5rem;
 }
-.profile {
-  margin-top: -4rem;
+
+.profileContainer {
+  position: relative;
+
   display: flex;
   gap: 1rem;
   align-items: flex-end;
@@ -57,12 +58,16 @@
 .profileInfo {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding-bottom: 0.75rem;
 }
 
 .right {
-  margin-top: 4rem;
-  position: relative;
+  position: absolute;
+  top: 1rem;
+  right: 2rem;
+  text-align: right;
 }
 
 .tabs {
@@ -76,16 +81,18 @@
 
 @media (max-width: 670px) {
   .footer {
-    flex-direction: column;
-    gap: 0rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding: 1rem;
+    min-height: 4rem;
   }
-  .profile {
+  
+  .profileContainer {
+    position: static;
     flex-direction: column;
     align-items: center;
-    margin-top: -5rem;
+    margin-top: -3rem;
+    margin-bottom: 1rem;
   }
+  
   .profileImage {
     width: 5rem;
     height: 5rem;
@@ -93,11 +100,13 @@
 
   .profileInfo {
     align-items: center;
+    padding-bottom: 0;
   }
 
   .right {
-    margin: 0;
-    width: 100%;
+    position: static;
+    text-align: center;
+    margin-top: 1rem;
   }
 
   .tabs {

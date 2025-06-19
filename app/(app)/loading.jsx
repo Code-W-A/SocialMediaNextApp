@@ -1,24 +1,19 @@
-import { Flex } from "antd";
+import { Spin } from "antd";
 import Image from "next/image";
 import React from "react";
 
-const MainLoadingScreen = () => {
+const Loading = () => {
   return (
-    <Flex justify="center" align="center" style={{ height: "100vh" }}>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", flexDirection: "column", gap: "1rem" }}>
       <Image
-        src="/images/logo.png"
-        width={150}
-        height={40}
-        alt="logo"
-        style={{
-          marginTop: "-5rem",
-          filter: "grayscale(100%)",
-          opacity: "0.5",
-          transform: "scale(0.8)",
-        }}
+        src="/images/destiny-logo.svg"
+        width={200}
+        height={60}
+        alt="YDestiny"
       />
-    </Flex>
+      <Spin size="large" />
+    </div>
   );
 };
 
-export default MainLoadingScreen;
+export default Loading;

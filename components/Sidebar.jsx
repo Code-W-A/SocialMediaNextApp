@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Box from "./Box";
 import css from "@/styles/Sidebar.module.css";
 import { sidebarRoutes } from "@/lib/sidebar";
-import { Typography, message } from "antd";
+import { Typography, message, Divider } from "antd";
 import Iconify from "./Iconify";
 import cx from "classnames";
 import { usePathname, useRouter } from "next/navigation";
@@ -11,7 +11,9 @@ import Link from "next/link";
 import SidebarContainer from "./SidebarContainer";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import { useUser, useAuth } from "@/hooks/useFirebaseAuth";
-import { getUserDisplayName } from "@/utils/profileHelpers";
+import { getUserDisplayName, shouldBlockNavigation } from "@/utils/profileHelpers";
+import { useLanguage } from "@/lib/i18n";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -19,6 +21,7 @@ const Sidebar = () => {
   const router = useRouter();
   const { user } = useUser();
   const { signOut } = useAuth();
+  const { t } = useLanguage();
   
   useEffect(() => {
     setMounted(true);
@@ -40,21 +43,30 @@ const Sidebar = () => {
     if (isSidebarOpen) {
       handleDrawerClose();
     }
-  }, [pathname, handleDrawerClose]);
+  }, [pathname, handleDrawerClose, isSidebarOpen]);
 
   const handleSignOut = async () => {
     try {
       const result = await signOut();
       if (result.success) {
-        message.success("Signed out successfully!");
+        message.success(t('common.success'));
         router.push("/sign-in");
       } else {
-        message.error("Failed to sign out. Please try again.");
+        message.error(t('common.error'));
       }
     } catch (error) {
       console.error("Sign out error:", error);
-      message.error("Something went wrong. Please try again.");
+      message.error(t('common.error'));
     }
+  };
+
+  const handleNavigation = (path) => {
+    if (shouldBlockNavigation(user, path)) {
+      message.warning("Please complete your profile before accessing other parts of the application.");
+      router.push(`/profile/${user?.id}?person=${getUserDisplayName(user)}`);
+      return;
+    }
+    router.push(path);
   };
 
   const isActive = (route) => {
@@ -74,15 +86,21 @@ const Sidebar = () => {
         <div className={css.wrapper}>
           <Box className={css.container}>
             {sidebarRoutes(user).map((route, index) => (
-              <Link
-                // if the route is profile, then add the person query
-                href={
-                  route.route === `/profile/${user?.id}`
-                    ? `${route.route}?person=${getUserDisplayName(user)}`
-                    : `${route.route}`
-                }
+              <div
                 key={index}
                 className={cx(css.item, isActive(route))}
+                onClick={() => {
+                  const targetPath = route.route === `/profile/${user?.id}`
+                    ? `${route.route}?person=${getUserDisplayName(user)}`
+                    : route.route;
+                  
+                  if (route.route.includes('/profile') || !shouldBlockNavigation(user, route.route)) {
+                    router.push(targetPath);
+                  } else {
+                    handleNavigation(route.route);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
               >
                 {/* icon */}
                 <Typography style={{ color: activeColor(route) }}>
@@ -94,10 +112,17 @@ const Sidebar = () => {
                   className="typoSubtitle2"
                   style={{ color: activeColor(route) }}
                 >
-                  {route.name}
+                  {t(`nav.${route.key}`)}
                 </Typography>
-              </Link>
+              </div>
             ))}
+
+            <Divider style={{ margin: '12px 0' }} />
+            
+            {/* Language Switcher */}
+            <div className={css.item} style={{ padding: '8px 12px' }}>
+              <LanguageSwitcher size="small" style={{ width: '100%' }} />
+            </div>
 
             <div
               className={cx(css.item)}
@@ -110,7 +135,7 @@ const Sidebar = () => {
               </Typography>
 
               {/* name */}
-              <Typography className="typoSubtitle2">Sign out</Typography>
+              <Typography className="typoSubtitle2">{t('common.logout')}</Typography>
             </div>
           </Box>
         </div>

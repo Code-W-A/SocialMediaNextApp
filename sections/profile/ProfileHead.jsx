@@ -11,6 +11,7 @@ import { updateBanner } from "@/actions/user";
 import toast from "react-hot-toast";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { useRouter } from "next/navigation";
+import PremiumBadge from "@/components/PremiumBadge";
 
 const { Text } = Typography;
 
@@ -170,6 +171,11 @@ const ProfileHead = ({
                       <Text className={"typoH6"}>
                         {getDisplayName ? getDisplayName(data) : "Unknown User"}
                       </Text>
+                      <PremiumBadge 
+                        user={isCurrentUserProfile ? currentUser : data?.data} 
+                        size="small" 
+                        showText={false}
+                      />
                       {isCurrentUserProfile && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                           {onEditProfile && (
@@ -235,7 +241,7 @@ const ProfileHead = ({
           <div className={css.right}>
             
             {!isLoading && data?.data && (
-              <div style={{ textAlign: 'right' }}>
+              <div style={{ textAlign: 'center' }}>
                 {/* Bio above interests */}
                 {data.data.bio && (
                   <div style={{ marginBottom: '1rem' }}>
@@ -243,9 +249,8 @@ const ProfileHead = ({
                       className={"typoBody2"} 
                       type="secondary"
                       style={{ 
-                        maxWidth: '300px',
-                        display: 'block',
-                        textAlign: 'right'
+                    
+                        textAlign: 'center'
                       }}
                     >
                       {data.data.bio}

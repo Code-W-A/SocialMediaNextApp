@@ -44,11 +44,11 @@ export const createConversation = async ({ user1Id, user2Id }) => {
     for (const docSnap of existingSnapshot.docs) {
       const data = docSnap.data();
       if (data.participants && data.participants.includes(user2Id)) {
-        return {
-          success: true,
+      return { 
+        success: true, 
           conversationId: docSnap.id,
-          isNew: false
-        };
+        isNew: false 
+      };
       }
     }
 
@@ -752,18 +752,19 @@ export const getMessageHistory = async (conversationId, messageId) => {
   }
 };
 
-// Online status functions
+// Online status functions (updated to use new presence system)
 export const setUserOnlineStatus = async (userId, isOnline = true) => {
   try {
     if (!userId) return;
     
-    const userRef = doc(db, "Users", userId);
+    // Import the new presence functions
+    const { setUserOnline, setUserOffline } = await import('./user');
     
-    await updateDoc(userRef, {
-      isOnline: isOnline,
-      lastSeen: serverTimestamp(),
-      lastActivity: serverTimestamp()
-    });
+    if (isOnline) {
+      await setUserOnline(userId);
+    } else {
+      await setUserOffline(userId);
+    }
     
     return { success: true };
   } catch (error) {
@@ -775,16 +776,52 @@ export const setUserOnlineStatus = async (userId, isOnline = true) => {
 export const subscribeToUserOnlineStatus = (userId, callback) => {
   if (!userId) return () => {};
   
+  console.log("📡 Subscribing to online status for user:", userId);
+  
   const userRef = doc(db, "Users", userId);
   
   return onSnapshot(userRef, (doc) => {
     if (doc.exists()) {
       const userData = doc.data();
-      callback({
-        isOnline: userData.isOnline || false,
-        lastSeen: userData.lastSeen,
-        lastActivity: userData.lastActivity
-      });
+      const presence = userData.presence || {
+        status: 'offline',
+        lastSeen: new Date(),
+        lastActivity: new Date()
+      };
+      
+      console.log("📊 Received presence data for", userId, ":", presence);
+      
+      // Calculate if user should be considered offline due to inactivity
+      const lastActivity = presence.lastActivity?.toDate() || new Date();
+      const now = new Date();
+      const inactiveMinutes = (now - lastActivity) / (1000 * 60);
+      
+      // Consider user offline if inactive for more than 5 minutes
+      let actualStatus = presence.status;
+      let isOnline = false;
+      
+      if (inactiveMinutes > 5) {
+        actualStatus = 'offline';
+        isOnline = false;
+      } else if (inactiveMinutes > 2 && presence.status === 'online') {
+        actualStatus = 'away';
+        isOnline = false;
+      } else if (presence.status === 'online') {
+        isOnline = true;
+      }
+      
+      const statusUpdate = {
+        isOnline: isOnline,
+        status: actualStatus,
+        lastSeen: presence.lastSeen?.toDate() || userData.lastSeen,
+        lastActivity: presence.lastActivity?.toDate() || userData.lastActivity
+      };
+      
+      console.log("🔄 Calculated status for", userId, ":", statusUpdate);
+      
+      callback(statusUpdate);
+    } else {
+      console.log("❌ User document does not exist for:", userId);
     }
   });
 };
@@ -793,11 +830,9 @@ export const updateUserActivity = async (userId) => {
   try {
     if (!userId) return;
     
-    const userRef = doc(db, "Users", userId);
-    
-    await updateDoc(userRef, {
-      lastActivity: serverTimestamp()
-    });
+    // Import the new presence function
+    const { updateLastActivity } = await import('./user');
+    await updateLastActivity(userId);
     
     return { success: true };
   } catch (error) {

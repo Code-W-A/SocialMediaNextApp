@@ -17,7 +17,7 @@
     
     /* Mobile: Add extra padding for bottom navbar */
     @media (max-width: 1023px) {
-        padding-bottom: 120px;
+        padding-bottom: 140px; /* Increased from 120px to 140px */
         max-width: 100%;
         margin: 0;
     }
@@ -31,8 +31,17 @@
     max-width: 25rem;
 }
 
+/* Mobile compatible users section */
+.mobileCompatibleUsers {
+    margin-bottom: 1rem;
+}
+
 @media (max-width: 800px) {
     .rightSide{
         display: none;
+    }
+    
+    .mobileCompatibleUsers {
+        margin-bottom: 0.5rem;
     }
 }

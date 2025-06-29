@@ -23,126 +23,238 @@ const UserProfileBody = ({
   const user = userData.data;
 
   if (showCompatibility) {
+    // Get compatibility data
+    const compatibility = getFullCompatibility(currentUser, user);
+    const scoreDetails = getCompatibilityScoreDetails(currentUser, user);
+    
     return (
       <div className={css.compatibilityView}>
         <Row gutter={[24, 24]}>
           <Col span={24}>
+            {/* Always try to show the detailed CompatibilityCard first */}
             <CompatibilityCard 
               currentUser={currentUser} 
               profileUser={user}
             />
             
-            {/* Fallback compatibility info if CompatibilityCard doesn't render */}
+            {/* Comprehensive compatibility analysis */}
             <Card
               title={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Iconify icon="eva:heart-fill" width="20px" />
-                  Compatibility Analysis
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Iconify icon="eva:heart-fill" width="20px" style={{ color: '#f093fb' }} />
+                    Detailed Compatibility Analysis
+                  </div>
+                  {scoreDetails && (
+                    <div style={{
+                      background: `linear-gradient(135deg, ${scoreDetails.color}, ${scoreDetails.color}dd)`,
+                      color: 'white',
+                      padding: '6px 12px',
+                      borderRadius: '16px',
+                      fontSize: '14px',
+                      fontWeight: '700'
+                    }}>
+                      {scoreDetails.overall}% {scoreDetails.emoji}
+                    </div>
+                  )}
                 </div>
               }
               style={{ marginTop: '24px' }}
             >
-              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div style={{
-                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                  borderRadius: '50%',
-                  width: '80px',
-                  height: '80px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 20px'
+              {/* Overall Compatibility Score */}
+              {scoreDetails && (
+                <div style={{ 
+                  background: 'linear-gradient(135deg, #f0f2ff, #fafbff)',
+                  padding: '20px',
+                  borderRadius: '12px',
+                  marginBottom: '24px',
+                  textAlign: 'center'
                 }}>
-                  <Iconify icon="eva:heart-fill" width="40px" style={{ color: 'white' }} />
+                  <Title level={4} style={{ margin: '0 0 8px 0', color: scoreDetails.color }}>
+                    Overall Compatibility Score
+                  </Title>
+                  <div style={{ 
+                    fontSize: '48px', 
+                    fontWeight: '800', 
+                    color: scoreDetails.color,
+                    marginBottom: '8px'
+                  }}>
+                    {scoreDetails.overall}%
+                  </div>
+                  <Text style={{ fontSize: '16px', color: '#666' }}>
+                    {scoreDetails.emoji} {scoreDetails.level} Match
+                  </Text>
                 </div>
-                
-                <Title level={3} style={{ marginBottom: '12px' }}>
-                  You're Compatible!
+              )}
+
+              {/* Astrological Compatibility */}
+              {compatibility.astrology && (
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    marginBottom: '12px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Iconify icon="eva:star-fill" width="20px" style={{ color: '#722ed1' }} />
+                      <Title level={5} style={{ margin: 0 }}>
+                        Astrological Compatibility
+                      </Title>
+                    </div>
+                    {scoreDetails?.astrology && (
+                      <div style={{
+                        background: '#722ed1',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        fontWeight: '700'
+                      }}>
+                        {scoreDetails.astrology}%
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Card size="small" style={{ marginBottom: '12px', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <Iconify icon="eva:heart-fill" width="16px" style={{ color: '#722ed1' }} />
+                      <Text strong>Love & Relationships</Text>
+                    </div>
+                    <Paragraph style={{ marginBottom: 0 }}>
+                      {compatibility.astrology.dragoste}
+                    </Paragraph>
+                  </Card>
+                  
+                  <Card size="small" style={{ borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <Iconify icon="eva:trending-up-fill" width="16px" style={{ color: '#722ed1' }} />
+                      <Text strong>Financial Compatibility</Text>
+                    </div>
+                    <Paragraph style={{ marginBottom: 0 }}>
+                      {compatibility.astrology.finante}
+                    </Paragraph>
+                  </Card>
+                </div>
+              )}
+
+              {/* Numerological Compatibility */}
+              {compatibility.numerology && (
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    marginBottom: '12px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Iconify icon="eva:hash-fill" width="20px" style={{ color: '#1890ff' }} />
+                      <Title level={5} style={{ margin: 0 }}>
+                        Numerological Compatibility
+                      </Title>
+                    </div>
+                    {scoreDetails?.numerology && (
+                      <div style={{
+                        background: '#1890ff',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                        fontWeight: '700'
+                      }}>
+                        {scoreDetails.numerology}%
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Card size="small" style={{ marginBottom: '12px', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <Iconify icon="eva:heart-fill" width="16px" style={{ color: '#1890ff' }} />
+                      <Text strong>Love & Relationships</Text>
+                    </div>
+                    <Paragraph style={{ marginBottom: 0 }}>
+                      {compatibility.numerology.dragoste}
+                    </Paragraph>
+                  </Card>
+                  
+                  <Card size="small" style={{ borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <Iconify icon="eva:trending-up-fill" width="16px" style={{ color: '#1890ff' }} />
+                      <Text strong>Financial Compatibility</Text>
+                    </div>
+                    <Paragraph style={{ marginBottom: 0 }}>
+                      {compatibility.numerology.finante}
+                    </Paragraph>
+                  </Card>
+                </div>
+              )}
+
+              {/* Basic Information Comparison */}
+              <div style={{ marginBottom: '24px' }}>
+                <Title level={5} style={{ marginBottom: '16px' }}>
+                  <Iconify icon="eva:people-fill" width="20px" style={{ marginRight: '8px', color: '#52c41a' }} />
+                  Profile Comparison
                 </Title>
                 
-                <Text style={{ fontSize: '16px', color: '#666', lineHeight: '1.6' }}>
-                  You and {user.firstName || 'this person'} have been marked as compatible by our team. 
-                  Start a conversation to discover your connection!
-                </Text>
-                
-                {/* Basic compatibility info */}
-                <div style={{ 
-                  marginTop: '32px',
-                  display: 'flex',
-                  gap: '24px',
-                  justifyContent: 'center',
-                  flexWrap: 'wrap'
-                }}>
-                  {user.questionnaire?.zodiacSign && (
-                    <div style={{ 
-                      textAlign: 'center',
-                      padding: '16px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      borderRadius: '12px',
-                      color: 'white',
-                      minWidth: '120px'
-                    }}>
-                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>⭐</div>
-                      <div style={{ fontSize: '14px', marginBottom: '4px', opacity: 0.9 }}>Zodiac Sign</div>
-                      <div style={{ fontSize: '16px', fontWeight: '600' }}>{user.questionnaire.zodiacSign}</div>
-                    </div>
+                <Row gutter={[16, 16]}>
+                  {/* Zodiac Signs */}
+                  {(currentUser?.questionnaire?.zodiacSign || user?.questionnaire?.zodiacSign) && (
+                    <Col xs={24} sm={12}>
+                      <Card size="small" style={{ textAlign: 'center' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                          <Iconify icon="eva:star-fill" width="20px" style={{ color: '#722ed1' }} />
+                          <Text strong style={{ marginLeft: '8px' }}>Zodiac Signs</Text>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>You</Text>
+                            <Text strong>{currentUser?.questionnaire?.zodiacSign || 'Not set'}</Text>
+                          </div>
+                          <Iconify icon="eva:heart-outline" width="16px" style={{ color: '#722ed1' }} />
+                          <div>
+                            <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Them</Text>
+                            <Text strong>{user?.questionnaire?.zodiacSign || 'Not set'}</Text>
+                          </div>
+                        </div>
+                      </Card>
+                    </Col>
                   )}
-                  
-                  {user.questionnaire?.numerologyNumber && (
-                    <div style={{ 
-                      textAlign: 'center',
-                      padding: '16px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      borderRadius: '12px',
-                      color: 'white',
-                      minWidth: '120px'
-                    }}>
-                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔢</div>
-                      <div style={{ fontSize: '14px', marginBottom: '4px', opacity: 0.9 }}>Life Path</div>
-                      <div style={{ fontSize: '16px', fontWeight: '600' }}>{user.questionnaire.numerologyNumber}</div>
-                    </div>
+
+                  {/* Relationship Types */}
+                  {(currentUser?.questionnaire?.relationshipType || user?.questionnaire?.relationshipType) && (
+                    <Col xs={24} sm={12}>
+                      <Card size="small" style={{ textAlign: 'center' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                          <Iconify icon="eva:heart-fill" width="20px" style={{ color: '#f093fb' }} />
+                          <Text strong style={{ marginLeft: '8px' }}>Relationship Goals</Text>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>You</Text>
+                            <Text strong style={{ fontSize: '11px' }}>{currentUser?.questionnaire?.relationshipType || 'Not set'}</Text>
+                          </div>
+                          <Iconify icon="eva:heart-outline" width="16px" style={{ color: '#f093fb' }} />
+                          <div>
+                            <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>Them</Text>
+                            <Text strong style={{ fontSize: '11px' }}>{user?.questionnaire?.relationshipType || 'Not set'}</Text>
+                          </div>
+                        </div>
+                      </Card>
+                    </Col>
                   )}
-                  
-                  {user.age && (
-                    <div style={{ 
-                      textAlign: 'center',
-                      padding: '16px',
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      borderRadius: '12px',
-                      color: 'white',
-                      minWidth: '120px'
-                    }}>
-                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>🎂</div>
-                      <div style={{ fontSize: '14px', marginBottom: '4px', opacity: 0.9 }}>Age</div>
-                      <div style={{ fontSize: '16px', fontWeight: '600' }}>{user.age} years</div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Relationship type compatibility */}
-                {user.questionnaire?.relationshipType && (
-                  <div style={{ 
-                    marginTop: '24px',
-                    padding: '20px',
-                    background: 'linear-gradient(135deg, #f093fb15, #f5576c15)',
-                    borderRadius: '12px',
-                    border: '1px solid #f093fb30'
-                  }}>
-                    <div style={{ marginBottom: '12px' }}>
-                      <Text strong style={{ fontSize: '16px' }}>Relationship Goals</Text>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-                      <Tag color="purple" style={{ padding: '4px 12px', fontSize: '13px' }}>
-                        You: {currentUser?.questionnaire?.relationshipType || 'Not specified'}
-                      </Tag>
-                      <Iconify icon="eva:heart-fill" width="16px" style={{ color: '#f093fb' }} />
-                      <Tag color="purple" style={{ padding: '4px 12px', fontSize: '13px' }}>
-                        Them: {user.questionnaire.relationshipType}
-                      </Tag>
-                    </div>
-                  </div>
-                )}
+                </Row>
               </div>
+
+              {/* Show message if no compatibility data available */}
+              {!compatibility.astrology && !compatibility.numerology && (
+                <div style={{ textAlign: 'center', padding: '32px' }}>
+                  <Iconify icon="eva:star-outline" width="48px" style={{ color: '#ccc', marginBottom: '16px' }} />
+                  <Title level={4} type="secondary">Compatibility Analysis</Title>
+                  <Text type="secondary">
+                    Complete questionnaires are needed for detailed compatibility analysis.
+                  </Text>
+                </div>
+              )}
             </Card>
           </Col>
         </Row>

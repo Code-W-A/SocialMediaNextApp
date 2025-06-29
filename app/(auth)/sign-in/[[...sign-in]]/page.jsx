@@ -137,7 +137,7 @@ export default function SignInPage() {
 
       <div className={css.authFooter}>
         <Text type="secondary">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/sign-up" className={css.authLink}>
             Sign up here
           </Link>

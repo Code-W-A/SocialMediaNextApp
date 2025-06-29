@@ -32,3 +32,40 @@
     background: var(--primary);
     min-height: 95vh;
 }
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .wrapper {
+    background: white;
+    padding: 0;
+    align-items: flex-start;
+  }
+  
+  .container {
+    width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+    flex-direction: column;
+  }
+  
+  .left {
+    flex: 1;
+    padding: 1.5rem;
+    width: 100%;
+    min-height: 100vh;
+    justify-content: flex-start;
+    padding-top: 2rem;
+  }
+  
+  .right {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .left {
+    padding: 1rem;
+    padding-top: 1.5rem;
+  }
+}

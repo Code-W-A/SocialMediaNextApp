@@ -18,10 +18,11 @@ import {
   Checkbox,
   Slider
 } from "antd";
-import { UserOutlined, HeartOutlined, SearchOutlined, FilterOutlined } from "@ant-design/icons";
+import { UserOutlined, HeartOutlined, SearchOutlined, FilterOutlined, CrownOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities } from "@/actions/admin";
 import { getMainProfileImage } from "@/utils/imageHelpers";
+import { getAllV1UsersForMigration } from "@/actions/v1Migration";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -38,12 +39,19 @@ const AdminDashboard = () => {
   const [bulkMode, setBulkMode] = useState(false);
   const [sortBy, setSortBy] = useState('lastActive'); // 'name', 'age', 'lastActive'
   const [compatibilitySearchText, setCompatibilitySearchText] = useState("");
+  const [premiumFilter, setPremiumFilter] = useState(null); // null, true, false
   const queryClient = useQueryClient();
 
   // Fetch all users
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: getAllUsers,
+  });
+
+  // Fetch V1 migration data
+  const { data: v1MigrationData, isLoading: v1MigrationLoading } = useQuery({
+    queryKey: ["admin-v1-migration"],
+    queryFn: getAllV1UsersForMigration,
   });
 
   // Fetch compatibilities for selected user
@@ -125,6 +133,20 @@ const AdminDashboard = () => {
     return user.image_url || user.imageUrl || null;
   };
 
+  // Check if user is V1 migrated
+  const isV1User = (userId) => {
+    if (!v1MigrationData) return false;
+    return v1MigrationData.alreadyMigrated?.some(user => user.id === userId) || false;
+  };
+
+  // Helper function to check if user is premium
+  const isUserPremium = (user) => {
+    return user?.subscription?.isPremium || 
+           user?.subscription?.status === 'active' || 
+           user?.subscription?.status === 'trialing' ||
+           user?.subscriptionActive !== undefined;
+  };
+
   const userColumns = [
     {
       title: "User",
@@ -145,6 +167,9 @@ const AdminDashboard = () => {
               {(record?.firstName && record?.lastName) 
                 ? `${record.firstName} ${record.lastName}` 
                 : record?.displayName || record?.name || "Unknown User"}
+              {isUserPremium(record) && (
+                <CrownOutlined style={{ color: '#FFD700', marginLeft: '8px', fontSize: '14px' }} />
+              )}
             </div>
             <Text type="secondary" style={{ fontSize: '12px' }}>
               @{record?.username || record?.email?.split('@')[0] || "no-username"}
@@ -157,6 +182,12 @@ const AdminDashboard = () => {
               )}
               {record?.age && (
                 <Tag color="green" size="small">{record.age} years</Tag>
+              )}
+              {isUserPremium(record) && (
+                <Tag color="gold" size="small" icon={<CrownOutlined />}>Premium</Tag>
+              )}
+              {isV1User(record?.id) && (
+                <Tag color="gold" size="small">V1 User</Tag>
               )}
             </div>
           </div>
@@ -343,7 +374,12 @@ const AdminDashboard = () => {
       (user.age || new Date().getFullYear() - new Date(user.dateOfBirth).getFullYear()) : null;
     const matchesAge = !userAge || (userAge >= ageRange[0] && userAge <= ageRange[1]);
     
-    return matchesSearch && matchesGender && matchesAge;
+    // Premium filter
+    const matchesPremium = premiumFilter === null || 
+      (premiumFilter === true && isUserPremium(user)) ||
+      (premiumFilter === false && !isUserPremium(user));
+    
+    return matchesSearch && matchesGender && matchesAge && matchesPremium;
   }) || [];
 
   // Get available users for compatibility (exclude current user and already compatible)
@@ -381,6 +417,57 @@ const AdminDashboard = () => {
         </Text>
         
         <Divider />
+
+        {/* V1 Migration Statistics */}
+        {v1MigrationData && (
+          <Card 
+            title="📊 V1 Migration Statistics" 
+            size="small" 
+            style={{ marginBottom: 16, background: '#fff7e6', border: '1px solid #ffd591' }}
+          >
+            <Row gutter={[16, 8]}>
+              <Col span={6}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fa8c16' }}>
+                    {v1MigrationData.totalV1Users}
+                  </div>
+                  <Text type="secondary">Total V1 Users</Text>
+                </div>
+              </Col>
+              <Col span={6}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                    {v1MigrationData.alreadyMigrated?.length || 0}
+                  </div>
+                  <Text type="secondary">Migrated to Premium</Text>
+                </div>
+              </Col>
+              <Col span={6}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#faad14' }}>
+                    {v1MigrationData.needsMigration || 0}
+                  </div>
+                  <Text type="secondary">Pending Migration</Text>
+                </div>
+              </Col>
+              <Col span={6}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1' }}>
+                    {v1MigrationData.totalV1Users > 0 
+                      ? Math.round((v1MigrationData.alreadyMigrated?.length || 0) / v1MigrationData.totalV1Users * 100)
+                      : 0}%
+                  </div>
+                  <Text type="secondary">Migration Rate</Text>
+                </div>
+              </Col>
+            </Row>
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                V1 users are automatically migrated to Premium when they log in. They receive a welcome dialog and lifetime Premium access.
+              </Text>
+            </div>
+          </Card>
+        )}
         
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col span={8}>
@@ -404,7 +491,24 @@ const AdminDashboard = () => {
               <Select.Option value="other">Other</Select.Option>
             </Select>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
+            <Select
+              placeholder="Premium status"
+              value={premiumFilter}
+              onChange={setPremiumFilter}
+              allowClear
+              style={{ width: '100%' }}
+            >
+              <Select.Option value={true}>
+                <Space>
+                  <CrownOutlined style={{ color: '#FFD700' }} />
+                  Premium Users
+                </Space>
+              </Select.Option>
+              <Select.Option value={false}>Free Users</Select.Option>
+            </Select>
+          </Col>
+          <Col span={4}>
             <div>
               <Text strong style={{ marginBottom: 8, display: 'block' }}>Age Range: {ageRange[0]} - {ageRange[1]}</Text>
               <Slider
@@ -416,10 +520,13 @@ const AdminDashboard = () => {
               />
             </div>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
             <div style={{ textAlign: 'right' }}>
               <Text strong>Total Users: {users?.length || 0}</Text><br/>
-              <Text type="secondary">Filtered: {filteredUsers.length}</Text>
+              <Text type="secondary">Filtered: {filteredUsers.length}</Text><br/>
+              <Text style={{ color: '#FFD700' }}>
+                Premium: {users?.filter(isUserPremium).length || 0}
+              </Text>
             </div>
           </Col>
         </Row>
@@ -883,6 +990,15 @@ const AdminDashboard = () => {
                           <div><Text type="secondary">Last Active:</Text> {new Date(viewingUser.lastTimeActive.seconds ? viewingUser.lastTimeActive.seconds * 1000 : viewingUser.lastTimeActive).toLocaleString()}</div>
                         ) : (
                           <div><Text type="secondary">Last Active:</Text> Never</div>
+                        )}
+                        {isV1User(viewingUser.id) && (
+                          <div>
+                            <Text type="secondary">V1 Status:</Text> 
+                            <Tag color="gold" style={{ marginLeft: '8px' }}>V1 Migrated User</Tag>
+                          </div>
+                        )}
+                        {viewingUser.subscription?.type === 'v1_migration' && (
+                          <div><Text type="secondary">Premium Type:</Text> Lifetime (V1 Migration)</div>
                         )}
                         {viewingUser.gpsCoordinates && (
                           <div><Text type="secondary">GPS Coordinates:</Text> {viewingUser.gpsCoordinates.latitude}, {viewingUser.gpsCoordinates.longitude}</div>

@@ -6,7 +6,8 @@ import Box from "@/components/Box";
 import Sidebar from "@/components/Sidebar";
 import BottomNavbar from "@/components/BottomNavbar";
 import { SettingsContextProvider } from "@/context/settings/settings-provider";
-import { Toaster } from "react-hot-toast";
+import BottomNavbarPaddingWrapper from "@/components/BottomNavbarPaddingWrapper";
+
 import {
   HydrationBoundary,
   QueryClient,
@@ -17,6 +18,8 @@ import {
 } from "@/actions/user";
 import { currentUser } from "@/lib/firebaseAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import V1MigrationWrapper from "@/components/V1MigrationWrapper";
+
 const HomeLayout = async ({ children }) => {
   const queryClient = new QueryClient();
   const user = await currentUser();
@@ -36,27 +39,31 @@ const HomeLayout = async ({ children }) => {
       <SettingsContextProvider>
         <ThemeProvider>
           <HydrationBoundary state={dehydrate(queryClient)}>
-            <Box
-              type="baseBg"
-              style={{ position: "relative", width: "100vw", height: "100vh" }}
-            >
-              <div className={css.wrapper}>
-                {/* header */}
-                <Header />
+            <V1MigrationWrapper>
+              <Box
+                type="baseBg"
+                style={{ position: "relative", width: "100vw", height: "100vh" }}
+              >
+                <div className={css.wrapper}>
+                  {/* header */}
+                  <Header />
 
-                {/* body */}
-                <div className={css.container}>
-                  <Sidebar />
+                  {/* body */}
+                  <div className={css.container}>
+                    <Sidebar />
 
-                  <div className={css.page_body}>{children}</div>
+                    <BottomNavbarPaddingWrapper>
+                      <div className={css.page_body}>{children}</div>
+                    </BottomNavbarPaddingWrapper>
+                  </div>
+                  
+                  {/* Bottom Navigation for Mobile */}
+                  <BottomNavbar />
                 </div>
-                
-                {/* Bottom Navigation for Mobile */}
-                <BottomNavbar />
-              </div>
-            </Box>
+              </Box>
+            </V1MigrationWrapper>
           </HydrationBoundary>
-          <Toaster />
+
         </ThemeProvider>
       </SettingsContextProvider>
     </ProtectedRoute>

@@ -2,12 +2,21 @@
 import React, { useRef, useState } from "react";
 import css from "@/styles/PostGenerator.module.css";
 import Box from "../Box";
-import { Avatar, Button, Flex, Image, Input, Spin, Typography, Divider, Card } from "antd";
+import { Avatar, Button, Flex, Image, Input, Spin, Typography, Divider, Card, Modal } from "antd";
+import { CrownOutlined } from "@ant-design/icons";
 import Iconify from "../Iconify";
 import { createPost } from "@/actions/post";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useUser } from "@/hooks/useFirebaseAuth";
+import { getMainProfileImage } from "@/utils/imageHelpers";
+import { useLanguage } from "@/lib/i18n";
+import { useSubscription } from "@/hooks/useSubscription";
+import { useDailyUsageTracking } from "@/hooks/useDailyUsageTracking";
+import { hasReachedDailyLimit, canPerformAction } from "@/utils/premiumHelpers";
+import { useSettingsContext } from "@/context/settings/settings-context";
+import { getUserLimits } from "@/utils/premiumHelpers";
+import { uploadImage } from "@/actions/upload";
 
 const YDestinyPrompts = [
   "Ce emoție te domină azi?",
@@ -22,21 +31,88 @@ const YDestinyPrompts = [
 ];
 
 const PostGenerator = () => {
+  const { t } = useLanguage();
   const imgInputRef = useRef(null);
-  const vidInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileType, setFileType] = useState(null); // [image, video]
   const [postText, setPostText] = useState(null);
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [showPrompts, setShowPrompts] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
   const queryClient = useQueryClient();
+  const { user } = useUser();
+  const { subscription, isPremium } = useSubscription();
+  const { dailyUsage, incrementUsage } = useDailyUsageTracking();
+
+  const canPost = canPerformAction('DAILY_POSTS', dailyUsage, subscription);
+
   const { mutate: execute, isPending } = useMutation({
     mutationFn: (data) => createPost({ ...data, authorId: user?.id }),
-    onSuccess: () => {
-      handleSuccess();
-      queryClient.invalidateQueries("posts");
+    onMutate: async (newPost) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["posts"] });
+
+      // Snapshot the previous value
+      const previousPosts = queryClient.getQueryData(["posts", "all", user?.id]);
+
+      // Optimistically update to the new value
+      if (previousPosts) {
+        const optimisticPost = {
+          id: `temp-${Date.now()}`,
+          postText: newPost.postText || '',
+          media: newPost.media,
+          authorId: user?.id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          edited: false,
+          likes: [],
+          likesCount: 0,
+          commentsCount: 0,
+          isVisible: true,
+          author: {
+            id: user?.id,
+            first_name: user?.firstName,
+            last_name: user?.lastName,
+            firstName: user?.firstName,
+            lastName: user?.lastName,
+            username: user?.username,
+            image_url: getMainProfileImage(user?.images),
+            images: user?.images
+          },
+          comments: []
+        };
+
+        queryClient.setQueryData(["posts", "all", user?.id], (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: [
+              {
+                data: [optimisticPost, ...(old.pages[0]?.data || [])],
+                metaData: old.pages[0]?.metaData || { hasNextPage: false, lastCursor: null }
+              },
+              ...old.pages.slice(1)
+            ]
+          };
+        });
+      }
+
+      return { previousPosts };
     },
-    onError: () => showError("Something wrong happened. Try again!"),
+    onSuccess: (result) => {
+      handleSuccess();
+      // Increment daily usage counter
+      incrementUsage('DAILY_POSTS');
+      // Invalidate all posts queries to refresh with real data
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+    onError: (err, newPost, context) => {
+      // Restore previous data on error
+      if (context?.previousPosts) {
+        queryClient.setQueryData(["posts", "all", user?.id], context.previousPosts);
+      }
+      showError("Something wrong happened. Try again!");
+    },
   });
 
   const handleSuccess = () => {
@@ -91,18 +167,24 @@ const PostGenerator = () => {
       showError("Nu poți face o postare goală");
       return;
     }
+
+    // Check daily limit for free users
+    if (!canPost.canPerform) {
+      setShowLimitModal(true);
+      return;
+    }
+
     // don't forget to tell about the next.config.js file where we have set the limit of 5mb
     execute({ postText, media: selectedFile });
   }
 
-  const { user } = useUser();
   return (
     <>
       <Spin
         spinning={isPending}
         tip={
           <Typography className="typoBody1" style={{ marginTop: "1rem" }}>
-            Se publică pe Calea Destinului...
+            {t('posts.publishingOnDestinyPath')}
           </Typography>
         }
       >
@@ -120,12 +202,12 @@ const PostGenerator = () => {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                 <Iconify icon="eva:star-fill" width="24px" style={{ color: '#FFD700' }} />
                 <Typography.Title level={4} style={{ margin: 0, color: 'white', fontSize: '18px' }}>
-                  Calea Destinului
+                  {t('posts.destinyPath')}
                 </Typography.Title>
                 <Iconify icon="eva:star-fill" width="24px" style={{ color: '#FFD700' }} />
               </div>
               <Typography.Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: '13px' }}>
-                Împărtășește-ți gândurile cu universul ✨
+                {t('posts.shareThoughts')}
               </Typography.Text>
             </div>
 
@@ -134,13 +216,15 @@ const PostGenerator = () => {
 
               <Flex style={{ width: "100%" }} gap={"1rem"}>
                 <Avatar
-                  src={user?.imageUrl}
+                  src={getMainProfileImage(user?.images)}
                   style={{
                     boxShadow: "var(--avatar-shadow)",
                     width: "2.6rem",
                     height: "2.6rem",
                   }}
-                />
+                >
+                  {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
+                </Avatar>
 
                 <Input.TextArea
                   // maxLength={100}
@@ -148,6 +232,7 @@ const PostGenerator = () => {
                   style={{ height: 80, resize: "none", flex: 1 }}
                   value={postText}
                   onChange={(e) => setPostText(e.target.value)}
+                  disabled={!canPost.canPerform}
                 />
               </Flex>
 
@@ -162,6 +247,7 @@ const PostGenerator = () => {
                     borderRadius: '8px',
                     background: showPrompts ? '#667eea15' : 'transparent'
                   }}
+                  disabled={!canPost.canPerform}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify icon="eva:bulb-fill" width="16px" style={{ color: '#667eea' }} />
@@ -264,21 +350,13 @@ const PostGenerator = () => {
               )}
 
               {/* buttons Container */}
-              <Flex
-                align="center"
-                justify="space-between"
-                className={css.bottom}
-              >
-                {/* upload buttons */}
+              <div className={css.buttonsContainer}>
                 {/* image upload button */}
                 <Button
                   type="text"
-                  style={{ 
-                    background: "linear-gradient(135deg, #667eea15, #764ba215)",
-                    border: "1px solid #667eea30",
-                    borderRadius: "8px"
-                  }}
+                  className={css.photoButton}
                   onClick={() => imgInputRef.current.click()}
+                  disabled={!canPost.canPerform}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify
@@ -290,35 +368,10 @@ const PostGenerator = () => {
                   </Flex>
                 </Button>
 
-                {/* video upload button */}
                 <Button
-                  type="text"
-                  style={{ 
-                    background: "linear-gradient(135deg, #764ba215, #667eea15)",
-                    border: "1px solid #764ba230",
-                    borderRadius: "8px"
-                  }}
-                  onClick={() => vidInputRef.current.click()}
-                >
-                  <Flex align="center" gap={".5rem"}>
-                    <Iconify
-                      icon="gridicons:video"
-                      width="1.2rem"
-                      color="#764ba2"
-                    />
-                    <Typography className="typoSubtitle2" style={{ color: "#764ba2" }}>Video</Typography>
-                  </Flex>
-                </Button>
-
-                <Button
-                  style={{ 
-                    marginLeft: "auto",
-                    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                    border: "none",
-                    borderRadius: "8px",
-                    boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)"
-                  }}
+                  className={css.shareButton}
                   onClick={handleSubmitPost}
+                  disabled={!canPost.canPerform}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify icon="eva:star-fill" width="1.2rem" style={{ color: "white" }} />
@@ -330,11 +383,83 @@ const PostGenerator = () => {
                     </Typography>
                   </Flex>
                 </Button>
-              </Flex>
+              </div>
             </Flex>
           </Box>
         </div>
       </Spin>
+
+      {/* Premium Upgrade Modal */}
+      <Modal
+        open={showLimitModal}
+        onCancel={() => setShowLimitModal(false)}
+        footer={null}
+        centered
+        width={400}
+        className="premium-modal"
+      >
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>
+            <CrownOutlined style={{ color: '#FFD700' }} />
+          </div>
+          
+          <Typography.Title level={3} style={{ marginBottom: '16px' }}>
+            Ai atins limita zilnică
+          </Typography.Title>
+          
+          <Typography.Paragraph style={{ fontSize: '16px', marginBottom: '24px' }}>
+            Utilizatorii free pot posta doar <strong>{canPost.limit} postări pe zi</strong>.
+            Ai folosit toate postările disponibile pentru astăzi.
+          </Typography.Paragraph>
+          
+          <div style={{ 
+            background: '#f0f2f5', 
+            padding: '16px', 
+            borderRadius: '8px',
+            marginBottom: '24px'
+          }}>
+            <Typography.Text strong style={{ fontSize: '16px' }}>
+              Upgrade la Premium pentru:
+            </Typography.Text>
+            <ul style={{ textAlign: 'left', marginTop: '8px', marginBottom: 0 }}>
+              <li>Postări nelimitate</li>
+              <li>Vizualizări feed nelimitate</li>
+              <li>Match-uri nelimitate</li>
+              <li>Și multe alte beneficii!</li>
+            </ul>
+          </div>
+          
+          <Button 
+            type="primary" 
+            size="large"
+            block
+            onClick={() => {
+              setShowLimitModal(false);
+              window.location.href = '/premium';
+            }}
+            style={{ 
+              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+              border: 'none',
+              height: '48px',
+              fontSize: '16px',
+              fontWeight: '600',
+              color: '#000'
+            }}
+          >
+            <CrownOutlined /> Upgrade la Premium
+          </Button>
+          
+          <Button 
+            type="text" 
+            block
+            onClick={() => setShowLimitModal(false)}
+            style={{ marginTop: '12px' }}
+          >
+            Mai târziu
+          </Button>
+        </div>
+      </Modal>
+
       {/* make an input to only accept img files and max number of files as 1 */}
       <input
         type="file"
@@ -342,15 +467,6 @@ const PostGenerator = () => {
         multiple={false}
         style={{ display: "none" }}
         ref={imgInputRef}
-        onChange={(e) => handleFileChange(e)}
-      />
-      {/* make an input to only accept img files and max number of files as 1 */}
-      <input
-        type="file"
-        accept="video/*"
-        multiple={false}
-        style={{ display: "none" }}
-        ref={vidInputRef}
         onChange={(e) => handleFileChange(e)}
       />
     </>

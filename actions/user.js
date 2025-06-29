@@ -7,6 +7,7 @@ import {
 } from "@/mock/mockData";
 import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { serializeFirebaseData } from '@/utils/firebaseHelpers';
 
 // Global variables to simulate database state
 let mockUsersState = [...mockUsers];
@@ -89,38 +90,40 @@ export const getUser = async (id) => {
       const userData = userDoc.data();
       console.log('Firestore user data retrieved:', userData);
       
+      const userDataResult = {
+        id: userDoc.id,
+        // Firebase structure fields
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        username: userData.username,
+        email: userData.email,
+        bio: userData.bio || '',
+        location: userData.location || '',
+        website: userData.website || '',
+        relationshipStatus: userData.relationshipStatus || '',
+        interests: userData.interests || [],
+        images: userData.images || [],
+        gpsCoordinates: userData.gpsCoordinates || null,
+        banner_url: userData.banner_url || null,
+        banner_id: userData.banner_id || null,
+        verified: userData.verified || false,
+        followers: userData.followers || [],
+        following: userData.following || [],
+        createdAt: userData.createdAt,
+        updatedAt: userData.updatedAt,
+        lastTimeActive: userData.lastTimeActive,
+        
+        // Legacy field mappings for backward compatibility
+        first_name: userData.firstName || userData.first_name,
+        last_name: userData.lastName || userData.last_name,
+        email_address: userData.email || userData.email_address,
+        image_url: userData.image_url,
+        
+        isIncomplete: false,
+      };
+
       return { 
-        data: {
-          id: userDoc.id,
-          // Firebase structure fields
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          username: userData.username,
-          email: userData.email,
-          bio: userData.bio || '',
-          location: userData.location || '',
-          website: userData.website || '',
-          relationshipStatus: userData.relationshipStatus || '',
-          interests: userData.interests || [],
-          images: userData.images || [],
-          gpsCoordinates: userData.gpsCoordinates || null,
-          banner_url: userData.banner_url || null,
-          banner_id: userData.banner_id || null,
-          verified: userData.verified || false,
-          followers: userData.followers || [],
-          following: userData.following || [],
-          createdAt: userData.createdAt,
-          updatedAt: userData.updatedAt,
-          lastTimeActive: userData.lastTimeActive,
-          
-          // Legacy field mappings for backward compatibility
-          first_name: userData.firstName || userData.first_name,
-          last_name: userData.lastName || userData.last_name,
-          email_address: userData.email || userData.email_address,
-          image_url: userData.image_url,
-          
-          isIncomplete: false,
-        }
+        data: serializeFirebaseData(userDataResult)
       };
     } else {
       // User document doesn't exist, return incomplete profile data
@@ -344,32 +347,103 @@ export const updateUserProfile = async (userData) => {
       last_name,
     } = userData;
 
-    // Prepare update data with proper field mapping
+    // Validate required fields
+    if (!id) {
+      throw new Error("User ID is required");
+    }
+
+    // Validate and sanitize string fields
+    const sanitizeString = (str, maxLength = 255) => {
+      if (!str) return '';
+      return String(str).trim().substring(0, maxLength);
+    };
+
+    // Validate and sanitize array fields
+    const sanitizeArray = (arr, maxItems = 50) => {
+      if (!Array.isArray(arr)) return [];
+      return arr.slice(0, maxItems).filter(item => item != null);
+    };
+
+    // Validate website URL
+    const validateWebsite = (url) => {
+      if (!url) return '';
+      try {
+        const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+        return urlObj.href;
+      } catch {
+        return '';
+      }
+    };
+
+    // Validate GPS coordinates
+    const validateGpsCoordinates = (coords) => {
+      if (!coords || typeof coords !== 'object') return null;
+      
+      const lat = parseFloat(coords.latitude);
+      const lng = parseFloat(coords.longitude);
+      
+      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return null;
+      }
+      
+      return { latitude: lat, longitude: lng };
+    };
+
+    // Prepare update data with proper field mapping and validation
     const updateData = {
       // Use new field names as primary, fallback to legacy
-      firstName: firstName || first_name,
-      lastName: lastName || last_name,
-      first_name: firstName || first_name, // Keep legacy field for compatibility
-      last_name: lastName || last_name, // Keep legacy field for compatibility
-      username,
-      bio: bio || '',
-      location: location || '',
-      website: website || '',
-      relationshipStatus: relationshipStatus || '',
-      interests: interests || [],
-      email_address,
-      image_url,
+      firstName: sanitizeString(firstName || first_name, 50),
+      lastName: sanitizeString(lastName || last_name, 50),
+      first_name: sanitizeString(firstName || first_name, 50), // Keep legacy field for compatibility
+      last_name: sanitizeString(lastName || last_name, 50), // Keep legacy field for compatibility
+      username: sanitizeString(username, 30),
+      bio: sanitizeString(bio, 500),
+      location: sanitizeString(location, 100),
+      website: validateWebsite(website),
+      relationshipStatus: sanitizeString(relationshipStatus, 50),
+      interests: sanitizeArray(interests, 20).map(i => sanitizeString(i, 50)),
       updatedAt: serverTimestamp(),
     };
 
-    // Add GPS coordinates if provided
-    if (gpsCoordinates) {
-      updateData.gpsCoordinates = gpsCoordinates;
+    // Add optional fields only if provided
+    if (email_address) {
+      updateData.email_address = sanitizeString(email_address, 255);
+    }
+    
+    if (image_url) {
+      updateData.image_url = sanitizeString(image_url, 500);
     }
 
-    // Add images if provided
+    // Add GPS coordinates if provided and valid
+    const validatedCoords = validateGpsCoordinates(gpsCoordinates);
+    if (validatedCoords) {
+      updateData.gpsCoordinates = validatedCoords;
+    }
+
+    // Validate and add images if provided
     if (images && Array.isArray(images)) {
-      updateData.images = images;
+      const validImages = images
+        .slice(0, 10) // Max 10 images
+        .filter(img => 
+          img && 
+          typeof img === 'object' && 
+          img.fileName && 
+          img.fileUri &&
+          typeof img.fileName === 'string' &&
+          typeof img.fileUri === 'string'
+        )
+        .map(img => ({
+          fileName: sanitizeString(img.fileName, 255),
+          fileUri: sanitizeString(img.fileUri, 500),
+          isMain: Boolean(img.isMain)
+        }));
+      
+      // Ensure at least one image is marked as main
+      if (validImages.length > 0 && !validImages.some(img => img.isMain)) {
+        validImages[0].isMain = true;
+      }
+      
+      updateData.images = validImages;
     }
 
     // Remove undefined values to avoid overwriting existing data with undefined
@@ -379,7 +453,7 @@ export const updateUserProfile = async (userData) => {
       }
     });
 
-    console.log('Updating user profile with data:', updateData);
+    console.log('Updating user profile with validated data:', updateData);
 
     const userRef = doc(db, "Users", id);
     await updateDoc(userRef, updateData);
@@ -391,19 +465,187 @@ export const updateUserProfile = async (userData) => {
   }
 };
 
-// Update last time active for user
+// Update last time active for user - with rate limiting
+const lastActivityUpdate = new Map();
+
 export const updateLastTimeActive = async (userId) => {
   try {
     if (!userId) return;
+    
+    // Rate limit: only update once per minute per user
+    const now = Date.now();
+    const lastUpdate = lastActivityUpdate.get(userId) || 0;
+    
+    if (now - lastUpdate < 60000) { // 1 minute
+      console.log('Skipping last time active update - too frequent');
+      return;
+    }
     
     const userRef = doc(db, 'Users', userId);
     await updateDoc(userRef, {
       lastTimeActive: serverTimestamp()
     });
     
+    lastActivityUpdate.set(userId, now);
     console.log('Last time active updated for user:', userId);
   } catch (error) {
     console.error('Error updating last time active:', error);
     // Don't throw error as this is not critical functionality
+  }
+};
+
+// Real-time presence tracking functions
+export const updateUserPresence = async (userId, status = 'online') => {
+  try {
+    if (!userId) {
+      console.log("❌ No userId provided to updateUserPresence");
+      return;
+    }
+    
+    console.log("🔥 Updating user presence:", { userId, status });
+    
+    const userRef = doc(db, "Users", userId);
+    const presenceData = {
+      status, // 'online', 'away', 'offline'
+      lastSeen: new Date(),
+      lastActivity: new Date(),
+    };
+    
+    console.log("📝 Writing presence data:", presenceData);
+    
+    // Check if user document exists first
+    const userDoc = await getDoc(userRef);
+    if (!userDoc.exists()) {
+      console.log("❌ User document does not exist, cannot update presence");
+      return;
+    }
+    
+    // Update user document with presence info
+    await updateDoc(userRef, {
+      presence: presenceData,
+      updatedAt: new Date()
+    });
+    
+    console.log("✅ User presence updated successfully in Firestore");
+  } catch (error) {
+    console.error("❌ Error updating user presence:", error);
+    console.error("❌ Error details:", error.message);
+  }
+};
+
+// Set user online when they connect
+export const setUserOnline = async (userId) => {
+  try {
+    if (!userId) return;
+    
+    console.log("🟢 Setting user online:", userId);
+    await updateUserPresence(userId, 'online');
+    
+    // Set up automatic offline detection after inactivity
+    const userRef = doc(db, "Users", userId);
+    await updateDoc(userRef, {
+      'presence.connectedAt': new Date(),
+      'presence.sessionId': `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    });
+    
+  } catch (error) {
+    console.error("❌ Error setting user online:", error);
+  }
+};
+
+// Set user offline when they disconnect
+export const setUserOffline = async (userId) => {
+  try {
+    if (!userId) return;
+    
+    console.log("🔴 Setting user offline:", userId);
+    await updateUserPresence(userId, 'offline');
+    
+  } catch (error) {
+    console.error("❌ Error setting user offline:", error);
+  }
+};
+
+// Set user away (idle/inactive)
+export const setUserAway = async (userId) => {
+  try {
+    if (!userId) return;
+    
+    console.log("🟡 Setting user away:", userId);
+    await updateUserPresence(userId, 'away');
+    
+  } catch (error) {
+    console.error("❌ Error setting user away:", error);
+  }
+};
+
+// Update last activity timestamp
+export const updateLastActivity = async (userId) => {
+  try {
+    if (!userId) return;
+    
+    const userRef = doc(db, "Users", userId);
+    await updateDoc(userRef, {
+      'presence.lastActivity': new Date(),
+      'presence.status': 'online' // Reset to online if they were away
+    });
+    
+  } catch (error) {
+    console.error("❌ Error updating last activity:", error);
+  }
+};
+
+// Get users with their presence status
+export const getUsersWithPresence = async (userIds) => {
+  try {
+    if (!userIds || userIds.length === 0) return [];
+    
+    console.log("👥 Getting users with presence:", userIds.length);
+    
+    const users = [];
+    for (const userId of userIds) {
+      const userDoc = await getDoc(doc(db, "Users", userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const presence = userData.presence || {
+          status: 'offline',
+          lastSeen: new Date(),
+          lastActivity: new Date()
+        };
+        
+        // Calculate if user should be considered offline due to inactivity
+        const lastActivity = presence.lastActivity?.toDate() || new Date();
+        const now = new Date();
+        const inactiveMinutes = (now - lastActivity) / (1000 * 60);
+        
+        // Consider user offline if inactive for more than 5 minutes
+        let actualStatus = presence.status;
+        if (inactiveMinutes > 5) {
+          actualStatus = 'offline';
+        } else if (inactiveMinutes > 2 && presence.status === 'online') {
+          actualStatus = 'away';
+        }
+        
+        users.push({
+          id: userDoc.id,
+          ...userData,
+          presence: {
+            ...presence,
+            status: actualStatus,
+            lastSeen: presence.lastSeen?.toDate() || new Date(),
+            lastActivity: presence.lastActivity?.toDate() || new Date(),
+            isOnline: actualStatus === 'online',
+            inactiveMinutes: Math.floor(inactiveMinutes)
+          }
+        });
+      }
+    }
+    
+    console.log("✅ Users with presence retrieved:", users.length);
+    return users;
+    
+  } catch (error) {
+    console.error("❌ Error getting users with presence:", error);
+    return [];
   }
 };

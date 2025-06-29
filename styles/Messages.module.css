@@ -3,6 +3,7 @@
   width: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .container {
@@ -12,6 +13,7 @@
   overflow: hidden;
   background: var(--box-bg, white);
   box-shadow: var(--xl-shadow);
+  position: relative;
 }
 
 /* Desktop Layout */
@@ -55,14 +57,30 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .wrapper {
+    position: fixed;
+    top: 45px;
+    left: 0;
+    right: 0;
+    bottom: calc(150px + env(safe-area-inset-bottom));
+    height: calc(100vh - 45px - 150px - env(safe-area-inset-bottom));
+  }
+  
   .container {
-    height: calc(100vh - 180px);
+    height: 100%;
     border-radius: 0;
     margin: 0;
+    position: relative;
   }
   
   .leftPanel,
@@ -72,6 +90,7 @@
   
   .header {
     padding: 1rem;
+    flex-shrink: 0;
   }
   
   .title {
@@ -80,12 +99,19 @@
 }
 
 @media (max-width: 480px) {
+  .wrapper {
+    top: 45px;
+    bottom: calc(150px + env(safe-area-inset-bottom));
+    height: calc(100vh - 140px - env(safe-area-inset-bottom));
+  }
+  
   .container {
-    height: calc(100vh - 160px);
+    height: 100%;
   }
   
   .header {
     padding: 0.75rem;
+    flex-shrink: 0;
   }
   
   .title {

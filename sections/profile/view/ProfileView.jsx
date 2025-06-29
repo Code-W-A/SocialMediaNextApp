@@ -14,7 +14,8 @@ import Iconify from "@/components/Iconify";
 import { 
   checkProfileCompletion, 
   getDisplayName, 
-  getUsername 
+  getUsername,
+  shouldForceProfileCompletion 
 } from "@/utils/profileHelpers";
 
 const { Title, Text } = Typography;
@@ -44,15 +45,11 @@ const ProfileView = ({ userId }) => {
     const userData = data?.data || currentUser;
     if (!userData) return true;
 
-    // Check for essential fields
-    const hasBasicInfo = (userData.first_name || userData.firstName) && 
-                        (userData.last_name || userData.lastName) && 
-                        userData.username;
-    
-    const hasImages = userData.images && userData.images.length > 0;
-    
-    return !hasBasicInfo || !hasImages || isProfileIncomplete;
+    return shouldForceProfileCompletion({ data: userData }, currentUser);
   };
+
+  // Check if user is forced to complete profile (can't navigate away)
+  const isProfileCompletionForced = needsProfileCompletion() && isCurrentUserProfile;
 
   useEffect(() => {
     // Auto-show edit section if profile needs completion
@@ -61,6 +58,14 @@ const ProfileView = ({ userId }) => {
       setSelectedTab("edit");
     }
   }, [data, isCurrentUserProfile]);
+
+  // Prevent tab changes if profile completion is forced
+  const handleTabChange = (key) => {
+    if (isProfileCompletionForced && key !== "edit") {
+      return; // Don't allow tab change
+    }
+    setSelectedTab(key);
+  };
 
   const handleEditSuccess = () => {
     setShowEditSection(false);
@@ -187,13 +192,38 @@ const ProfileView = ({ userId }) => {
   return (
     <div className={css.wrapper}>
       <div className={css.container}>
-        {/* Incomplete Profile Alert */}
-        {needsProfileCompletion() && selectedTab !== "edit" && (
+        {/* Forced Profile Completion Alert */}
+        {isProfileCompletionForced && selectedTab !== "edit" && (
+          <Alert
+            message="🚨 Profile Completion Required"
+            description={
+              <div>
+                You must complete your profile before accessing other parts of the application.
+                Please add all required information below.
+              </div>
+            }
+            type="error"
+            showIcon
+            style={{ marginBottom: '1rem' }}
+            action={
+              <Button 
+                size="small" 
+                type="primary"
+                onClick={() => setSelectedTab("edit")}
+              >
+                Complete Profile Now
+              </Button>
+            }
+          />
+        )}
+
+        {/* Regular Profile Completion Alert */}
+        {needsProfileCompletion() && !isProfileCompletionForced && selectedTab !== "edit" && (
           <Alert
             message="Complete Your Profile"
             description={
               <div>
-                Your profile is missing some essential information. 
+                Your profile is missing some information. 
                 <Button 
                   type="link" 
                   style={{ padding: 0, marginLeft: '8px' }}
@@ -236,8 +266,11 @@ const ProfileView = ({ userId }) => {
         <div style={{ marginTop: '1rem' }}>
           <Tabs
             activeKey={selectedTab}
-            onChange={setSelectedTab}
-            items={tabItems}
+            onChange={handleTabChange}
+            items={tabItems.map(item => ({
+              ...item,
+              disabled: isProfileCompletionForced && item.key !== "edit"
+            }))}
             size="large"
             tabBarStyle={{ 
               background: 'white', 

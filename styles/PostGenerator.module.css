@@ -31,3 +31,48 @@
 .bottom{
   width: 100%;
 }
+
+/* Buttons Container */
+.buttonsContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 1rem;
+}
+
+/* Photo Button */
+.photoButton {
+  background: linear-gradient(135deg, #667eea15, #764ba215) !important;
+  border: 1px solid #667eea30 !important;
+  border-radius: 8px !important;
+}
+
+/* Share Button */
+.shareButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
+  margin-left: auto;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .buttonsContainer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .photoButton {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .shareButton {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+  }
+}

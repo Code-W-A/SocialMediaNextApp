@@ -6,6 +6,7 @@
   overflow: hidden;
   z-index: 999;
 }
+
 .container {
   display: flex;
   align-items: center;
@@ -13,32 +14,136 @@
   padding: 1rem 2rem;
 }
 
-.sidebarButton{
+.sidebarButton {
   display: none;
 }
 
+/* Logo Styles */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 8px 16px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.logoText {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.logoSubtext {
+  color: rgba(255,255,255,0.9);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Premium Button Styles */
+.premiumButton {
+  background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+  border: none !important;
+  color: #000 !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3) !important;
+}
+
+.premiumText {
+  display: inline;
+}
+
+.languageSwitcher {
+  /* Default styles for desktop */
+}
+
 @media (max-width: 1268px) {
-  .logo{
+  .logo {
     display: none;
   }
 
-  .sidebarButton{
+  .sidebarButton {
     display: block;
+  }
+}
+
+/* Mobile Specific Classes */
+.mobileWrapper {
+  height: 45px; /* Even smaller height for mobile */
+}
+
+.mobileContainer {
+  padding: 0.25rem 1rem; /* Minimal padding */
+  justify-content: center; /* Center the remaining elements */
+  width: 100%;
+}
+
+.mobileActions {
+  justify-content: center;
+  width: 100%;
+}
+
+.mobilePremiumButton {
+  min-width: auto !important;
+  padding: 8px !important; /* Just enough for the crown */
+  height: 36px !important;
+  width: 36px !important; /* Square button */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mobileLanguageSwitcher {
+  min-width: auto !important;
+  width: 50px !important;
+}
+
+.mobileLanguageSwitcher .ant-select-selector {
+  padding: 6px 8px !important;
+  min-width: 50px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.mobileLanguageSwitcher .ant-select-arrow {
+  display: none !important;
+}
+
+/* Keep existing media queries for fallback */
+@media (max-width: 1268px) {
+  .logo {
+    display: none;
+  }
+
+  .sidebarButton {
+    display: block;
+  }
+}
+
+@media (max-width: 1023px) {
+  .sidebarButton {
+    display: none;
+  }
+  
+  .logo {
+    display: flex;
   }
 }
 
 /* Hide sidebar button on mobile when using bottom navbar */
 @media (max-width: 1023px) {
-  .sidebarButton{
+  .sidebarButton {
     display: none;
   }
   
-  .logo{
-    display: block;
-  }
-  
-  .container {
-    padding: 1rem;
-    justify-content: center;
+  .logo {
+    display: flex;
   }
 }

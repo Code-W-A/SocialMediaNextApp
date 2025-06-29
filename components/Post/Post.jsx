@@ -24,12 +24,26 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deletePost, editPost } from "@/actions/post";
 import { getUserDisplayName, getDisplayName } from "@/utils/profileHelpers";
 import LikeButton from "./LikeButton";
+import { getMainProfileImage } from "@/utils/imageHelpers";
 
 const Post = ({ data, queryId }) => {
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(data?.postText || "");
+
+  // Debug logging for posts with media
+  React.useEffect(() => {
+    if (data?.media) {
+      console.log("Post with media:", {
+        postId: data?.id,
+        mediaUrl: data?.media,
+        fileType: getFileTypeFromUrl(data?.media),
+        authorId: data?.authorId,
+        postText: data?.postText
+      });
+    }
+  }, [data]);
 
   const { mutate } = useMutation({
     mutationFn: () => deletePost(data?.id, currentUser?.id),
@@ -135,10 +149,12 @@ const Post = ({ data, queryId }) => {
                   size={40}
                   src={
                     currentUser?.id === data?.authorId
-                      ? currentUser?.imageUrl
-                      : data?.author?.image_url
+                      ? getMainProfileImage(currentUser?.images)
+                      : getMainProfileImage(data?.author?.images) || data?.author?.image_url
                   }
-                />
+                >
+                  {data?.author?.first_name?.[0] || data?.author?.firstName?.[0] || data?.author?.username?.[0] || data?.author?.email?.[0]}
+                </Avatar>
               </Link>
 
               {/* name and post date */}
@@ -217,14 +233,24 @@ const Post = ({ data, queryId }) => {
           )}
 
           {/* media */}
-          {getFileTypeFromUrl(data?.media) === "image" && (
+          {getFileTypeFromUrl(data?.media) === "image" && data?.media && (
             <div className={css.media}>
               <Image
                 preview={{ mask: null }}
                 src={data?.media}
-                alt="post"
-                style={{ objectFit: "cover" }}
-                fill
+                alt="post image"
+                style={{ 
+                  width: "100%",
+                  height: "auto",
+                  maxHeight: "500px",
+                  objectFit: "contain",
+                  borderRadius: "1rem"
+                }}
+                fallback="/images/placeholder-image.png"
+                onError={(e) => {
+                  console.log("Image failed to load:", data?.media);
+                  e.target.style.display = 'none';
+                }}
               />
             </div>
           )}

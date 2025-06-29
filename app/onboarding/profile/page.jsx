@@ -261,7 +261,7 @@ export default function ProfilePage() {
           >
             <TextArea
               placeholder="Tell people about yourself... What makes you unique?"
-              rows={4}
+              rows={6}
               showCount
               maxLength={500}
               className={css.authInput}
@@ -320,7 +320,7 @@ export default function ProfilePage() {
               <Option value="single">Single</Option>
               <Option value="in_relationship">In a relationship</Option>
               <Option value="married">Married</Option>
-              <Option value="complicated">It's complicated</Option>
+              <Option value="complicated">It&apos;s complicated</Option>
               <Option value="prefer_not_to_say">Prefer not to say</Option>
             </Select>
           </Form.Item>
@@ -418,7 +418,9 @@ export default function ProfilePage() {
         closable={false}
         centered
         width={400}
-        bodyStyle={{ padding: "2rem", textAlign: "center" }}
+        styles={{
+          body: { padding: "2rem", textAlign: "center" }
+        }}
       >
         <div style={{ marginBottom: "1.5rem" }}>
           <div style={{
@@ -439,7 +441,7 @@ export default function ProfilePage() {
           </Title>
           
           <Text type="secondary" style={{ fontSize: "15px", lineHeight: "1.5" }}>
-            We'd like to detect your location to help you connect with people nearby. 
+            We&apos;d like to detect your location to help you connect with people nearby. 
             Your location is only used to improve your experience and is never shared without your permission.
           </Text>
         </div>

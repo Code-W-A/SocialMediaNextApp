@@ -1,15 +1,18 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import css from "@/styles/Messages.module.css";
-import { Typography, Alert, Spin } from "antd";
+import { Typography, Alert, Spin, Button } from "antd";
 import ConversationsList from "@/components/Messages/ConversationsList";
 import ChatArea from "@/components/Messages/ChatArea";
 import { subscribeToUserConversations, markMessagesAsRead } from "@/actions/chat";
+import { setUserOnline, setUserOffline } from "@/actions/user";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/i18n";
 
 const MessagesPage = () => {
   const { user: currentUser, isLoaded } = useUser();
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -60,7 +63,7 @@ const MessagesPage = () => {
       return unsubscribe;
     } catch (error) {
       console.error("Error subscribing to conversations:", error);
-      setError("Failed to load conversations. Please try refreshing the page.");
+      setError('Error loading messages');
       setLoading(false);
     }
   }, [currentUser?.id]);
@@ -104,6 +107,27 @@ const MessagesPage = () => {
     setSelectedConversation(null);
   };
 
+  // Debug functions for presence testing
+  const handleSetOnline = async () => {
+    try {
+      console.log("🔥 Manual: Setting user online");
+      await setUserOnline(currentUser?.id);
+      console.log("✅ Manual: User set online");
+    } catch (error) {
+      console.error("❌ Manual: Error setting online:", error);
+    }
+  };
+
+  const handleSetOffline = async () => {
+    try {
+      console.log("🔥 Manual: Setting user offline");
+      await setUserOffline(currentUser?.id);
+      console.log("✅ Manual: User set offline");
+    } catch (error) {
+      console.error("❌ Manual: Error setting offline:", error);
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -118,7 +142,7 @@ const MessagesPage = () => {
             gap: '16px'
           }}>
             <Spin size="large" />
-            <Typography.Text type="secondary">Loading conversations...</Typography.Text>
+            <Typography.Text type="secondary">{t('messages.loadingConversations')}</Typography.Text>
           </div>
         </div>
       </div>
@@ -132,7 +156,7 @@ const MessagesPage = () => {
         <div className={css.container}>
           <div style={{ padding: '20px' }}>
             <Alert
-              message="Error Loading Messages"
+              message={t('messages.errorLoadingMessages')}
               description={error}
               type="error"
               showIcon
@@ -153,7 +177,7 @@ const MessagesPage = () => {
               <div className={css.mobileListView}>
                 <div className={css.header}>
                   <Typography.Title level={3} className={css.title}>
-                    Messages
+                    {t('messages.title')}
                   </Typography.Title>
                 </div>
                 <ConversationsList 
@@ -180,8 +204,17 @@ const MessagesPage = () => {
             <div className={css.leftPanel}>
               <div className={css.header}>
                 <Typography.Title level={3} className={css.title}>
-                  Messages
+                  {t('messages.title')}
                 </Typography.Title>
+                {/* Debug buttons */}
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <Button size="small" onClick={handleSetOnline} type="primary">
+                    {t('messages.setOnline')}
+                  </Button>
+                  <Button size="small" onClick={handleSetOffline}>
+                    {t('messages.setOffline')}
+                  </Button>
+                </div>
               </div>
               <ConversationsList 
                 conversations={conversations}
@@ -201,10 +234,10 @@ const MessagesPage = () => {
               ) : (
                 <div className={css.emptyState}>
                   <Typography.Title level={4} type="secondary">
-                    Select a conversation to start messaging
+                    {t('messages.selectConversation')}
                   </Typography.Title>
                   <Typography.Text type="secondary">
-                    Choose from your existing conversations or start a new one from your matches
+                    {t('messages.chooseConversation')}
                   </Typography.Text>
                 </div>
               )}

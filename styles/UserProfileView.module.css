@@ -1,8 +1,10 @@
 .wrapper {
   height: auto;
+  min-height: 100vh;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   padding: 0;
   overflow: visible;
+  position: relative;
 }
 
 .container {
@@ -10,7 +12,9 @@
   margin: 0 auto;
   padding: 1rem;
   background: transparent;
-  min-height: calc(100vh - 200px);
+  min-height: calc(100vh - 100px);
+  height: auto;
+  overflow: visible;
 }
 
 /* Mobile responsiveness */

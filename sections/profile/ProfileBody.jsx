@@ -2,13 +2,13 @@ import React from "react";
 import css from "@/styles/ProfileView.module.css";
 import FollowButton from "./FollowButton";
 import FollowInfoBox from "./FollowInfoBox";
-import FriendsSuggestion from "@/components/FriendsSuggestion";
 import PostGenerator from "@/components/Post/PostGenerator";
 import Posts from "@/components/Post/Posts";
 import CompatibilityCard from "@/components/CompatibilityCard";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { useQuery } from "@tanstack/react-query";
 import { getUser } from "@/actions/user";
+
 const ProfileBody = ({ userId, data }) => {
   const { user: currentUser } = useUser();
   const isCurrentUser = currentUser?.id === userId;
@@ -36,9 +36,8 @@ const ProfileBody = ({ userId, data }) => {
             />
           )}
 
-          {/* start from here */}
+          {/* Follow info box */}
           <FollowInfoBox id={userId} />
-          <FriendsSuggestion />
         </div>
       </div>
       <div className={css.right}>

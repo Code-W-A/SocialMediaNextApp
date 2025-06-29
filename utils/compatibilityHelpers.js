@@ -62,43 +62,100 @@ const getNumerologyKey = (num1, num2) => {
 // Obține textul de compatibilitate astrologică
 export const getAstrologyCompatibility = (user1, user2) => {
   if (!user1?.questionnaire?.zodiacSign || !user2?.questionnaire?.zodiacSign) {
+    console.log('Missing zodiac signs:', { 
+      user1: user1?.questionnaire?.zodiacSign, 
+      user2: user2?.questionnaire?.zodiacSign 
+    });
     return null;
   }
   
   const element1 = getZodiacElement(user1.questionnaire.zodiacSign);
   const element2 = getZodiacElement(user2.questionnaire.zodiacSign);
   
-  if (!element1 || !element2) return null;
+  if (!element1 || !element2) {
+    console.log('Missing elements:', { element1, element2 });
+    return null;
+  }
   
   const key = getAstrologyKey(element1, element2);
-  return compatibilityData.astrology[key] || null;
+  const compatibility = compatibilityData.astrology[key];
+  
+  console.log('Astrology compatibility lookup:', {
+    zodiac1: user1.questionnaire.zodiacSign,
+    zodiac2: user2.questionnaire.zodiacSign,
+    element1,
+    element2,
+    key,
+    found: !!compatibility,
+    compatibility
+  });
+  
+  return compatibility || null;
 };
 
 // Obține textul de compatibilitate numerologică
 export const getNumerologyCompatibility = (user1, user2) => {
   if (!user1?.questionnaire?.birthDate || !user2?.questionnaire?.birthDate) {
+    console.log('Missing birth dates:', { 
+      user1: user1?.questionnaire?.birthDate, 
+      user2: user2?.questionnaire?.birthDate 
+    });
     return null;
   }
   
   const num1 = calculateNumerologyNumber(user1.questionnaire.birthDate);
   const num2 = calculateNumerologyNumber(user2.questionnaire.birthDate);
   
-  if (!num1 || !num2) return null;
+  if (!num1 || !num2) {
+    console.log('Missing numerology numbers:', { num1, num2 });
+    return null;
+  }
   
   const key = getNumerologyKey(num1, num2);
-  return compatibilityData.numerology[key] || null;
+  const compatibility = compatibilityData.numerology[key];
+  
+  console.log('Numerology compatibility lookup:', {
+    birthDate1: user1.questionnaire.birthDate,
+    birthDate2: user2.questionnaire.birthDate,
+    num1,
+    num2,
+    key,
+    found: !!compatibility,
+    compatibility
+  });
+  
+  return compatibility || null;
 };
 
 // Obține toate compatibilitățile pentru doi utilizatori
 export const getFullCompatibility = (user1, user2) => {
+  console.log('=== Getting Full Compatibility ===');
+  console.log('User1 data:', {
+    id: user1?.id,
+    zodiac: user1?.questionnaire?.zodiacSign,
+    birthDate: user1?.questionnaire?.birthDate,
+    relationshipType: user1?.questionnaire?.relationshipType
+  });
+  console.log('User2 data:', {
+    id: user2?.id,
+    zodiac: user2?.questionnaire?.zodiacSign,
+    birthDate: user2?.questionnaire?.birthDate,
+    relationshipType: user2?.questionnaire?.relationshipType
+  });
+  
   const astrology = getAstrologyCompatibility(user1, user2);
   const numerology = getNumerologyCompatibility(user1, user2);
   
-  return {
+  const result = {
     astrology,
     numerology,
     hasCompatibility: !!(astrology || numerology)
   };
+  
+  console.log('Full compatibility result:', result);
+  console.log('=== End Full Compatibility ===');
+  
+  return result;
 };
 
 // Verifică dacă doi utilizatori sunt compatibili (pentru sistemul existent)
@@ -197,29 +254,29 @@ export const debugRelationshipCompatibility = () => {
 
 // Zodiac element compatibility scores
 const elementCompatibilityScores = {
-  // Fire elements
-  'Fire-Fire': 85,     // Berbec-Berbec, Leu-Leu, Săgetător-Săgetător
-  'Fire-Air': 90,      // Fire + Air = very compatible
-  'Fire-Earth': 60,    // Fire + Earth = moderate
-  'Fire-Water': 45,    // Fire + Water = challenging
+  // Fire elements (Foc)
+  'Foc-Foc': 85,       // Berbec-Berbec, Leu-Leu, Săgetător-Săgetător
+  'Foc-Aer': 90,       // Foc + Aer = very compatible
+  'Foc-Pământ': 60,    // Foc + Pământ = moderate
+  'Foc-Apă': 45,       // Foc + Apă = challenging
   
-  // Air elements  
-  'Air-Air': 80,       // Gemeni-Gemeni, Balanță-Balanță, Vărsător-Vărsător
-  'Air-Fire': 90,      // Air + Fire = very compatible
-  'Air-Earth': 55,     // Air + Earth = moderate
-  'Air-Water': 65,     // Air + Water = moderate+
+  // Air elements (Aer)
+  'Aer-Aer': 80,       // Gemeni-Gemeni, Balanță-Balanță, Vărsător-Vărsător
+  'Aer-Foc': 90,       // Aer + Foc = very compatible
+  'Aer-Pământ': 55,    // Aer + Pământ = moderate
+  'Aer-Apă': 65,       // Aer + Apă = moderate+
   
-  // Earth elements
-  'Earth-Earth': 85,   // Taur-Taur, Fecioară-Fecioară, Capricorn-Capricorn
-  'Earth-Water': 75,   // Earth + Water = good
-  'Earth-Fire': 60,    // Earth + Fire = moderate
-  'Earth-Air': 55,     // Earth + Air = moderate
+  // Earth elements (Pământ)
+  'Pământ-Pământ': 85, // Taur-Taur, Fecioară-Fecioară, Capricorn-Capricorn
+  'Pământ-Apă': 75,    // Pământ + Apă = good
+  'Pământ-Foc': 60,    // Pământ + Foc = moderate
+  'Pământ-Aer': 55,    // Pământ + Aer = moderate
   
-  // Water elements
-  'Water-Water': 80,   // Rac-Rac, Scorpion-Scorpion, Pești-Pești
-  'Water-Earth': 75,   // Water + Earth = good
-  'Water-Air': 65,     // Water + Air = moderate+
-  'Water-Fire': 45     // Water + Fire = challenging
+  // Water elements (Apă)
+  'Apă-Apă': 80,       // Rac-Rac, Scorpion-Scorpion, Pești-Pești
+  'Apă-Pământ': 75,    // Apă + Pământ = good
+  'Apă-Aer': 65,       // Apă + Aer = moderate+
+  'Apă-Foc': 45        // Apă + Foc = challenging
 };
 
 // Numerology compatibility scores (based on life path numbers)

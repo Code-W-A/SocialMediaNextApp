@@ -15,12 +15,138 @@ import {
   startAfter,
   serverTimestamp,
   or,
-  and
+  and,
+  writeBatch
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getMyCompatibleUsers } from "./admin";
 import { getUser } from "./user";
+
+// Cache for user data to reduce repeated getUser calls
+const userCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Optimized getUser with caching
+const getCachedUser = async (userId) => {
+  const now = Date.now();
+  const cached = userCache.get(userId);
+  
+  if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+    return cached.data;
+  }
+  
+  try {
+    const userData = await getUser(userId);
+    userCache.set(userId, {
+      data: userData,
+      timestamp: now
+    });
+    return userData;
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return { data: { id: userId, firstName: 'Unknown', lastName: 'User' } };
+  }
+};
+
+// Optimized batch get users with caching
+const batchGetUsers = async (userIds) => {
+  if (!userIds || userIds.length === 0) return {};
+  
+  const uniqueUserIds = [...new Set(userIds)]; // Remove duplicates
+  const userMap = {};
+  const uncachedUserIds = [];
+  
+  // Check cache first
+  uniqueUserIds.forEach(userId => {
+    const cached = userCache.get(userId);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      userMap[userId] = cached.data;
+    } else {
+      uncachedUserIds.push(userId);
+    }
+  });
+  
+  // If all users are cached, return immediately
+  if (uncachedUserIds.length === 0) {
+    console.log("All users found in cache");
+    return userMap;
+  }
+  
+  console.log(`Fetching ${uncachedUserIds.length} users from Firestore`);
+  
+  try {
+    // Firestore 'in' query has a limit of 10 items
+    const chunks = [];
+    for (let i = 0; i < uncachedUserIds.length; i += 10) {
+      chunks.push(uncachedUserIds.slice(i, i + 10));
+    }
+    
+    // Fetch all chunks in parallel
+    const promises = chunks.map(chunk => 
+      getDocs(query(
+        collection(db, "Users"),
+        where("__name__", "in", chunk)
+      ))
+    );
+    
+    const snapshots = await Promise.all(promises);
+    
+    // Process all results
+    snapshots.forEach(snapshot => {
+      snapshot.docs.forEach(doc => {
+        const userData = {
+          data: {
+            id: doc.id,
+            ...doc.data()
+          }
+        };
+        
+        // Update cache
+        userCache.set(doc.id, {
+          data: userData,
+          timestamp: Date.now()
+        });
+        
+        userMap[doc.id] = userData;
+      });
+    });
+    
+    // For any users not found, create placeholder data
+    uncachedUserIds.forEach(userId => {
+      if (!userMap[userId]) {
+        const placeholderData = {
+          data: {
+            id: userId,
+            firstName: 'Unknown',
+            lastName: 'User',
+            username: 'unknown'
+          }
+        };
+        userMap[userId] = placeholderData;
+      }
+    });
+    
+  } catch (error) {
+    console.error("Error batch fetching users:", error);
+    
+    // Return placeholder data for all uncached users on error
+    uncachedUserIds.forEach(userId => {
+      if (!userMap[userId]) {
+        userMap[userId] = {
+          data: {
+            id: userId,
+            firstName: 'Unknown',
+            lastName: 'User',
+            username: 'unknown'
+          }
+        };
+      }
+    });
+  }
+  
+  return userMap;
+};
 
 // Create a new post
 export const createPost = async (post) => {
@@ -30,8 +156,8 @@ export const createPost = async (post) => {
       throw new Error("Author ID is required");
     }
 
-    // Get author data
-    const authorData = await getUser(authorId);
+    // Get author data with caching
+    const authorData = await getCachedUser(authorId);
     if (!authorData?.data) {
       throw new Error("Author not found");
     }
@@ -41,12 +167,15 @@ export const createPost = async (post) => {
 
     // Upload media if provided
     if (media) {
+      console.log("Uploading media for post...", { mediaType: typeof media, mediaLength: media?.length });
       try {
         // Convert base64 to file if needed
         if (typeof media === 'string' && media.startsWith('data:')) {
           const base64Data = media.split(',')[1];
           const mimeType = media.split(',')[0].split(':')[1].split(';')[0];
           const fileExtension = mimeType.split('/')[1];
+          
+          console.log("Media details:", { mimeType, fileExtension });
           
           const buffer = Buffer.from(base64Data, 'base64');
           const blob = new Blob([buffer], { type: mimeType });
@@ -56,12 +185,16 @@ export const createPost = async (post) => {
           const fileName = `post_${timestamp}.${fileExtension}`;
           const filePath = `posts/${authorId}/${fileName}`;
           
+          console.log("Uploading to Firebase Storage:", { fileName, filePath });
+          
           // Upload to Firebase Storage
           const storage = getStorage();
           const storageRef = ref(storage, filePath);
           const snapshot = await uploadBytes(storageRef, blob);
           mediaUrl = await getDownloadURL(snapshot.ref);
           mediaFileName = fileName;
+          
+          console.log("Media uploaded successfully:", { mediaUrl, mediaFileName });
         }
       } catch (uploadError) {
         console.error("Error uploading media:", uploadError);
@@ -86,17 +219,12 @@ export const createPost = async (post) => {
 
     const docRef = await addDoc(collection(db, "Posts"), newPost);
 
-    // Return post with author data
     return {
-      data: {
+      success: true,
+      post: {
         id: docRef.id,
-        ...newPost,
-        createdAt: new Date(), // For immediate display
-        updatedAt: new Date(),
-        author: authorData.data,
-        likes: [],
-        comments: []
-      },
+        ...newPost
+      }
     };
   } catch (error) {
     console.error("Error creating post:", error);
@@ -104,21 +232,76 @@ export const createPost = async (post) => {
   }
 };
 
-// Get posts feed (personal + compatible users)
+// Optimized feed with better caching and reduced queries
 export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10) => {
+  console.log("🔥 getMyPostsFeed called:", { userId, lastCursor, limitCount });
+  
   try {
     if (!userId) {
       throw new Error("User ID is required");
     }
 
-    // Get compatible user IDs
+    // Get compatible users (cached)
     const compatibleUsers = await getMyCompatibleUsers(userId);
-    const compatibleUserIds = compatibleUsers.map(user => user.id);
+    console.log("👥 Compatible users count:", compatibleUsers.length);
     
-    // Include current user's posts
-    const authorIds = [userId, ...compatibleUserIds];
+    // Include current user in the list
+    const authorIds = [...compatibleUsers.map(user => user.id), userId];
+    console.log("📝 Total author IDs to query:", authorIds.length);
 
-    if (authorIds.length === 0) {
+    // Build query for posts from compatible users + own posts
+    const postsRef = collection(db, "Posts");
+    let postsQuery;
+    let lastDocSnapshot = null;
+
+    // If we have a cursor, get the document snapshot for proper pagination
+    if (lastCursor) {
+      try {
+        const lastDocRef = doc(db, "Posts", lastCursor);
+        lastDocSnapshot = await getDoc(lastDocRef);
+        if (!lastDocSnapshot.exists()) {
+          console.warn("⚠️ Last cursor document not found, starting from beginning");
+          lastDocSnapshot = null;
+        }
+      } catch (error) {
+        console.error("Error getting last document:", error);
+        lastDocSnapshot = null;
+      }
+    }
+
+    try {
+      // Try to use the optimized query with array-contains-any
+      postsQuery = query(
+        postsRef,
+        where("authorId", "in", authorIds.slice(0, 10)), // Firestore 'in' limit is 10
+        where("isVisible", "!=", false),
+        orderBy("createdAt", "desc"),
+        ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+        limit(limitCount)
+      );
+    } catch (indexError) {
+      console.log("⚠️ Optimized query failed, using fallback approach");
+      // Fallback: get all recent posts and filter
+      postsQuery = query(
+        postsRef,
+        orderBy("createdAt", "desc"),
+        ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+        limit(limitCount * 5) // Get more to filter
+      );
+    }
+
+    const snapshot = await getDocs(postsQuery);
+    console.log("📄 Raw posts retrieved:", snapshot.docs.length);
+
+    // Filter posts if using fallback query
+    const relevantDocs = snapshot.docs.filter(doc => {
+      const data = doc.data();
+      return authorIds.includes(data.authorId) && data.isVisible !== false;
+    }).slice(0, limitCount);
+
+    console.log("🎯 Relevant posts after filtering:", relevantDocs.length);
+
+    if (relevantDocs.length === 0) {
       return {
         data: [],
         metaData: {
@@ -128,146 +311,277 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
       };
     }
 
-    // Create query for posts from compatible users
-    const postsRef = collection(db, "Posts");
-    let postsQuery = query(
-      postsRef,
-      orderBy("createdAt", "desc"),
-      limit(limitCount * 5) // Get more posts to filter client-side
-    );
+    // Batch collect all user IDs from posts and comments
+    const allUserIds = new Set();
+    const postCommentPromises = [];
 
-    // Add pagination if lastCursor provided
-    if (lastCursor) {
-      const lastDoc = await getDoc(doc(db, "Posts", lastCursor));
-      if (lastDoc.exists()) {
-        postsQuery = query(
-          postsRef,
-          orderBy("createdAt", "desc"),
-          startAfter(lastDoc),
-          limit(limitCount * 5)
-        );
-      }
-    }
+    // Pre-process posts to collect user IDs and prepare comment queries
+    relevantDocs.forEach(docSnap => {
+      const postData = docSnap.data();
+      allUserIds.add(postData.authorId);
+      
+      // Prepare comment query for this post
+      postCommentPromises.push(
+        getDocs(query(
+          collection(db, "Posts", docSnap.id, "Comments"),
+          orderBy("createdAt", "asc"),
+          limit(5) // Limit comments per post to reduce reads
+        )).then(commentsSnapshot => ({
+          postId: docSnap.id,
+          comments: commentsSnapshot.docs
+        }))
+      );
+    });
 
-    const snapshot = await getDocs(postsQuery);
+    // Execute all comment queries in parallel
+    const [allCommentsResults] = await Promise.all([
+      Promise.all(postCommentPromises)
+    ]);
+
+    // Collect author IDs from comments
+    allCommentsResults.forEach(({ comments }) => {
+      comments.forEach(commentDoc => {
+        const commentData = commentDoc.data();
+        allUserIds.add(commentData.authorId);
+      });
+    });
+
+    // Batch fetch all unique users
+    console.log("👥 Fetching user data for", allUserIds.size, "unique users");
+    const userMap = await batchGetUsers(Array.from(allUserIds));
+
+    // Build posts with all data
     const posts = [];
-
-    // Process each post and filter by compatible authors
-    for (const docSnap of snapshot.docs) {
+    
+    for (let i = 0; i < relevantDocs.length; i++) {
+      const docSnap = relevantDocs[i];
       const postData = docSnap.data();
       
       // Skip invisible posts
-      if (postData.isVisible === false) {
-        continue;
-      }
+      if (postData.isVisible === false) continue;
+
+      // Get author data from cache
+      const authorData = userMap[postData.authorId];
       
-      // Only include posts from compatible users or current user
-      if (!authorIds.includes(postData.authorId)) {
-        continue;
-      }
-      
-      // Get author data
-      const authorData = await getUser(postData.authorId);
-      
-      // Get likes for this post
-      const likesSnapshot = await getDocs(
-        collection(db, "Posts", docSnap.id, "Likes")
-      );
+      // Get likes (simplified - just count)
+      const likesSnapshot = await getDocs(collection(db, "Posts", docSnap.id, "Likes"));
       const likes = likesSnapshot.docs.map(likeDoc => ({
         id: likeDoc.id,
         ...likeDoc.data()
       }));
 
-      // Get comments count
-      const commentsSnapshot = await getDocs(
-        collection(db, "Posts", docSnap.id, "Comments")
-      );
+      // Get comments from pre-fetched results
+      const commentsResult = allCommentsResults.find(result => result.postId === docSnap.id);
+      const comments = [];
+      
+      if (commentsResult) {
+        commentsResult.comments.forEach(commentDoc => {
+          const commentData = commentDoc.data();
+          const commentAuthorData = userMap[commentData.authorId];
+          
+          comments.push({
+            id: commentDoc.id,
+            ...commentData,
+            createdAt: commentData.createdAt?.toDate() || new Date(),
+            author: commentAuthorData?.data || { 
+              id: commentData.authorId, 
+              firstName: 'Unknown', 
+              lastName: 'User' 
+            }
+          });
+        });
+      }
 
       posts.push({
         id: docSnap.id,
         ...postData,
-        // Convert Firestore timestamp to Date for display
         createdAt: postData.createdAt?.toDate() || new Date(),
         updatedAt: postData.updatedAt?.toDate() || new Date(),
         editedAt: postData.editedAt?.toDate() || null,
         author: authorData?.data || { id: postData.authorId, firstName: 'Unknown', lastName: 'User' },
         likes,
-        comments: [], // We'll load comments on demand
-        commentsCount: commentsSnapshot.docs.length
+        comments,
+        commentsCount: Math.max(comments.length, postData.commentsCount || 0)
       });
-      
-      // Stop when we have enough posts
-      if (posts.length >= limitCount) {
-        break;
-      }
     }
+
+    // Get the last document for next page cursor
+    const lastDoc = relevantDocs[relevantDocs.length - 1];
 
     return {
       data: posts,
       metaData: {
-        hasNextPage: posts.length === limitCount,
-        lastCursor: posts.length > 0 ? posts[posts.length - 1].id : null
+        hasNextPage: relevantDocs.length === limitCount && snapshot.docs.length >= limitCount,
+        lastCursor: lastDoc ? lastDoc.id : null
       }
     };
   } catch (error) {
-    console.error("Error fetching posts feed:", error);
-    throw new Error("Failed to fetch posts feed");
+    console.error("Error fetching feed:", error);
+    throw new Error("Failed to fetch feed posts");
   }
 };
 
-// Get posts for a specific user
+// Optimized getPosts with caching and batch operations
 export const getPosts = async (lastCursor = null, userId, limitCount = 10) => {
+  console.log("🔥 getPosts called:", { lastCursor, userId, limitCount });
+  
   try {
-    if (!userId || userId === "all") {
-      // Return all posts (for admin or public feed)
-      return getMyPostsFeed("all_users", lastCursor, limitCount);
+    if (!userId) {
+      throw new Error("User ID is required");
     }
 
     const postsRef = collection(db, "Posts");
-    let postsQuery = query(
-      postsRef,
-      where("authorId", "==", userId),
-      orderBy("createdAt", "desc"),
-      limit(limitCount * 2)
-    );
+    let postsQuery;
+    let postsSnapshot;
+    let lastDocSnapshot = null;
 
+    // If we have a cursor, get the document snapshot for proper pagination
     if (lastCursor) {
-      const lastDoc = await getDoc(doc(db, "Posts", lastCursor));
-      if (lastDoc.exists()) {
-        postsQuery = query(
-          postsRef,
-          where("authorId", "==", userId),
-          orderBy("createdAt", "desc"),
-          startAfter(lastDoc),
-          limit(limitCount * 2)
-        );
+      try {
+        const lastDocRef = doc(db, "Posts", lastCursor);
+        lastDocSnapshot = await getDoc(lastDocRef);
+        if (!lastDocSnapshot.exists()) {
+          console.warn("⚠️ Last cursor document not found, starting from beginning");
+          lastDocSnapshot = null;
+        }
+      } catch (error) {
+        console.error("Error getting last document:", error);
+        lastDocSnapshot = null;
       }
     }
 
-    const snapshot = await getDocs(postsQuery);
+    try {
+      // Try optimized query first
+      postsQuery = query(
+        postsRef,
+        where("authorId", "==", userId),
+        where("isVisible", "!=", false),
+        orderBy("createdAt", "desc"),
+        ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+        limit(limitCount)
+      );
+      
+      postsSnapshot = await getDocs(postsQuery);
+      console.log("📄 Direct query got:", postsSnapshot.docs.length, "posts");
+      
+    } catch (indexError) {
+      console.log("⚠️ Index not available, falling back to basic query:", indexError.message);
+      
+      // Fallback: Get all posts and filter client-side
+      postsQuery = query(
+        postsRef,
+        orderBy("createdAt", "desc"),
+        ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+        limit(limitCount * 10) // Get more posts to filter
+      );
+      
+      const fallbackSnapshot = await getDocs(postsQuery);
+      console.log("📄 Fallback query got:", fallbackSnapshot.docs.length, "total posts");
+      
+      // Filter client-side for the specific user
+      const userPosts = fallbackSnapshot.docs.filter(doc => {
+        const data = doc.data();
+        return data.authorId === userId && data.isVisible !== false;
+      });
+      
+      console.log("🎯 Filtered to user posts:", userPosts.length);
+      
+      // Create a new snapshot-like object with filtered docs
+      postsSnapshot = {
+        docs: userPosts.slice(0, limitCount),
+        empty: userPosts.length === 0
+      };
+    }
+
+    if (postsSnapshot.empty) {
+      return {
+        data: [],
+        metaData: {
+          hasNextPage: false,
+          lastCursor: null
+        }
+      };
+    }
+
+    // Collect all user IDs and prepare parallel queries
+    const allUserIds = new Set();
+    const postCommentPromises = [];
+    const postLikePromises = [];
+
+    postsSnapshot.docs.forEach(docSnap => {
+      const postData = docSnap.data();
+      allUserIds.add(postData.authorId);
+      
+      // Prepare parallel queries
+      postCommentPromises.push(
+        getDocs(query(
+          collection(db, "Posts", docSnap.id, "Comments"),
+          orderBy("createdAt", "asc"),
+          limit(10) // Limit comments to reduce reads
+        )).then(snapshot => ({ postId: docSnap.id, comments: snapshot.docs }))
+      );
+      
+      postLikePromises.push(
+        getDocs(collection(db, "Posts", docSnap.id, "Likes"))
+        .then(snapshot => ({ postId: docSnap.id, likes: snapshot.docs }))
+      );
+    });
+
+    // Execute all queries in parallel
+    const [commentResults, likeResults] = await Promise.all([
+      Promise.all(postCommentPromises),
+      Promise.all(postLikePromises)
+    ]);
+
+    // Collect user IDs from comments
+    commentResults.forEach(({ comments }) => {
+      comments.forEach(commentDoc => {
+        const commentData = commentDoc.data();
+        allUserIds.add(commentData.authorId);
+      });
+    });
+
+    // Batch fetch all users
+    const userMap = await batchGetUsers(Array.from(allUserIds));
+
     const posts = [];
 
-    for (const docSnap of snapshot.docs) {
+    for (const docSnap of postsSnapshot.docs) {
       const postData = docSnap.data();
       
       // Skip invisible posts
-      if (postData.isVisible === false) {
-        continue;
-      }
+      if (postData.isVisible === false) continue;
       
-      const authorData = await getUser(postData.authorId);
+      const authorData = userMap[postData.authorId];
       
-      const likesSnapshot = await getDocs(
-        collection(db, "Posts", docSnap.id, "Likes")
-      );
-      const likes = likesSnapshot.docs.map(likeDoc => ({
+      // Get likes from results
+      const likeResult = likeResults.find(result => result.postId === docSnap.id);
+      const likes = likeResult ? likeResult.likes.map(likeDoc => ({
         id: likeDoc.id,
         ...likeDoc.data()
-      }));
+      })) : [];
 
-      const commentsSnapshot = await getDocs(
-        collection(db, "Posts", docSnap.id, "Comments")
-      );
+      // Get comments from results
+      const commentResult = commentResults.find(result => result.postId === docSnap.id);
+      const comments = [];
+      
+      if (commentResult) {
+        commentResult.comments.forEach(commentDoc => {
+          const commentData = commentDoc.data();
+          const commentAuthorData = userMap[commentData.authorId];
+          
+          comments.push({
+            id: commentDoc.id,
+            ...commentData,
+            createdAt: commentData.createdAt?.toDate() || new Date(),
+            author: commentAuthorData?.data || { 
+              id: commentData.authorId, 
+              firstName: 'Unknown', 
+              lastName: 'User' 
+            }
+          });
+        });
+      }
 
       posts.push({
         id: docSnap.id,
@@ -277,16 +591,19 @@ export const getPosts = async (lastCursor = null, userId, limitCount = 10) => {
         editedAt: postData.editedAt?.toDate() || null,
         author: authorData?.data || { id: postData.authorId, firstName: 'Unknown', lastName: 'User' },
         likes,
-        comments: [],
-        commentsCount: commentsSnapshot.docs.length
+        comments,
+        commentsCount: comments.length
       });
     }
+
+    // Get the last document for next page cursor
+    const lastDoc = postsSnapshot.docs[postsSnapshot.docs.length - 1];
 
     return {
       data: posts,
       metaData: {
-        hasNextPage: snapshot.docs.length === limitCount,
-        lastCursor: posts.length > 0 ? posts[posts.length - 1].id : null
+        hasNextPage: postsSnapshot.docs.length === limitCount,
+        lastCursor: lastDoc ? lastDoc.id : null
       }
     };
   } catch (error) {
@@ -295,82 +612,150 @@ export const getPosts = async (lastCursor = null, userId, limitCount = 10) => {
   }
 };
 
-// Update post like
+// Optimized updatePostLike with batch operations
 export const updatePostLike = async (postId, type, userId) => {
+  console.log("🔥 updatePostLike called:", { postId, type, userId });
+  
   try {
     if (!userId) {
+      console.error("❌ User ID is required");
       throw new Error("User ID is required");
     }
 
-    const likeRef = doc(db, "Posts", postId, "Likes", userId);
+    const batch = writeBatch(db);
     const postRef = doc(db, "Posts", postId);
 
+    console.log("📝 Firebase refs created:", { postRef: postRef.path });
+
     if (type === "like") {
-      // Add like
-      await addDoc(collection(db, "Posts", postId, "Likes"), {
+      console.log("👍 Adding like...");
+      // Add like using batch
+      const likeRef = doc(collection(db, "Posts", postId, "Likes"));
+      batch.set(likeRef, {
         authorId: userId,
         postId: postId,
         createdAt: serverTimestamp()
       });
+      console.log("✅ Like queued for batch write");
     } else if (type === "unlike") {
-      // Remove like
+      console.log("👎 Removing like...");
+      // Find and remove like
       const likesSnapshot = await getDocs(
         query(collection(db, "Posts", postId, "Likes"), where("authorId", "==", userId))
       );
       
-      likesSnapshot.forEach(async (likeDoc) => {
-        await deleteDoc(likeDoc.ref);
+      console.log("🔍 Found likes to remove:", likesSnapshot.docs.length);
+      
+      likesSnapshot.docs.forEach((likeDoc) => {
+        batch.delete(likeDoc.ref);
+        console.log("🗑️ Like queued for deletion:", likeDoc.id);
       });
     }
 
-    // Update likes count in post
+    // Get current likes count for batch update
     const likesSnapshot = await getDocs(collection(db, "Posts", postId, "Likes"));
-    await updateDoc(postRef, {
-      likesCount: likesSnapshot.docs.length
+    let newLikesCount = likesSnapshot.docs.length;
+    
+    // Adjust count based on operation
+    if (type === "like") {
+      newLikesCount += 1;
+    } else if (type === "unlike") {
+      newLikesCount = Math.max(0, newLikesCount - likesSnapshot.docs.filter(doc => doc.data().authorId === userId).length);
+    }
+    
+    // Update post likes count in batch
+    batch.update(postRef, {
+      likesCount: newLikesCount
     });
+    
+    // Commit batch
+    await batch.commit();
+    console.log("✅ Batch operation completed. Likes count:", newLikesCount);
 
     return { success: true };
   } catch (error) {
-    console.error("Error updating post like:", error);
+    console.error("❌ Error updating post like:", error);
     throw new Error("Failed to update post like");
   }
 };
 
-// Add comment to post
+// Optimized addComment with batch operations
 export const addComment = async (postId, comment, userId) => {
+  console.log("🔥 addComment called:", { postId, comment: comment?.substring(0, 50), userId });
+  
   try {
-    if (!userId) {
-      throw new Error("User ID is required");
+    if (!postId || !comment || !userId) {
+      console.error("❌ Missing required parameters:", { postId: !!postId, comment: !!comment, userId: !!userId });
+      throw new Error("Missing required parameters");
     }
 
-    const authorData = await getUser(userId);
+    // Get user data from cache
+    console.log("👤 Getting user data for userId:", userId);
+    const userData = await getCachedUser(userId);
+    console.log("👤 User data retrieved:", userData?.data);
     
-    const newComment = {
-      comment,
+    if (!userData?.data) {
+      console.error("❌ User not found for userId:", userId);
+      throw new Error("User not found");
+    }
+
+    // Use batch for atomic operations
+    const batch = writeBatch(db);
+    
+    // Create comment data
+    const commentData = {
+      comment: comment.trim(),
       authorId: userId,
       postId: postId,
-      createdAt: serverTimestamp()
+      createdAt: serverTimestamp(),
     };
 
-    const docRef = await addDoc(collection(db, "Posts", postId, "Comments"), newComment);
+    console.log("📝 Creating comment with data:", commentData);
 
-    // Update comments count in post
-    const commentsSnapshot = await getDocs(collection(db, "Posts", postId, "Comments"));
-    await updateDoc(doc(db, "Posts", postId), {
-      commentsCount: commentsSnapshot.docs.length
-    });
+    // Add comment to subcollection
+    const commentRef = doc(collection(db, "Posts", postId, "Comments"));
+    batch.set(commentRef, commentData);
+    console.log("✅ Comment queued for batch write:", commentRef.id);
 
-    return {
-      data: {
-        id: docRef.id,
-        ...newComment,
-        createdAt: new Date(),
-        author: authorData?.data || { id: userId, firstName: 'Unknown', lastName: 'User' }
-      },
+    // Update post's comments count
+    console.log("📊 Updating post comments count...");
+    const postRef = doc(db, "Posts", postId);
+    
+    // Get current post to check existing comments count
+    const postDoc = await getDoc(postRef);
+    if (postDoc.exists()) {
+      const currentData = postDoc.data();
+      const newCommentsCount = (currentData.commentsCount || 0) + 1;
+      
+      batch.update(postRef, {
+        commentsCount: newCommentsCount,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log("✅ Post comments count update queued:", newCommentsCount);
+    } else {
+      console.error("❌ Post document not found:", postId);
+      throw new Error("Post not found");
+    }
+
+    // Commit batch
+    await batch.commit();
+    console.log("✅ Batch operation completed");
+
+    // Return comment with author data
+    const newComment = {
+      id: commentRef.id,
+      ...commentData,
+      createdAt: new Date(), // For immediate use
+      author: userData.data
     };
+
+    console.log("🎯 Returning new comment:", newComment);
+    return newComment;
+
   } catch (error) {
-    console.error("Error adding comment:", error);
-    throw new Error("Failed to add comment");
+    console.error("❌ Error in addComment:", error);
+    throw new Error(`Failed to add comment: ${error.message}`);
   }
 };
 
@@ -440,9 +825,18 @@ export const deletePost = async (postId, userId) => {
   }
 };
 
-// Get comments for a post
+// Optimized getPostComments with caching
 export const getPostComments = async (postId) => {
+  console.log("🔥 getPostComments called for postId:", postId);
+  
   try {
+    if (!postId) {
+      console.error("❌ PostId is required");
+      throw new Error("PostId is required");
+    }
+
+    console.log("📍 Querying comments collection:", `Posts/${postId}/Comments`);
+    
     const commentsSnapshot = await getDocs(
       query(
         collection(db, "Posts", postId, "Comments"),
@@ -450,38 +844,51 @@ export const getPostComments = async (postId) => {
       )
     );
 
-    const comments = [];
-    for (const commentDoc of commentsSnapshot.docs) {
+    console.log("📄 Comments snapshot received:", {
+      postId,
+      docsCount: commentsSnapshot.docs.length,
+      isEmpty: commentsSnapshot.empty
+    });
+
+    if (commentsSnapshot.empty) {
+      return { data: [] };
+    }
+
+    // Collect all unique author IDs
+    const authorIds = [...new Set(commentsSnapshot.docs.map(doc => doc.data().authorId))];
+    
+    // Batch fetch all authors
+    const userMap = await batchGetUsers(authorIds);
+
+    const comments = commentsSnapshot.docs.map(commentDoc => {
       const commentData = commentDoc.data();
-      const authorData = await getUser(commentData.authorId);
+      const authorData = userMap[commentData.authorId];
       
-      comments.push({
+      return {
         id: commentDoc.id,
         ...commentData,
         createdAt: commentData.createdAt?.toDate() || new Date(),
         author: authorData?.data || { id: commentData.authorId, firstName: 'Unknown', lastName: 'User' }
-      });
-    }
+      };
+    });
 
+    console.log("🎯 Returning comments:", { postId, commentsCount: comments.length });
     return { data: comments };
   } catch (error) {
-    console.error("Error fetching comments:", error);
+    console.error("❌ Error fetching comments:", error);
     throw new Error("Failed to fetch comments");
   }
 };
 
-// Get popular trends based on hashtags in posts
+// Get popular trends based on hashtags in posts (optimized with caching)
 export const getPopularTrends = async () => {
   try {
-    // Get recent posts (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
+    // Get recent posts (last 7 days) with limit
     const postsRef = collection(db, "Posts");
     const recentPostsQuery = query(
       postsRef,
       orderBy("createdAt", "desc"),
-      limit(200) // Get recent posts to analyze
+      limit(100) // Reduced from 200 to limit reads
     );
 
     const snapshot = await getDocs(recentPostsQuery);
@@ -552,3 +959,105 @@ export const getPopularTrends = async () => {
     ];
   }
 };
+
+// Optimized editComment with batch operations
+export const editComment = async (postId, commentId, newComment, userId) => {
+  console.log("🔥 editComment called:", { postId, commentId, newComment: newComment?.substring(0, 50), userId });
+  
+  try {
+    if (!postId || !commentId || !newComment || !userId) {
+      console.error("❌ Missing required parameters");
+      throw new Error("Missing required parameters");
+    }
+
+    // Get comment to verify ownership
+    const commentRef = doc(db, "Posts", postId, "Comments", commentId);
+    const commentDoc = await getDoc(commentRef);
+    
+    if (!commentDoc.exists()) {
+      console.error("❌ Comment not found:", commentId);
+      throw new Error("Comment not found");
+    }
+
+    const commentData = commentDoc.data();
+    if (commentData.authorId !== userId) {
+      console.error("❌ User not authorized to edit comment");
+      throw new Error("You can only edit your own comments");
+    }
+
+    console.log("📝 Updating comment...");
+    await updateDoc(commentRef, {
+      comment: newComment.trim(),
+      edited: true,
+      editedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    console.log("✅ Comment updated successfully");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error editing comment:", error);
+    throw new Error(`Failed to edit comment: ${error.message}`);
+  }
+};
+
+// Optimized deleteComment with batch operations
+export const deleteComment = async (postId, commentId, userId) => {
+  console.log("🔥 deleteComment called:", { postId, commentId, userId });
+  
+  try {
+    if (!postId || !commentId || !userId) {
+      console.error("❌ Missing required parameters");
+      throw new Error("Missing required parameters");
+    }
+
+    // Get comment to verify ownership
+    const commentRef = doc(db, "Posts", postId, "Comments", commentId);
+    const commentDoc = await getDoc(commentRef);
+    
+    if (!commentDoc.exists()) {
+      console.error("❌ Comment not found:", commentId);
+      throw new Error("Comment not found");
+    }
+
+    const commentData = commentDoc.data();
+    if (commentData.authorId !== userId) {
+      console.error("❌ User not authorized to delete comment");
+      throw new Error("You can only delete your own comments");
+    }
+
+    // Use batch for atomic operations
+    const batch = writeBatch(db);
+    
+    console.log("🗑️ Deleting comment...");
+    batch.delete(commentRef);
+
+    // Update post's comments count
+    console.log("📊 Updating post comments count...");
+    const postRef = doc(db, "Posts", postId);
+    const postDoc = await getDoc(postRef);
+    
+    if (postDoc.exists()) {
+      const currentData = postDoc.data();
+      const newCount = Math.max(0, (currentData.commentsCount || 1) - 1);
+      
+      batch.update(postRef, {
+        commentsCount: newCount,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log("✅ Post comments count update queued:", newCount);
+    }
+
+    // Commit batch
+    await batch.commit();
+    console.log("✅ Batch operation completed");
+
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Error deleting comment:", error);
+    throw new Error(`Failed to delete comment: ${error.message}`);
+  }
+};
+
+

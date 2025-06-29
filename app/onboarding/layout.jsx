@@ -1,5 +1,6 @@
 import React from "react";
 import css from "@/styles/onboardingLayout.module.css";
+import { LanguageProvider } from "@/lib/i18n";
 
 export const metadata = {
   title: "YDestiny - Complete Your Profile",
@@ -8,13 +9,15 @@ export const metadata = {
 
 const OnboardingLayout = ({ children }) => {
   return (
-    <div className={css.wrapper}>
-      <div className={css.container}>
-        <div className={css.content}>
-          {children}
+    <LanguageProvider>
+      <div className={css.wrapper}>
+        <div className={css.container}>
+          <div className={css.content}>
+            {children}
+          </div>
         </div>
       </div>
-    </div>
+    </LanguageProvider>
   );
 };
 

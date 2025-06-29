@@ -10,7 +10,7 @@ import { useUser, useAuth } from "@/hooks/useFirebaseAuth";
 import { sidebarRoutes } from "@/lib/sidebar";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import { getMainProfileImage } from "@/utils/imageHelpers";
-import { getUserDisplayName } from "@/utils/profileHelpers";
+import { getUserDisplayName, shouldBlockNavigation } from "@/utils/profileHelpers";
 
 const BottomNavbar = () => {
   const pathname = usePathname();
@@ -39,6 +39,15 @@ const BottomNavbar = () => {
     }
   };
 
+  const handleNavigation = (path) => {
+    if (shouldBlockNavigation(user, path)) {
+      message.warning("Please complete your profile before accessing other parts of the application.");
+      router.push(`/profile/${user?.id}?person=${getUserDisplayName(user)}`);
+      return;
+    }
+    router.push(path);
+  };
+
   const profileMenuItems = [
     {
       key: 'profile',
@@ -50,7 +59,7 @@ const BottomNavbar = () => {
       key: 'settings',
       label: 'Settings',
       icon: <Iconify icon="eva:settings-fill" width="16px" />,
-      onClick: () => router.push('/settings')
+      onClick: () => handleNavigation('/settings')
     },
     {
       type: 'divider',
@@ -76,18 +85,28 @@ const BottomNavbar = () => {
   if (!mounted) return null;
 
   return (
-    <div className={`${css.wrapper} ${theme === 'dark' ? css.dark : css.light}`}>
+    <div 
+      className={`${css.wrapper} ${theme === 'dark' ? css.dark : css.light}`}
+      data-testid="bottom-navbar"
+    >
       <div className={css.container}>
         {/* Navigation Items */}
         {sidebarRoutes(user).slice(0, 4).map((route, index) => (
-          <Link
+          <div
             key={index}
-            href={
-              route.route === `/profile/${user?.id}`
-                ? `${route.route}?person=${getUserDisplayName(user)}`
-                : `${route.route}`
-            }
             className={cx(css.navItem, isActive(route))}
+            onClick={() => {
+              const targetPath = route.route === `/profile/${user?.id}`
+                ? `${route.route}?person=${getUserDisplayName(user)}`
+                : route.route;
+              
+              if (route.route.includes('/profile') || !shouldBlockNavigation(user, route.route)) {
+                router.push(targetPath);
+              } else {
+                handleNavigation(route.route);
+              }
+            }}
+            style={{ cursor: 'pointer' }}
           >
             <div className={css.iconContainer}>
               <Iconify 
@@ -103,7 +122,7 @@ const BottomNavbar = () => {
             >
               {route.name}
             </Typography.Text>
-          </Link>
+          </div>
         ))}
 
         {/* Profile/More Menu with Dropdown */}

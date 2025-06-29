@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { shouldRedirectToOnboarding, checkOnboardingStatus } from '@/utils/onboardingHelpers';
+import { shouldForceProfileCompletion, shouldBypassProfileCompletion } from '@/utils/profileHelpers';
 import { Spin } from 'antd';
 
 const ProtectedRoute = ({ children }) => {
@@ -22,6 +23,18 @@ const ProtectedRoute = ({ children }) => {
         const status = checkOnboardingStatus(user);
         console.log('Redirecting to onboarding:', status.nextStep);
         router.push(status.nextStep);
+        return;
+      }
+
+      // Check if user needs to complete profile after onboarding
+      if (!shouldBypassProfileCompletion(pathname)) {
+        const needsProfileCompletion = shouldForceProfileCompletion({ data: user }, user);
+        
+        if (needsProfileCompletion && !pathname?.includes('/profile')) {
+          console.log('🚨 Forcing profile completion redirect');
+          router.push(`/profile/${user.id}?person=${user.firstName || user.first_name || 'User'}`);
+          return;
+        }
       }
     }
   }, [loading, isSignedIn, user, router, pathname]);

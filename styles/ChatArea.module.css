@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
 /* Chat Header */
@@ -12,6 +13,7 @@
   padding: 16px 20px;
   border-bottom: 1px solid #f0f0f0;
   background: var(--box-bg, white);
+  flex-shrink: 0;
 }
 
 .backButton {
@@ -70,6 +72,7 @@
 .messagesContainer {
   flex: 1;
   overflow: hidden;
+  min-height: 0;
 }
 
 .messagesContent {
@@ -192,6 +195,7 @@
   padding: 16px 20px;
   border-top: 1px solid #f0f0f0;
   background: var(--box-bg, white);
+  flex-shrink: 0;
 }
 
 .inputWrapper {
@@ -293,8 +297,14 @@
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
+  .wrapper {
+    height: 100%;
+    overflow: hidden;
+  }
+  
   .header {
     padding: 12px 16px;
+    flex-shrink: 0;
   }
   
   .participantName {
@@ -309,8 +319,17 @@
     padding: 6px !important;
   }
   
+  .messagesContainer {
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+  
   .messagesContent {
     padding: 12px;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   
   .messageContent {
@@ -323,6 +342,7 @@
   
   .inputContainer {
     padding: 12px 16px;
+    flex-shrink: 0;
   }
   
   .inputWrapper {
@@ -331,16 +351,31 @@
 }
 
 @media (max-width: 480px) {
+  .wrapper {
+    height: 100%;
+    overflow: hidden;
+  }
+  
   .header {
     padding: 10px 12px;
+    flex-shrink: 0;
   }
   
   .participantName {
     font-size: 14px !important;
   }
   
+  .messagesContainer {
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+  
   .messagesContent {
     padding: 8px;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   
   .messageContent {
@@ -362,6 +397,7 @@
   
   .inputContainer {
     padding: 8px 12px;
+    flex-shrink: 0;
   }
   
   .messageText {

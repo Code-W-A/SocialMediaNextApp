@@ -27,25 +27,15 @@ const CompatibilityCard = ({ currentUser, profileUser }) => {
     return null;
   }
 
-  // Only show if users are manually compatible
-  if (!areManuallyCompatible) {
+  const compatibility = getFullCompatibility(currentUser, profileUser);
+
+  // Show compatibility card if there's any compatibility data available
+  if (!compatibility.hasCompatibility) {
     return null;
   }
 
   // Check relationship type compatibility
   const areRelationshipTypesCompatibleResult = areRelationshipTypesCompatible(currentUser, profileUser);
-
-  // Don't show compatibility texts if relationship types are incompatible
-  if (!areRelationshipTypesCompatibleResult) {
-    return null;
-  }
-
-  const compatibility = getFullCompatibility(currentUser, profileUser);
-
-  // Don't show if no compatibility data
-  if (!compatibility.hasCompatibility) {
-    return null;
-  }
 
   const currentZodiac = currentUser?.questionnaire?.zodiacSign;
   const profileZodiac = profileUser?.questionnaire?.zodiacSign;
@@ -85,7 +75,9 @@ const CompatibilityCard = ({ currentUser, profileUser }) => {
         borderRadius: '16px',
         color: 'white'
       }}
-      bodyStyle={{ padding: '16px' }}
+              styles={{
+          body: { padding: '16px' }
+        }}
     >
       <div style={{ textAlign: 'center', marginBottom: '16px' }}>
         <Space align="center" size="small">

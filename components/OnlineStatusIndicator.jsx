@@ -43,9 +43,22 @@ const OnlineStatusIndicator = ({
     }
   };
 
+  const getStatusColor = () => {
+    switch (onlineStatus.status) {
+      case 'online': return "#52c41a";  // Green
+      case 'away': return "#faad14";    // Yellow
+      case 'offline': 
+      default: return "#d9d9d9";        // Gray
+    }
+  };
+
   const getStatusText = () => {
-    if (onlineStatus.isOnline) {
+    if (onlineStatus.isOnline && onlineStatus.status === 'online') {
       return "Active now";
+    }
+    
+    if (onlineStatus.status === 'away') {
+      return "Away";
     }
     
     if (onlineStatus.lastSeen) {
@@ -71,7 +84,7 @@ const OnlineStatusIndicator = ({
           width: getDotSize(),
           height: getDotSize(),
           borderRadius: "50%",
-          backgroundColor: onlineStatus.isOnline ? "#52c41a" : "#d9d9d9",
+          backgroundColor: getStatusColor(),
           border: "2px solid white",
           boxShadow: "0 0 0 1px rgba(0,0,0,0.1)",
           flexShrink: 0,
@@ -79,7 +92,7 @@ const OnlineStatusIndicator = ({
         }}
       >
         {/* Pulse animation for online status */}
-        {onlineStatus.isOnline && (
+        {onlineStatus.status === 'online' && (
           <div
             style={{
               position: "absolute",
@@ -100,8 +113,9 @@ const OnlineStatusIndicator = ({
       {showText && (
         <span style={{ 
           fontSize: '12px',
-          color: onlineStatus.isOnline ? '#52c41a' : '#999',
-          fontWeight: onlineStatus.isOnline ? '500' : '400'
+          color: onlineStatus.status === 'online' ? '#52c41a' : 
+                 onlineStatus.status === 'away' ? '#faad14' : '#999',
+          fontWeight: onlineStatus.status === 'online' ? '500' : '400'
         }}>
           {getStatusText()}
         </span>

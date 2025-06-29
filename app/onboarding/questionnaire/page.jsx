@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useFirebaseAuth";
 import Iconify from "@/components/Iconify";
 import css from "@/styles/AuthPages.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
+import zodiacCss from "@/styles/zodiacCardsResponsive.module.css";
 import { db } from "@/lib/firebase";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { firstQuestions } from "@/mock/astroQuestions";
@@ -197,57 +198,23 @@ export default function QuestionnairePage() {
               {question.text}
             </Title>
             
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: "12px",
-              maxWidth: "600px",
-              margin: "0 auto"
-            }}>
+            <div className={zodiacCss.zodiacContainer}>
               {zodiacCards.map(zodiac => (
                 <div
                   key={zodiac.sign}
                   onClick={() => handleAnswerChange(zodiac.sign)}
-                  style={{
-                    padding: "16px 12px",
-                    border: `2px solid ${currentAnswer === zodiac.sign ? '#1890ff' : '#e8e8e8'}`,
-                    borderRadius: "12px",
-                    background: currentAnswer === zodiac.sign ? '#f0f7ff' : '#ffffff',
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    textAlign: "center",
-                    userSelect: "none"
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentAnswer !== zodiac.sign) {
-                      e.target.style.borderColor = '#1890ff';
-                      e.target.style.background = '#f9f9f9';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentAnswer !== zodiac.sign) {
-                      e.target.style.borderColor = '#e8e8e8';
-                      e.target.style.background = '#ffffff';
-                    }
-                  }}
+                  className={`${zodiacCss.zodiacCard} ${currentAnswer === zodiac.sign ? zodiacCss.selected : ''}`}
                 >
-                  <div style={{ fontSize: "24px", marginBottom: "8px" }}>
+                  <div className={zodiacCss.zodiacIcon}>
                     {zodiac.icon}
                   </div>
-                  <div style={{ 
-                    fontWeight: "600", 
-                    fontSize: "14px", 
-                    color: currentAnswer === zodiac.sign ? '#1890ff' : '#333',
-                    marginBottom: "4px"
-                  }}>
-                    {zodiac.sign}
-                  </div>
-                  <div style={{ 
-                    fontSize: "11px", 
-                    color: "#999",
-                    lineHeight: "1.2"
-                  }}>
-                    {zodiac.dates}
+                  <div className={zodiacCss.zodiacInfo}>
+                    <div className={zodiacCss.zodiacName}>
+                      {zodiac.sign}
+                    </div>
+                    <div className={zodiacCss.zodiacDates}>
+                      {zodiac.dates}
+                    </div>
                   </div>
                 </div>
               ))}

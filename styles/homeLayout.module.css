@@ -1,16 +1,22 @@
 .wrapper{
     min-height: calc(100vh - 72px);
+    height: calc(100vh - 72px);
     top: 72px;
     position: fixed;
     min-width: 100vw; 
+    width: 100vw;
     flex-direction: column;
-    overflow: scroll;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
 }
 .container{
     display: flex;
     gap: 1rem;
     padding: 1rem;
     flex-grow: 1;
+    min-height: 100%;
+    height: fit-content;
 
     @media (max-width: 440px) {
         padding: 0.5rem;
@@ -23,6 +29,8 @@
 }
 .page_body{
     flex: 1;
+    overflow-y: auto;
+    height: fit-content;
     
     /* Mobile: Full width layout */
     @media (max-width: 1023px) {

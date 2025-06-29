@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import css from "@/styles/ConversationsList.module.css";
 import { Avatar, Badge, Typography, Input, Empty, Tabs, Button } from "antd";
 import Iconify from "../Iconify";
@@ -11,40 +11,88 @@ import { createConversation } from "@/actions/chat";
 import { OnlineStatusAvatar } from "../OnlineStatusIndicator";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import PremiumBadge from "@/components/PremiumBadge";
 
 dayjs.extend(relativeTime);
 
 const ConversationsList = ({ conversations, onSelectConversation, selectedId, currentUser }) => {
   const { settings: { theme: currentTheme } } = useSettingsContext();
-  const [compatibleUsers, setCompatibleUsers] = useState([]);
   const [activeTab, setActiveTab] = useState("conversations");
+  const [compatibleUsers, setCompatibleUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  
+  // Memoized cache references
+  const compatibleUsersCache = useRef(null);
+  const lastCompatibleUsersFetch = useRef(0);
+  const searchTimeoutRef = useRef(null);
+  const debouncedSearchText = useRef("");
 
-  // Load compatible users
-  useEffect(() => {
-    const loadCompatibleUsers = async () => {
-      if (!currentUser?.id) return;
+  // Debounced search implementation
+  const debouncedSetSearchText = useCallback((text) => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      debouncedSearchText.current = text;
+      // Force re-render by updating state
+      setSearchText(text);
+    }, 300); // 300ms debounce
+  }, []);
+
+  // Optimized compatible users loading with caching
+  const loadCompatibleUsers = useCallback(async (forceRefresh = false) => {
+    if (!currentUser?.id) return;
+    
+    const now = Date.now();
+    const cacheAge = now - lastCompatibleUsersFetch.current;
+    
+    // Use cached data if less than 10 minutes old and not forcing refresh
+    if (!forceRefresh && compatibleUsersCache.current && cacheAge < 600000) { // 10 minutes cache
+      console.log('Using cached compatible users');
+      setCompatibleUsers(compatibleUsersCache.current);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const users = await getMyCompatibleUsers(currentUser.id);
       
-      try {
-        setLoading(true);
-        const users = await getMyCompatibleUsers(currentUser.id);
-        
-        // Filter out users who already have conversations
-        const existingConversationUserIds = conversations.map(conv => conv.otherUser?.id);
-        const newCompatibleUsers = users.filter(user => !existingConversationUserIds.includes(user.id));
-        
-        setCompatibleUsers(newCompatibleUsers);
-      } catch (error) {
-        console.error("Error loading compatible users:", error);
-      } finally {
-        setLoading(false);
+      // We'll filter the users when displaying them, not here
+      // This prevents dependency on conversations array
+      
+      // Cache all compatible users
+      compatibleUsersCache.current = users;
+      lastCompatibleUsersFetch.current = now;
+      
+      setCompatibleUsers(users);
+    } catch (error) {
+      console.error("Error loading compatible users:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser?.id]);
+
+  // Load compatible users with dependency optimization
+  useEffect(() => {
+    // Only load if we have current user
+    if (currentUser?.id) {
+      loadCompatibleUsers();
+    }
+  }, [loadCompatibleUsers, currentUser?.id]); // Fixed: Remove conversations dependency completely
+
+  // Cleanup timeouts
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
     };
+  }, []);
 
-    loadCompatibleUsers();
-  }, [currentUser?.id, conversations]);
-
-  const formatTime = (timestamp) => {
+  // Memoized time formatting function
+  const formatTime = useCallback((timestamp) => {
     if (!timestamp) return '';
     
     // Handle Firebase Timestamp
@@ -59,14 +107,16 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
     } else {
       return messageTime.format('DD/MM');
     }
-  };
+  }, []);
 
-  const truncateMessage = (text, maxLength = 40) => {
+  // Memoized message truncation
+  const truncateMessage = useCallback((text, maxLength = 40) => {
     if (!text || text.length <= maxLength) return text || '';
     return text.substring(0, maxLength) + '...';
-  };
+  }, []);
 
-  const handleStartConversation = async (user) => {
+  // Optimized conversation creation with local state update
+  const handleStartConversation = useCallback(async (user) => {
     try {
       console.log("Starting conversation with user:", user);
       const result = await createConversation({
@@ -75,7 +125,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
       });
 
       console.log("Create conversation result:", result);
-      
+
       if (result.success) {
         // Create a conversation object to pass to the parent
         const newConversation = {
@@ -97,20 +147,70 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         
         // Remove user from compatible users list since they now have a conversation
         setCompatibleUsers(prev => prev.filter(u => u.id !== user.id));
+        
+        // Update cache to reflect the change
+        if (compatibleUsersCache.current) {
+          compatibleUsersCache.current = compatibleUsersCache.current.filter(u => u.id !== user.id);
+        }
       }
     } catch (error) {
       console.error("Error starting conversation:", error);
       // You could add a toast notification here to inform the user
     }
-  };
+  }, [currentUser.id, onSelectConversation]);
 
-  // Theme-aware styles
-  const searchInputStyle = {
+  // Memoized theme-aware styles
+  const searchInputStyle = useMemo(() => ({
     background: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f8f9fa',
-    color: currentTheme === 'dark' ? '#fff' : 'inherit'
-  };
+    color: '#000000' // Always black text
+  }), [currentTheme]);
 
-  const renderConversationItem = (conversation) => {
+  // Memoized filtered conversations
+  const filteredConversations = useMemo(() => {
+    if (!searchText.trim()) return conversations;
+    
+    const searchLower = searchText.toLowerCase();
+    
+    return conversations.filter(conversation => {
+      const otherUser = conversation.otherUser;
+      
+      // Search in user name, username, and last message
+      const searchableText = [
+        otherUser?.firstName,
+        otherUser?.lastName, 
+        otherUser?.username,
+        conversation.lastMessage?.text
+      ].filter(Boolean).join(' ').toLowerCase();
+      
+      return searchableText.includes(searchLower);
+    });
+  }, [conversations, searchText]);
+
+  // Memoized filtered compatible users
+  const filteredCompatibleUsers = useMemo(() => {
+    // First filter out users who already have conversations
+    const existingConversationUserIds = conversations.map(conv => conv.otherUser?.id);
+    const availableUsers = compatibleUsers.filter(user => !existingConversationUserIds.includes(user.id));
+    
+    // Then apply search filter if needed
+    if (!searchText.trim()) return availableUsers;
+    
+    const searchLower = searchText.toLowerCase();
+    
+    return availableUsers.filter(user => {
+      // Search in user name and username
+      const searchableText = [
+        user?.firstName,
+        user?.lastName,
+        user?.username
+      ].filter(Boolean).join(' ').toLowerCase();
+      
+      return searchableText.includes(searchLower);
+    });
+  }, [compatibleUsers, searchText, conversations]);
+
+  // Memoized conversation item renderer
+  const renderConversationItem = useCallback((conversation) => {
     const otherUser = conversation.otherUser;
     const isSelected = selectedId === conversation.id;
     const isFromCurrentUser = conversation.lastMessage?.senderId === currentUser?.id;
@@ -130,25 +230,33 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
             offset={[-5, 5]}
           >
             <OnlineStatusAvatar userId={otherUser?.id} size="medium">
-              <Avatar 
-                src={mainImage} 
-                size={48}
-              >
-                {otherUser?.firstName?.[0] || otherUser?.username?.[0] || otherUser?.email?.[0]}
-                {otherUser?.lastName?.[0]}
-              </Avatar>
+            <Avatar 
+              src={mainImage} 
+              size={48}
+            >
+              {otherUser?.firstName?.[0] || otherUser?.username?.[0] || otherUser?.email?.[0]}
+              {otherUser?.lastName?.[0]}
+            </Avatar>
             </OnlineStatusAvatar>
           </Badge>
         </div>
 
         <div className={css.conversationContent}>
           <div className={css.header}>
-            <Typography.Text 
-              className={css.participantName}
-              strong={conversation.unreadCount > 0}
-            >
-              {displayName}
-            </Typography.Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Typography.Text 
+                className={css.participantName}
+                strong={conversation.unreadCount > 0}
+              >
+                {displayName}
+              </Typography.Text>
+              <PremiumBadge 
+                user={otherUser} 
+                size="small" 
+                showText={false}
+                showTooltip={false}
+              />
+            </div>
             <Typography.Text 
               className={css.timestamp}
               type="secondary"
@@ -181,9 +289,10 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         </div>
       </div>
     );
-  };
+  }, [selectedId, currentUser?.id, onSelectConversation, formatTime, truncateMessage]);
 
-  const renderCompatibleUserItem = (user) => {
+  // Memoized compatible user item renderer
+  const renderCompatibleUserItem = useCallback((user) => {
     const mainImage = getMainProfileImage(user?.images);
     const displayName = getDisplayName(user);
 
@@ -196,21 +305,29 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
       >
         <div className={css.avatarContainer}>
           <OnlineStatusAvatar userId={user?.id} size="medium">
-            <Avatar 
-              src={mainImage} 
-              size={48}
-            >
-              {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
-              {user?.lastName?.[0]}
-            </Avatar>
+          <Avatar 
+            src={mainImage} 
+            size={48}
+          >
+            {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
+            {user?.lastName?.[0]}
+          </Avatar>
           </OnlineStatusAvatar>
         </div>
 
         <div className={css.conversationContent}>
           <div className={css.header}>
-            <Typography.Text className={css.participantName}>
-              {displayName}
-            </Typography.Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Typography.Text className={css.participantName}>
+                {displayName}
+              </Typography.Text>
+              <PremiumBadge 
+                user={user} 
+                size="small" 
+                showText={false}
+                showTooltip={false}
+              />
+            </div>
             <div style={{ display: 'flex', gap: '4px' }}>
               <Button 
                 size="small"
@@ -228,23 +345,23 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 title="View Profile"
               />
               
-              <Button 
-                type="primary" 
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStartConversation(user);
-                }}
-                style={{ 
-                  background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
-                  border: 'none',
+            <Button 
+              type="primary" 
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStartConversation(user);
+              }}
+              style={{ 
+                background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
+                border: 'none',
                   borderRadius: '8px',
                   fontSize: '10px',
                   padding: '0 12px'
-                }}
-              >
-                Message
-              </Button>
+              }}
+            >
+              Message
+            </Button>
             </div>
           </div>
 
@@ -260,15 +377,18 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         </div>
       </div>
     );
-  };
+  }, [handleStartConversation]);
 
-  const tabItems = [
+  // Memoized tab items
+  const tabItems = useMemo(() => [
     {
       key: 'conversations',
-      label: `Messages (${conversations.length})`,
+      label: searchText.trim() ? 
+        `Messages (${filteredConversations.length}/${conversations.length})` : 
+        `Messages (${conversations.length})`,
       children: (
         <div className={css.conversationsContainer}>
-          {conversations.length === 0 ? (
+          {filteredConversations.length === 0 ? (
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -280,27 +400,32 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
                   <Typography.Text type="secondary">
-                    No conversations yet
+                    {searchText.trim() ? 
+                      `No conversations found for "${searchText}"` : 
+                      "No conversations yet"
+                    }
                   </Typography.Text>
                 }
               />
             </div>
           ) : (
-            conversations.map(renderConversationItem)
+            filteredConversations.map(renderConversationItem)
           )}
         </div>
       )
     },
     {
       key: 'compatible',
-      label: `Compatible (${compatibleUsers.length})`,
+      label: searchText.trim() ? 
+        `Compatible (${filteredCompatibleUsers.length}/${compatibleUsers.length})` : 
+        `Compatible (${compatibleUsers.length})`,
       children: (
         <div className={css.conversationsContainer}>
           {loading ? (
             <div style={{ padding: '20px', textAlign: 'center' }}>
               <Typography.Text type="secondary">Loading compatible users...</Typography.Text>
             </div>
-          ) : compatibleUsers.length === 0 ? (
+          ) : filteredCompatibleUsers.length === 0 ? (
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -312,29 +437,33 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={
                   <Typography.Text type="secondary">
-                    No new compatible users.<br />
-                    Check your matches page!
+                    {searchText.trim() ? 
+                      `No compatible users found for "${searchText}"` : 
+                      "No new compatible users.\nCheck your matches page!"
+                    }
                   </Typography.Text>
                 }
               />
             </div>
           ) : (
-            compatibleUsers.map(renderCompatibleUserItem)
+            filteredCompatibleUsers.map(renderCompatibleUserItem)
           )}
         </div>
       )
     }
-  ];
+  ], [searchText, filteredConversations, conversations.length, loading, filteredCompatibleUsers, compatibleUsers.length, renderConversationItem, renderCompatibleUserItem]);
 
   return (
     <div className={css.wrapper}>
       {/* Search Bar */}
       <div className={css.searchContainer}>
         <Input
-          placeholder="Search conversations..."
-          prefix={<Iconify icon="eva:search-fill" width="18px" />}
+          placeholder="Search conversations and compatible users..."
+          prefix={<Iconify icon="eva:search-fill" width="18px" style={{ color: '#000000' }} />}
           className={css.searchInput}
           style={searchInputStyle}
+          onChange={(e) => debouncedSetSearchText(e.target.value)}
+          allowClear
         />
       </div>
 
@@ -353,4 +482,4 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
   );
 };
 
-export default ConversationsList;
+export default React.memo(ConversationsList);

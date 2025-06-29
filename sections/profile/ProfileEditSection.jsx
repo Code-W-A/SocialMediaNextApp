@@ -816,7 +816,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
           closable={false}
           centered
           width={400}
-          bodyStyle={{ padding: "2rem", textAlign: "center" }}
+          styles={{
+          body: { padding: "2rem", textAlign: "center" }
+        }}
         >
           <div style={{ marginBottom: "1.5rem" }}>
             <div style={{

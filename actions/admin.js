@@ -368,4 +368,55 @@ export const addSameGenderCompatibilities = async () => {
     console.error("Error in bulk add same gender compatibilities:", error);
     throw error;
   }
+};
+
+// Get online compatible users for current user
+export const getOnlineCompatibleUsers = async (userId) => {
+  try {
+    if (!userId) return [];
+    
+    console.log("🔥 getOnlineCompatibleUsers called for userId:", userId);
+    
+    // Get compatible users IDs
+    const compatibleUserIds = await getMyCompatibilities(userId);
+    console.log("👥 Found compatible user IDs:", compatibleUserIds.length);
+    
+    if (compatibleUserIds.length === 0) {
+      console.log("⚠️ No compatible users found");
+      return [];
+    }
+    
+    // Get users with their real presence status from Firestore
+    const { getUsersWithPresence } = await import('./user');
+    const usersWithPresence = await getUsersWithPresence(compatibleUserIds);
+    console.log("📊 Users with presence data:", usersWithPresence.length);
+    
+    // Filter to only show online and away users, sort by priority
+    const activeOnlineUsers = usersWithPresence
+      .filter(user => user.presence?.status === 'online' || user.presence?.status === 'away')
+      .sort((a, b) => {
+        // Prioritize online over away
+        if (a.presence.status === 'online' && b.presence.status !== 'online') return -1;
+        if (b.presence.status === 'online' && a.presence.status !== 'online') return 1;
+        // Then sort by last activity (most recent first)
+        return new Date(b.presence.lastActivity) - new Date(a.presence.lastActivity);
+      })
+      .slice(0, 8) // Show max 8 online users
+      .map(user => ({
+        ...user,
+        // Map presence data to expected format
+        status: user.presence.status,
+        isOnline: user.presence.isOnline,
+        lastSeen: user.presence.lastSeen,
+        lastActivity: user.presence.lastActivity,
+        inactiveMinutes: user.presence.inactiveMinutes
+      }));
+    
+    console.log("🟢 Active online compatible users:", activeOnlineUsers.length);
+    return activeOnlineUsers;
+    
+  } catch (error) {
+    console.error("❌ Error fetching online compatible users:", error);
+    return [];
+  }
 }; 

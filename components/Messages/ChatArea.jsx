@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import css from "@/styles/ChatArea.module.css";
 import { Avatar, Button, Input, Typography, theme, message } from "antd";
 import Iconify from "../Iconify";
@@ -39,7 +39,20 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   const [activePopoverId, setActivePopoverId] = useState(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const markAsReadTimeoutRef = useRef(null);
+  const typingThrottleRef = useRef(null);
+  const lastTypingUpdateRef = useRef(0);
+  const scrollTimeoutRef = useRef(null);
+  const isMountedRef = useRef(true);
   const otherUser = conversation?.otherUser;
+
+  // Track mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Subscribe to messages in real-time
   useEffect(() => {
@@ -48,11 +61,17 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     const unsubscribe = subscribeToConversationMessages(
       conversation.id,
       (updatedMessages) => {
-        setMessages(updatedMessages);
+        if (isMountedRef.current) {
+          setMessages(updatedMessages);
+        }
       }
     );
 
-    return unsubscribe;
+    return () => {
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, [conversation?.id]);
 
   // Subscribe to typing indicators
@@ -63,31 +82,71 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       conversation.id,
       currentUser.id,
       (typingUserIds) => {
-        setTypingUsers(typingUserIds);
+        if (isMountedRef.current) {
+          setTypingUsers(typingUserIds);
+        }
       }
     );
 
-    return unsubscribe;
+    return () => {
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, [conversation?.id, currentUser?.id]);
+
+  // Optimized scroll to bottom with debouncing
+  const debouncedScrollToBottom = useCallback(() => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current && messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ 
+          behavior: "smooth",
+          block: "end"
+        });
+      }
+    }, 100); // 100ms debounce
+  }, []);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (messages.length > 0) {
+      debouncedScrollToBottom();
+    }
+  }, [messages.length, debouncedScrollToBottom]);
+
+  // Debounced mark as read to reduce Firestore writes
+  const debouncedMarkAsRead = useCallback(() => {
+    if (markAsReadTimeoutRef.current) {
+      clearTimeout(markAsReadTimeoutRef.current);
+    }
+
+    markAsReadTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current && conversation?.id && currentUser?.id && messages.length > 0) {
+        markConversationAsRead(conversation.id, currentUser.id).catch(console.error);
+      }
+    }, 2000); // 2 seconds debounce (increased from 1 second)
+  }, [conversation?.id, currentUser?.id, messages.length]);
 
   // Mark messages as read when conversation is viewed
   useEffect(() => {
     if (!conversation?.id || !currentUser?.id || messages.length === 0) return;
+    debouncedMarkAsRead();
+    
+    return () => {
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
+      }
+    };
+  }, [conversation?.id, currentUser?.id, messages.length, debouncedMarkAsRead]);
 
-    const timer = setTimeout(() => {
-      markConversationAsRead(conversation.id, currentUser.id);
-    }, 1000); // Wait 1 second before marking as read
-
-    return () => clearTimeout(timer);
-  }, [conversation?.id, currentUser?.id, messages]);
-
-  // Handle reaction toggle for hover actions
-  const handleReactionToggle = async (messageId, emoji, currentReactions) => {
+  // Handle reaction toggle with optimistic updates
+  const handleReactionToggle = useCallback(async (messageId, emoji, currentReactions) => {
+    if (!isMountedRef.current) return;
+    
     try {
       // Check if user already reacted with any emoji
       let currentUserReaction = null;
@@ -111,17 +170,58 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       console.error("Error toggling reaction:", error);
       throw error;
     }
-  };
+  }, [conversation?.id, currentUser?.id]);
 
-  // Cleanup typing indicator on unmount
+  // Define handleStopTyping first (before it's used in other functions)
+  const handleStopTyping = useCallback(() => {
+    if (!conversation?.id || !currentUser?.id || !isMountedRef.current) return;
+    
+    // Clear all typing-related timeouts
+    if (typingThrottleRef.current) {
+      clearTimeout(typingThrottleRef.current);
+      typingThrottleRef.current = null;
+    }
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    
+    // Only send stop typing if we recently sent a typing indicator
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastTypingUpdateRef.current;
+    
+    if (timeSinceLastUpdate < 10000) { // Only if we sent typing indicator in last 10 seconds
+      setTyping(conversation.id, currentUser.id, false).catch(console.error);
+    }
+  }, [conversation?.id, currentUser?.id]);
+
+  // Cleanup all timeouts and subscriptions on unmount
   useEffect(() => {
     return () => {
-      handleStopTyping();
+      // Clear all timeouts
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (markAsReadTimeoutRef.current) {
+        clearTimeout(markAsReadTimeoutRef.current);
+      }
+      if (typingThrottleRef.current) {
+        clearTimeout(typingThrottleRef.current);
+      }
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      
+      // Stop typing indicator if active
+      if (conversation?.id && currentUser?.id) {
+        setTyping(conversation.id, currentUser.id, false).catch(console.error);
+      }
     };
-  }, []);
+  }, [conversation?.id, currentUser?.id]);
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !conversation?.id || !currentUser?.id) return;
+  const handleSendMessage = useCallback(async () => {
+    if (!newMessage.trim() || !conversation?.id || !currentUser?.id || !isMountedRef.current) return;
 
     setSending(true);
     const messageText = newMessage.trim();
@@ -139,56 +239,76 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       });
     } catch (error) {
       console.error("Error sending message:", error);
-      message.error("Failed to send message");
-      setNewMessage(messageText); // Restore message on error
+      if (isMountedRef.current) {
+        message.error("Failed to send message");
+        setNewMessage(messageText); // Restore message on error
+      }
     } finally {
-      setSending(false);
+      if (isMountedRef.current) {
+        setSending(false);
+      }
     }
-  };
+  }, [newMessage, conversation?.id, currentUser?.id, handleStopTyping]);
 
-  const handleStartTyping = () => {
+  // Throttled typing indicator to reduce Firestore writes
+  const handleStartTyping = useCallback(() => {
     if (!conversation?.id || !currentUser?.id) return;
     
-    setTyping(conversation.id, currentUser.id, true);
+    const now = Date.now();
+    const timeSinceLastUpdate = now - lastTypingUpdateRef.current;
+    
+    // Only send typing indicator every 3 seconds max
+    if (timeSinceLastUpdate < 3000) {
+      // Still reset the timeout for stopping typing
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      typingTimeoutRef.current = setTimeout(() => {
+        handleStopTyping();
+      }, 5000); // 5 seconds of inactivity (increased from 3)
+      
+      return;
+    }
+    
+    // Throttle the actual typing indicator updates
+    if (typingThrottleRef.current) {
+      clearTimeout(typingThrottleRef.current);
+    }
+    
+    typingThrottleRef.current = setTimeout(() => {
+      setTyping(conversation.id, currentUser.id, true);
+      lastTypingUpdateRef.current = Date.now();
+    }, 500); // 500ms throttle
     
     // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
     
-    // Set timeout to stop typing after 3 seconds of inactivity
+    // Set timeout to stop typing after 5 seconds of inactivity
     typingTimeoutRef.current = setTimeout(() => {
       handleStopTyping();
-    }, 3000);
-  };
+    }, 5000); // Increased from 3 seconds
+  }, [conversation?.id, currentUser?.id, handleStopTyping]);
 
-  const handleStopTyping = () => {
-    if (!conversation?.id || !currentUser?.id) return;
-    
-    setTyping(conversation.id, currentUser.id, false);
-    
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-  };
-
-  const handleKeyPress = (e) => {
+  const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
-  const formatMessageTime = (timestamp) => {
+  // Memoized formatting functions
+  const formatMessageTime = useCallback((timestamp) => {
     if (!timestamp) return '';
     
     // Handle Firebase Timestamp
     const time = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
     return dayjs(time).format('HH:mm');
-  };
+  }, []);
 
-  const formatDateHeader = (timestamp) => {
+  const formatDateHeader = useCallback((timestamp) => {
     if (!timestamp) return '';
     
     // Handle Firebase Timestamp
@@ -203,9 +323,9 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     } else {
       return messageDate.format('MMMM DD, YYYY');
     }
-  };
+  }, []);
 
-  const shouldShowDateHeader = (currentMessage, previousMessage) => {
+  const shouldShowDateHeader = useCallback((currentMessage, previousMessage) => {
     if (!previousMessage || !currentMessage.timestamp) return true;
     
     const currentTime = currentMessage.timestamp?.toDate ? 
@@ -217,30 +337,30 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     const previousDate = dayjs(previousTime);
     
     return !currentDate.isSame(previousDate, 'day');
-  };
+  }, []);
 
-  // Theme-aware styles
-  const messagesContainerStyle = {
+  // Memoized theme-aware styles
+  const messagesContainerStyle = useMemo(() => ({
     background: currentTheme === 'dark' ? 'rgb(33, 43, 54)' : token.colorBgBase
-  };
+  }), [currentTheme, token.colorBgBase]);
 
-  const dateTextStyle = {
+  const dateTextStyle = useMemo(() => ({
     background: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
     color: currentTheme === 'dark' ? '#ccc' : '#666'
-  };
+  }), [currentTheme]);
 
-  const receivedBubbleStyle = {
+  const receivedBubbleStyle = useMemo(() => ({
     background: token.colorBgContainer,
     color: token.colorText,
     border: `1px solid ${currentTheme === 'dark' ? '#444' : '#e8e8e8'}`
-  };
+  }), [token.colorBgContainer, token.colorText, currentTheme]);
 
-  const inputWrapperStyle = {
+  const inputWrapperStyle = useMemo(() => ({
     background: token.colorBgContainer,
     border: `1px solid ${currentTheme === 'dark' ? '#444' : '#e8e8e8'}`
-  };
+  }), [token.colorBgContainer, currentTheme]);
 
-  const textareaStyle = {
+  const textareaStyle = useMemo(() => ({
     flex: 1,
     border: 'none',
     outline: 'none',
@@ -253,13 +373,26 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     lineHeight: '1.4',
     maxHeight: '100px',
     minHeight: '20px'
-  };
+  }), [currentTheme]);
+
+  // Optimized input change handler
+  const handleInputChange = useCallback((e) => {
+    const value = e.target.value;
+    setNewMessage(value);
+    
+    if (value.trim()) {
+      handleStartTyping();
+    } else {
+      handleStopTyping();
+    }
+  }, [handleStartTyping, handleStopTyping]);
+
+  // Memoized main image
+  const mainImage = useMemo(() => getMainProfileImage(otherUser?.images), [otherUser?.images]);
 
   if (!conversation || !otherUser) {
     return null;
   }
-
-  const mainImage = getMainProfileImage(otherUser.images);
 
   return (
     <div className={css.wrapper}>
@@ -329,9 +462,9 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
         
         <div className={css.participantInfo}>
           <OnlineStatusAvatar userId={otherUser.id} size="medium">
-            <Avatar src={mainImage} size={40}>
-              {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
-            </Avatar>
+          <Avatar src={mainImage} size={40}>
+            {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
+          </Avatar>
           </OnlineStatusAvatar>
           <div className={css.participantDetails}>
             <Typography.Text className={css.participantName} strong>
@@ -428,13 +561,13 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                   >
                     {!isCurrentUser && (
                       <OnlineStatusAvatar userId={otherUser.id} size="small">
-                        <Avatar 
-                          src={mainImage} 
-                          size={32} 
-                          className={css.messageAvatar}
-                        >
-                          {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
-                        </Avatar>
+                      <Avatar 
+                        src={mainImage} 
+                        size={32} 
+                        className={css.messageAvatar}
+                      >
+                        {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
+                      </Avatar>
                       </OnlineStatusAvatar>
                     )}
                     
@@ -461,7 +594,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                             }}
                           >
                             {messageItem.text || "This message was deleted"}
-                          </Typography.Text>
+                        </Typography.Text>
                         ) : (
                           <EditMessage
                             messageItem={messageItem}
@@ -522,9 +655,9 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                       </div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: isCurrentUser ? 'flex-end' : 'flex-start', gap: '4px' }}>
-                        <Typography.Text className={css.messageTime} type="secondary">
-                          {formatMessageTime(messageItem.timestamp)}
-                        </Typography.Text>
+                      <Typography.Text className={css.messageTime} type="secondary">
+                        {formatMessageTime(messageItem.timestamp)}
+                      </Typography.Text>
                         <ReadReceiptIndicator
                           conversationId={conversation.id}
                           messageId={messageItem.id}
@@ -551,7 +684,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
             }}>
                           <OnlineStatusAvatar userId={otherUser.id} size="small">
               <Avatar 
-                src={getMainProfileImage(otherUser.images)} 
+                src={mainImage} 
                 size={24}
               >
                 {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
@@ -602,14 +735,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
           <textarea
             className="custom-textarea"
             value={newMessage}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              if (e.target.value.trim()) {
-                handleStartTyping();
-              } else {
-                handleStopTyping();
-              }
-            }}
+            onChange={handleInputChange}
             onKeyPress={handleKeyPress}
             onBlur={handleStopTyping}
             placeholder={`Message ${otherUser.firstName || otherUser.username || 'user'}...`}
@@ -649,4 +775,4 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   );
 };
 
-export default ChatArea; 
+export default React.memo(ChatArea); 

@@ -6,6 +6,11 @@
   margin-right: auto;
   padding-bottom: 4rem;
   overflow: scroll;
+  
+  /* Mobile: Extra padding for bottom navbar */
+  @media (max-width: 1023px) {
+    padding-bottom: 7rem;
+  }
 }
 .container {
   display: flex;

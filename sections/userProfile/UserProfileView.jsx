@@ -9,6 +9,7 @@ import { useUser } from "@/hooks/useFirebaseAuth";
 import { Button, Typography, Alert, Tabs, Spin } from "antd";
 import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
+import Posts from "@/components/Post/Posts";
 import { 
   getDisplayName, 
   getUsername 
@@ -112,6 +113,21 @@ const UserProfileView = ({ userId }) => {
       key: "1",
       label: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Iconify icon="eva:file-text-fill" width="20px" />
+          Posts
+        </span>
+      ),
+      children: (
+        <div style={{ marginTop: '1rem' }}>
+          {/* Show user's posts */}
+          <Posts id={userId} />
+        </div>
+      )
+    },
+    {
+      key: "2",
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Iconify icon="solar:user-id-bold" width="20px" />
           Profile
         </span>
@@ -126,7 +142,7 @@ const UserProfileView = ({ userId }) => {
       )
     },
     {
-      key: "2",
+      key: "3",
       label: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Iconify icon="eva:heart-fill" width="20px" />
@@ -146,7 +162,7 @@ const UserProfileView = ({ userId }) => {
   ];
 
   return (
-    <div className={css.wrapper}>
+    <div className={css.wrapper} style={{ minHeight: '100vh', paddingBottom: '2rem' }}>
       <div className={css.container}>
         {/* Profile Head */}
         <UserProfileHead

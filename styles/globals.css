@@ -1,0 +1,186 @@
+/* Premium Modal Responsive Styles */
+.premium-modal .ant-modal-content {
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+.premium-modal .ant-modal-body {
+  padding: 0 !important;
+}
+
+/* Mobile Responsive Premium Styles */
+@media (max-width: 768px) {
+  /* Premium Modal Mobile */
+  .premium-modal {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  
+  .premium-modal .ant-modal {
+    margin: 0 !important;
+    padding: 16px !important;
+    top: 0 !important;
+  }
+  
+  .premium-modal .ant-modal-content {
+    margin: 0 !important;
+    border-radius: 16px !important;
+  }
+  
+  /* Premium Limit Banner Mobile */
+  .ant-alert-with-description {
+    padding: 12px !important;
+  }
+  
+  .ant-alert-with-description .ant-alert-message {
+    font-size: 14px !important;
+  }
+  
+  .ant-alert-with-description .ant-alert-description {
+    font-size: 12px !important;
+  }
+  
+  /* Premium Button in Alerts Mobile */
+  .ant-alert .ant-btn {
+    height: 36px !important;
+    font-size: 14px !important;
+    padding: 0 12px !important;
+  }
+  
+  /* Progress Bar Mobile */
+  .ant-progress-line {
+    margin: 6px 0 !important;
+  }
+  
+  /* Premium Badge Mobile */
+  .ant-tag {
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+  }
+}
+
+/* Small Mobile Responsive (< 480px) */
+@media (max-width: 480px) {
+  /* Premium Modal on Small Screens */
+  .premium-modal .ant-modal-body > div {
+    padding: 16px !important;
+  }
+  
+  .premium-modal h3.ant-typography {
+    font-size: 18px !important;
+  }
+  
+  .premium-modal .ant-typography-paragraph {
+    font-size: 14px !important;
+  }
+  
+  .premium-modal ul {
+    padding-left: 20px !important;
+  }
+  
+  .premium-modal ul li {
+    font-size: 13px !important;
+    margin-bottom: 4px !important;
+  }
+  
+  /* Compact Premium Banner on Small Screens */
+  .ant-progress {
+    margin: 4px 0 !important;
+  }
+  
+  .ant-progress-text {
+    font-size: 11px !important;
+  }
+}
+
+/* Premium Features Grid Responsive */
+.premium-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .premium-features-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
+/* Premium CTA Button Responsive */
+.premium-cta-button {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  border: none;
+  color: #000;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.premium-cta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.4);
+}
+
+@media (max-width: 768px) {
+  .premium-cta-button {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* Premium Limit Progress Bar Animation */
+.ant-progress-bg {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Premium Crown Icon Animation */
+.anticon-crown {
+  animation: premium-pulse 2s ease-in-out infinite;
+}
+
+@keyframes premium-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Responsive Premium Page Layout */
+.premium-page-container {
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+@media (max-width: 768px) {
+  .premium-page-container {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .premium-page-container {
+    padding: 0.5rem;
+  }
+}
+
+/* Premium Card Responsive */
+.premium-card {
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .premium-card {
+    border-radius: 16px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  }
+} 

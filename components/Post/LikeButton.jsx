@@ -6,70 +6,135 @@ import { HappyProvider } from "@ant-design/happy-work-theme";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { updatePostLike } from "@/actions/post";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { updateQueryCacheLikes } from "@/utils";
 
-const LikeButton = ({ postId, likes, queryId }) => {
+const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
+  console.log("🔥 LikeButton rendered:", { postId, initialLikesCount: initialLikes?.length, queryId });
+  
   const { user } = useUser();
+  const queryClient = useQueryClient();
+  
+  // Local state for likes - optimistic updates
+  const [likes, setLikes] = useState(initialLikes || []);
   const [isLiked, setIsLiked] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Update local state when initial likes change (from server)
   useEffect(() => {
-    setIsLiked(likes?.some((like) => like?.authorId === user?.id));
+    console.log("📥 Initial likes updated:", { postId, likesCount: initialLikes?.length });
+    setLikes(initialLikes || []);
+  }, [initialLikes]);
+
+  // Check if user liked the post
+  useEffect(() => {
+    const userLiked = likes?.some((like) => like?.authorId === user?.id);
+    console.log("👍 Checking if user liked post:", { 
+      postId, 
+      userId: user?.id, 
+      userLiked, 
+      likesCount: likes?.length 
+    });
+    setIsLiked(userLiked);
   }, [user, likes]);
 
   const actionType = isLiked ? "unlike" : "like";
 
-  const queryClient = useQueryClient();
-
   const { mutate } = useMutation({
-    mutationFn: ({ postId, actionType }) => updatePostLike(postId, actionType, user?.id),
+    mutationFn: ({ postId, actionType }) => {
+      console.log("🚀 Executing like mutation:", { postId, actionType, userId: user?.id });
+      return updatePostLike(postId, actionType, user?.id);
+    },
+    onMutate: async ({ postId, actionType }) => {
+      console.log("⏳ Optimistic like update:", { postId, actionType });
+      setIsLoading(true);
 
-    // This function will be run just before the mutation function
-    onMutate: async () => {
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries(["posts", queryId]);
+      // Optimistic update - immediately update local state
+      setLikes(prevLikes => {
+        if (actionType === "like") {
+          // Add like optimistically
+          const newLike = {
+            id: `temp-${Date.now()}`,
+            authorId: user?.id,
+            postId: postId,
+            createdAt: new Date()
+          };
+          const newLikes = [...(prevLikes || []), newLike];
+          console.log("➕ Added like optimistically:", { newLikesCount: newLikes.length });
+          return newLikes;
+        } else {
+          // Remove like optimistically
+          const newLikes = (prevLikes || []).filter(like => like.authorId !== user?.id);
+          console.log("➖ Removed like optimistically:", { newLikesCount: newLikes.length });
+          return newLikes;
+        }
+      });
 
-      // Snapshot the previous value
+      // Also update the query cache for persistence across re-renders
+      await queryClient.cancelQueries({ queryKey: ["posts", queryId] });
       const previousPosts = queryClient.getQueryData(["posts", queryId]);
 
-      // Optimistically update to the new value
       queryClient.setQueryData(["posts", queryId], (old) => {
+        if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((page) => {
-            return {
-              ...page,
-              data: page.data.map((post) => {
-                if (post.id === postId) {
-                  return {
-                    ...post,
-                    likes: updateQueryCacheLikes(
-                      post.likes,
-                      postId,
-                      user.id,
-                      actionType
-                    ),
-                  };
+          pages: old.pages.map((page) => ({
+            ...page,
+            data: page.data.map((post) => {
+              if (post.id === postId) {
+                const currentLikes = post.likes || [];
+                let newLikes;
+                if (actionType === "like") {
+                  newLikes = [...currentLikes, {
+                    id: `temp-${Date.now()}`,
+                    authorId: user?.id,
+                    postId: postId,
+                    createdAt: new Date()
+                  }];
                 } else {
-                  return post;
+                  newLikes = currentLikes.filter(like => like.authorId !== user?.id);
                 }
-              }),
-            };
-          }),
+                return {
+                  ...post,
+                  likes: newLikes,
+                  likesCount: newLikes.length
+                };
+              }
+              return post;
+            }),
+          })),
         };
       });
 
-      // Return a context object with the snapshotted value
       return { previousPosts };
     },
+    onSuccess: () => {
+      console.log("✅ Like mutation successful");
+      setIsLoading(false);
+      // Data is already updated optimistically, no need to refetch
+    },
     onError: (err, variables, context) => {
-      console.log("this is error", err);
-      queryClient.setQueryData(["posts", queryId], context.previousPosts);
+      console.error("❌ Like mutation error:", err);
+      setIsLoading(false);
+      
+      // Revert optimistic update on error
+      if (context?.previousPosts) {
+        queryClient.setQueryData(["posts", queryId], context.previousPosts);
+      }
+      
+      // Also revert local state
+      setLikes(initialLikes || []);
     },
+  });
 
-    // Always refetch after error or success:
-    onSettled: () => {
-      queryClient.invalidateQueries(["posts", queryId]);
-    },
+  const handleLikeClick = () => {
+    console.log("🖱️ Like button clicked:", { postId, actionType, isLoading });
+    if (isLoading) return;
+    mutate({ postId, actionType });
+  };
+
+  console.log("🎨 LikeButton rendering with:", { 
+    isLiked, 
+    likesCount: likes?.length, 
+    isLoading 
   });
 
   return (
@@ -77,9 +142,9 @@ const LikeButton = ({ postId, likes, queryId }) => {
       <Button
         size="small"
         style={{ background: "transparent", border: "none", boxShadow: "none" }}
-        onClick={() => {
-          mutate({ postId, actionType });
-        }}
+        onClick={handleLikeClick}
+        loading={isLoading}
+        disabled={isLoading}
       >
         <Flex gap={".5rem"} align="center">
           <Iconify

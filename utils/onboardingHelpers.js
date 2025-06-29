@@ -14,12 +14,8 @@ export const checkOnboardingStatus = (user) => {
   const missingSteps = [];
   let nextStep = null;
 
-  // Check if user has photos
+  // Check if user has photos (optional step)
   const hasPhotos = user.images && user.images.length > 0;
-  if (!hasPhotos) {
-    missingSteps.push('photos');
-    if (!nextStep) nextStep = '/onboarding/photos';
-  }
 
   // Check if user has basic profile info (we'll be flexible here)
   const hasProfile = user.bio || user.location || user.interests?.length > 0;
@@ -38,7 +34,9 @@ export const checkOnboardingStatus = (user) => {
   // Check if onboarding is marked as complete
   const isMarkedComplete = user.onboardingCompleted === true;
 
-  const isComplete = hasPhotos && isMarkedComplete;
+  // Onboarding is complete if it's marked as complete AND user has basic profile info
+  // Photos are optional - user can complete onboarding without photos
+  const isComplete = isMarkedComplete && hasQuestionnaire;
 
   return {
     isComplete,

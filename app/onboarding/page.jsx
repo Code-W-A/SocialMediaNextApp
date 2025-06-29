@@ -7,12 +7,14 @@ import { getOnboardingProgress } from "@/utils/onboardingHelpers";
 import Iconify from "@/components/Iconify";
 import css from "@/styles/AuthPages.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
+import { useLanguage } from "@/lib/i18n";
 
 const { Title, Text } = Typography;
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   // Get real onboarding progress
   const progress = user ? getOnboardingProgress(user) : { 
@@ -54,24 +56,22 @@ export default function OnboardingPage() {
     router.push(nextStep);
   };
 
-
-
   return (
     <div className={layoutCss.singleColumnLayout}>
       {/* Header Section */}
       <div className={layoutCss.headerSection}>
         <div className={css.authHeader}>
           <Title level={2} className={css.authTitle} style={{ margin: "0 0 0.5rem" }}>
-            Welcome to YDestiny! 🎉
+            {t('onboarding.welcome')}
           </Title>
           <Text type="secondary" className={css.authSubtitle}>
-            Complete these 3 steps to set up your profile and start connecting with amazing people
+            {t('onboarding.subtitle')}
           </Text>
         </div>
 
         <div style={{ marginTop: "1rem" }}>
           <Text strong style={{ fontSize: "14px", color: "#666", marginBottom: "8px", display: "block" }}>
-            Progress: {progress.completedSteps} of {progress.totalSteps} steps completed
+            {t('onboarding.progress', { completed: progress.completedSteps, total: progress.totalSteps })}
           </Text>
           <Progress 
             percent={progress.percentage} 

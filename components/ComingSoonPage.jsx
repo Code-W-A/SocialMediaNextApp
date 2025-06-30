@@ -166,20 +166,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
               See Preview
             </Button>
             
-            <Button
-              size="large"
-              onClick={() => router.push('/sign-up')}
-              style={{
-                height: '50px',
-                padding: '0 32px',
-                fontSize: '16px',
-                borderRadius: '25px',
-                borderColor: '#667eea',
-                color: '#667eea'
-              }}
-            >
-              Get Early Access
-            </Button>
+      
           </Space>
 
           {/* Footer */}

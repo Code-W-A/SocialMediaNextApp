@@ -51,8 +51,27 @@ export const useSubscription = () => {
     },
   });
 
+  // Client-side expiration check (backup to webhooks)
+  const checkSubscriptionExpiration = () => {
+    if (!subscription || !subscription.currentPeriodEnd) return subscription?.isPremium || false;
+    
+    const now = new Date();
+    const periodEnd = new Date(subscription.currentPeriodEnd);
+    const isCanceled = subscription.cancelAtPeriodEnd;
+    
+    // If subscription is canceled and period has ended, it should not be premium
+    if (isCanceled && now > periodEnd) {
+      console.warn('⚠️ Subscription expired but still marked as premium. This should trigger a status check.');
+      // Refresh subscription data to get latest status from server
+      queryClient.invalidateQueries(['subscription', user?.id]);
+      return false;
+    }
+    
+    return subscription.isPremium;
+  };
+
   // Helper functions
-  const isPremium = subscription?.isPremium || false;
+  const isPremium = checkSubscriptionExpiration();
   const isActive = subscription?.status === 'active';
   const isTrialing = subscription?.status === 'trialing';
   const isCanceled = subscription?.cancelAtPeriodEnd || false;

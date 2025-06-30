@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Card, Button, Typography, Row, Col, Space, Divider, Tag, Badge, Spin, message } from 'antd';
-import { CrownOutlined, CheckOutlined, StarFilled, HeartFilled, CustomerServiceOutlined, RocketFilled } from '@ant-design/icons';
+import { Card, Button, Typography, Row, Col, Space, Divider, Tag, Badge, Spin, message, Alert } from 'antd';
+import { CrownOutlined, CheckOutlined, StarFilled, HeartFilled, CustomerServiceOutlined, RocketFilled, WarningOutlined, CalendarOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import Iconify from '@/components/Iconify';
 import { useLanguage } from '@/lib/i18n';
 import { useUser } from '@/hooks/useFirebaseAuth';
@@ -15,9 +15,9 @@ import BottomNavbarPaddingWrapper from '@/components/BottomNavbarPaddingWrapper'
 const { Title, Text, Paragraph } = Typography;
 
 const PremiumPage = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useUser();
-  const { subscription, isPremium, startPremiumSubscription, manageSubscription, isCreatingPortal } = useSubscription();
+  const { subscription, isPremium, isCanceled, startPremiumSubscription, manageSubscription, isCreatingPortal } = useSubscription();
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -31,42 +31,54 @@ const PremiumPage = () => {
       await startPremiumSubscription(user?.email);
     } catch (error) {
       console.error('Error starting premium subscription:', error);
-      message.error('A apărut o eroare. Te rugăm să încerci din nou.');
+      message.error(t('premium.upgradeError'));
     } finally {
       setLoading(false);
     }
   };
 
+  // Format date function with localization support
+  const formatDateToLocale = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const locale = language === 'ro' ? 'ro-RO' : 'en-US';
+    return date.toLocaleDateString(locale, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   const premiumFeatures = [
     {
       icon: <HeartFilled style={{ fontSize: '24px', color: '#ff4d4f' }} />,
-      title: 'Prioritate în Compatibilități',
-      description: 'Primești mai multe compatibilități și apari primul în listele celorlalți utilizatori',
+      title: t('premium.priorityCompatibility'),
+      description: t('premium.priorityCompatibilityDesc'),
     },
     {
       icon: <CrownOutlined style={{ fontSize: '24px', color: '#FFD700' }} />,
-      title: 'Insignă Premium',
-      description: 'Profilul tău va avea o insignă specială care arată că ești un utilizator premium',
+      title: t('premium.premiumBadgeFeature'),
+      description: t('premium.premiumBadgeDesc'),
     },
     {
       icon: <RocketFilled style={{ fontSize: '24px', color: '#722ed1' }} />,
-      title: 'Vizibilitate Crescută',
-      description: 'Profilul tău va fi evidențiat și va apărea mai sus în căutări și liste',
+      title: t('premium.increasedVisibility'),
+      description: t('premium.increasedVisibilityDesc'),
     },
     {
       icon: <CustomerServiceOutlined style={{ fontSize: '24px', color: '#52c41a' }} />,
-      title: 'Suport Prioritar',
-      description: 'Acces la suport dedicat cu răspuns rapid la întrebările tale',
+      title: t('premium.prioritySupport'),
+      description: t('premium.prioritySupportDesc'),
     },
     {
       icon: <StarFilled style={{ fontSize: '24px', color: '#faad14' }} />,
-      title: 'Funcții Exclusive',
-      description: 'Acces timpuriu la funcții noi și experimentale înainte de ceilalți',
+      title: t('premium.exclusiveFeatures'),
+      description: t('premium.exclusiveFeaturesDesc'),
     },
     {
       icon: <Iconify icon="eva:heart-fill" width="24px" style={{ color: '#eb2f96' }} />,
-      title: 'Mai Multe Potriviri',
-      description: 'Algoritmul nostru îți va oferi mai multe compatibilități relevante',
+      title: t('premium.moreMatches'),
+      description: t('premium.moreMatchesDesc'),
     },
   ];
 
@@ -98,18 +110,86 @@ const PremiumPage = () => {
               </div>
               
               <Title level={2} style={{ color: '#667eea', marginBottom: '0.5rem', fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>
-                Bine ai venit în Premium!
+                {t('premium.welcomeToPremium')}
               </Title>
               
               <PremiumBadge user={user} size="large" style={{ marginBottom: '1rem' }} />
               
               <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: '2rem' }}>
-                Abonamentul tău Premium este activ. Bucură-te de toate beneficiile!
+                {t('premium.subscriptionActivated')}
               </Paragraph>
+
+              {/* Subscription Status Information */}
+              {subscription && (
+                <Card
+                  size="small"
+                  style={{
+                    marginBottom: '2rem',
+                    borderRadius: '12px',
+                    backgroundColor: isCanceled ? '#fff7e6' : '#f6ffed',
+                    borderColor: isCanceled ? '#ffd666' : '#b7eb8f'
+                  }}
+                >
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text strong style={{ fontSize: '16px' }}>
+                        <CalendarOutlined /> {t('premium.subscriptionStatus')}
+                      </Text>
+                      <Tag color={isCanceled ? 'orange' : 'green'}>
+                        {isCanceled ? t('premium.canceled') : t('premium.active')}
+                      </Tag>
+                    </div>
+                    
+                    {isCanceled ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        icon={<WarningOutlined />}
+                        message={t('premium.subscriptionCanceled')}
+                        description={
+                          <div>
+                            <Text>{t('premium.subscriptionWillEndOn')}</Text>
+                            <br />
+                            <Text strong style={{ fontSize: '16px', color: '#d46b08' }}>
+                              {formatDateToLocale(subscription.currentPeriodEnd)}
+                            </Text>
+                            <br />
+                            <Text type="secondary" style={{ fontSize: '14px' }}>
+                              {t('premium.willHaveAccessUntil')}
+                            </Text>
+                          </div>
+                        }
+                        style={{ marginTop: '12px' }}
+                      />
+                    ) : (
+                      <Alert
+                        type="info"
+                        showIcon
+                        icon={<InfoCircleOutlined />}
+                        message={t('premium.nextPayment')}
+                        description={
+                          <div>
+                            <Text>{t('premium.subscriptionRenewsOn')}</Text>
+                            <br />
+                            <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+                              {formatDateToLocale(subscription.currentPeriodEnd)}
+                            </Text>
+                            <br />
+                            <Text type="secondary" style={{ fontSize: '14px' }}>
+                              {t('premium.monthlyCost')}
+                            </Text>
+                          </div>
+                        }
+                        style={{ marginTop: '12px' }}
+                      />
+                    )}
+                  </Space>
+                </Card>
+              )}
 
               <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
                 <Text strong style={{ fontSize: '18px', color: '#333', marginBottom: '1rem', display: 'block' }}>
-                  Beneficiile tale Premium:
+                  {t('premium.yourPremiumBenefits')}
                 </Text>
                 
                 <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -130,31 +210,34 @@ const PremiumPage = () => {
 
               <Divider />
 
-                          <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <Text type="secondary">
-                Mulțumim că susții platforma noastră!
-              </Text>
-              
-              <div style={{ marginTop: '1rem' }}>
-                <Button
-                  type="default"
-                  size="large"
-                  onClick={manageSubscription}
-                  loading={isCreatingPortal}
-                  style={{
-                    borderRadius: '8px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Gestionează Abonamentul
-                </Button>
-                <div style={{ marginTop: '0.5rem' }}>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    Anulează, modifică sau vizualizează facturile
-                  </Text>
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Text type="secondary">
+                  {t('premium.thankYouSupport')}
+                </Text>
+                
+                <div style={{ marginTop: '1rem' }}>
+                  <Button
+                    type="default"
+                    size="large"
+                    onClick={manageSubscription}
+                    loading={isCreatingPortal}
+                    style={{
+                      borderRadius: '8px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    {t('premium.manageSubscription')}
+                  </Button>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      {isCanceled 
+                        ? t('premium.reactivateManageView')
+                        : t('premium.cancelManageView')
+                      }
+                    </Text>
+                  </div>
                 </div>
-              </div>
-            </Space>
+              </Space>
             </div>
           </Card>
         </div>

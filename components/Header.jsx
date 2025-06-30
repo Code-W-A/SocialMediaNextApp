@@ -50,7 +50,7 @@ const Header = () => {
       console.log('✅ [Header] Support opened successfully');
     } catch (error) {
       console.error('❌ [Header] Error opening support:', error);
-      message.error('Failed to open support chat');
+      message.error(t('common.error'));
     }
   };
 

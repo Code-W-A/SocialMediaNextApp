@@ -22,7 +22,6 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
   // Local state for likes - optimistic updates
   const [likes, setLikes] = useState(initialLikes || []);
   const [isLiked, setIsLiked] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Update local state when initial likes change (from server)
   useEffect(() => {
@@ -60,14 +59,16 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
 
   const actionType = isLiked ? "unlike" : "like";
 
-  const { mutate } = useMutation({
-    mutationFn: ({ postId, actionType }) => {
+  const { mutate, isPending } = useMutation({
+    mutationFn: async ({ postId, actionType }) => {
       console.log("🚀 LikeButton: mutationFn called", {
         postId,
         actionType,
         userId: user?.id
       });
-      return updatePostLike(postId, actionType, user?.id);
+      const result = await updatePostLike(postId, actionType, user?.id);
+      console.log("📊 LikeButton: mutationFn result", result);
+      return result;
     },
     onMutate: async ({ postId, actionType }) => {
       console.log("🔄 LikeButton: onMutate - Starting optimistic update", {
@@ -76,8 +77,6 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
         currentLikesCount: likes?.length || 0,
         userId: user?.id
       });
-      
-      setIsLoading(true);
 
       // Optimistic update - immediately update local state
       setLikes(prevLikes => {
@@ -158,7 +157,6 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
         actionType,
         result
       });
-      setIsLoading(false);
       // Data is already updated optimistically, no need to refetch
     },
     onError: (err, variables, context) => {
@@ -168,8 +166,6 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
         error: err,
         errorMessage: err.message
       });
-      
-      setIsLoading(false);
       
       // Revert optimistic update on error
       if (context?.previousPosts) {
@@ -187,12 +183,12 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
     console.log("👆 LikeButton: Click handler called", {
       postId,
       actionType,
-      isLoading,
+      isPending,
       currentLikesCount: likes?.length || 0,
       isLiked
     });
     
-    if (isLoading) {
+    if (isPending) {
       console.log("⏳ LikeButton: Click ignored - already loading");
       return;
     }
@@ -206,8 +202,8 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
         size="small"
         style={{ background: "transparent", border: "none", boxShadow: "none" }}
         onClick={handleLikeClick}
-        loading={isLoading}
-        disabled={isLoading}
+        loading={isPending}
+        disabled={isPending}
       >
         <Flex gap={".5rem"} align="center">
           <Iconify

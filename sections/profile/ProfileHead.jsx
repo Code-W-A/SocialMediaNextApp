@@ -31,21 +31,56 @@ const ProfileHead = ({
   const inputRef = useRef(null);
   const [banner, setBanner] = useState(null);
 
+  console.log('🎭 [ProfileHead] Component rendered with:', {
+    userId,
+    isCurrentUserProfile,
+    bannerUrl: data?.data?.banner_url,
+    currentBanner: banner,
+    isLoading
+  });
+
   const { mutate, isPending } = useMutation({
     mutationFn: updateBanner,
     onSuccess: () => {
+      console.log('✅ [ProfileHead] Banner updated successfully');
       toast.success("Banner updated successfully!");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('❌ [ProfileHead] Banner update failed:', error);
       toast.error("Something wrong happened. Try again!");
     },
   });
 
+  // Reset banner when user changes or component mounts
   useEffect(() => {
-    if (data?.data?.banner_url) {
-      setBanner(data?.data?.banner_url);
+    console.log('🔄 [ProfileHead] useEffect triggered - setting banner from data');
+    console.log('📊 [ProfileHead] Data banner URL:', data?.data?.banner_url);
+    console.log('📊 [ProfileHead] Current banner state:', banner);
+    console.log('📊 [ProfileHead] Is loading:', isLoading);
+    
+    // Only update banner if not loading and data is available
+    if (!isLoading && data) {
+      if (data?.data?.banner_url) {
+        console.log('🖼️ [ProfileHead] Setting banner to:', data.data.banner_url);
+        setBanner(data.data.banner_url);
+      } else {
+        console.log('🚫 [ProfileHead] No banner URL, setting to null');
+        setBanner(null);
+      }
+    } else {
+      console.log('⏳ [ProfileHead] Still loading or no data, skipping banner update');
     }
-  }, [data, setBanner]);
+  }, [data?.data?.banner_url, userId, isLoading]); // Added isLoading dependency
+
+  // Additional useEffect to handle profile changes
+  useEffect(() => {
+    console.log('🔄 [ProfileHead] Profile changed, resetting banner state');
+    console.log('📊 [ProfileHead] New userId:', userId);
+    
+    // Reset banner state when profile changes
+    setBanner(null);
+    setBannerPreview(false);
+  }, [userId]);
 
   // Check if user has completed questionnaire
   const hasCompletedQuestionnaire = () => {
@@ -67,19 +102,35 @@ const ProfileHead = ({
   };
 
   const handleBannerChange = async (e) => {
+    console.log('📸 [ProfileHead] Banner change triggered');
     const file = e.target.files[0];
+    
+    if (!file) {
+      console.log('🚫 [ProfileHead] No file selected');
+      return;
+    }
+    
+    console.log('📄 [ProfileHead] File selected:', {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    });
+    
     // put a limit of 5mb file size
-    if (file && file.size > 5 * 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
+      console.error('❌ [ProfileHead] File too large:', file.size);
       toast.error("Image size is greater than 5 MB");
       return;
     }
 
     if (file && file.type.startsWith("image/")) {
+      console.log('✅ [ProfileHead] Valid image file, processing...');
       const reader = new FileReader();
 
       reader.readAsDataURL(file);
 
       reader.onload = () => {
+        console.log('📤 [ProfileHead] File read successfully, updating banner');
         setBanner(reader.result);
         mutate({
           id: currentUser?.id,
@@ -87,34 +138,71 @@ const ProfileHead = ({
           prevBannerId: data?.data?.banner_id,
         });
       };
+
+      reader.onerror = (error) => {
+        console.error('❌ [ProfileHead] File read error:', error);
+        toast.error("Failed to read image file");
+      };
+    } else {
+      console.error('❌ [ProfileHead] Invalid file type:', file.type);
+      toast.error("Please select a valid image file");
     }
   };
 
   // Function to get profile image with multiple fallbacks
   const getProfileImage = () => {
+    let profileImage;
+    
     if (isCurrentUserProfile) {
       // For current user, try multiple sources
-      return getMainProfileImage(currentUser?.images) || 
-             currentUser?.imageUrl || 
-             currentUser?.image_url || 
-             data?.data?.image_url || 
-             "/images/placeholder-avatar.png";
+      profileImage = getMainProfileImage(currentUser?.images) || 
+                    currentUser?.imageUrl || 
+                    currentUser?.image_url || 
+                    data?.data?.image_url || 
+                    "/images/placeholder-avatar.png";
+      
+      console.log('👤 [ProfileHead] Current user profile image:', {
+        fromUserImages: getMainProfileImage(currentUser?.images),
+        fromImageUrl: currentUser?.imageUrl,
+        fromImageUrlAlt: currentUser?.image_url,
+        fromDataUrl: data?.data?.image_url,
+        final: profileImage
+      });
     } else {
       // For other users
-      return data?.data?.image_url || 
-             getMainProfileImage(data?.data?.images) || 
-             "/images/placeholder-avatar.png";
+      profileImage = data?.data?.image_url || 
+                    getMainProfileImage(data?.data?.images) || 
+                    "/images/placeholder-avatar.png";
+      
+      console.log('👥 [ProfileHead] Other user profile image:', {
+        userId,
+        fromDataUrl: data?.data?.image_url,
+        fromDataImages: getMainProfileImage(data?.data?.images),
+        final: profileImage
+      });
     }
+    
+    return profileImage;
   };
 
   if (isError) return <div>Error loading profile</div>;
+
+  // Determine banner source with logging
+  const bannerSrc = banner || "/images/banner.png";
+  console.log('🖼️ [ProfileHead] Rendering banner:', {
+    bannerState: banner,
+    bannerSrc,
+    isCurrentUserProfile,
+    dataExists: !!data?.data,
+    bannerUrl: data?.data?.banner_url
+  });
 
   return (
     <div className={css.container}>
       <Spin spinning={isPending}>
         <div className={css.banner} onClick={() => setBannerPreview(true)}>
           <Image
-            src={banner || "/images/banner.png"}
+            src={bannerSrc}
             alt="banner"
             preview={{
               mask: null,
@@ -123,6 +211,8 @@ const ProfileHead = ({
             }}
             width={"100%"}
             height={"15rem"}
+            onLoad={() => console.log('✅ [ProfileHead] Banner image loaded:', bannerSrc)}
+            onError={(e) => console.error('❌ [ProfileHead] Banner image failed to load:', bannerSrc, e)}
           />
 
           {isCurrentUserProfile && (

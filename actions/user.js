@@ -6,6 +6,7 @@ import {
   mockFollows 
 } from "@/mock/mockData";
 import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db } from "@/lib/firebase";
 import { serializeFirebaseData } from '@/utils/firebaseHelpers';
 import { now } from '@/utils/dateHelpers';
@@ -205,32 +206,97 @@ export const deleteUser = async (id) => {
 
 export const updateBanner = async (params) => {
   const { id, banner, prevBannerId } = params;
+  
+  console.log('🎭 [updateBanner] Starting banner update:', { 
+    userId: id, 
+    hasBanner: !!banner, 
+    prevBannerId 
+  });
+  
   try {
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    let banner_id;
-    let banner_url;
+    let banner_id = null;
+    let banner_url = null;
 
     if (banner) {
-      // Mock file upload - just use the provided banner as URL
-      banner_id = `banner_${id}_${Date.now()}`;
-      banner_url = banner; // In mock, we'll just use the provided banner
+      console.log('📤 [updateBanner] Processing banner upload...');
+      
+      // Convert base64 to blob
+      const response = await fetch(banner);
+      const blob = await response.blob();
+      
+      console.log('📊 [updateBanner] Banner blob created:', {
+        size: blob.size,
+        type: blob.type
+      });
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const fileExtension = blob.type.split('/')[1] || 'jpg';
+      const fileName = `banner_${timestamp}.${fileExtension}`;
+      const filePath = `banners/${id}/${fileName}`;
+      
+      console.log('☁️ [updateBanner] Uploading to Firebase Storage:', { 
+        fileName, 
+        filePath,
+        size: blob.size 
+      });
+      
+      // Upload to Firebase Storage
+      const storage = getStorage();
+      const storageRef = ref(storage, filePath);
+      const snapshot = await uploadBytes(storageRef, blob);
+      banner_url = await getDownloadURL(snapshot.ref);
+      banner_id = fileName;
+      
+      console.log('✅ [updateBanner] Banner uploaded successfully:', { 
+        banner_url, 
+        banner_id 
+      });
+
+      // Delete previous banner if exists
+      if (prevBannerId) {
+        try {
+          console.log('🗑️ [updateBanner] Deleting previous banner:', prevBannerId);
+          const prevStorageRef = ref(storage, `banners/${id}/${prevBannerId}`);
+          await deleteObject(prevStorageRef);
+          console.log('✅ [updateBanner] Previous banner deleted successfully');
+        } catch (deleteError) {
+          console.warn('⚠️ [updateBanner] Could not delete previous banner:', deleteError.message);
+          // Continue even if delete fails - not critical
+        }
+      }
+    } else {
+      console.log('🚫 [updateBanner] No banner provided, clearing banner data');
     }
+
+    // Update Firestore
+    console.log('💾 [updateBanner] Updating Firestore with banner data...');
+    const userRef = doc(db, 'Users', id);
     
-    const userIndex = mockUsersState.findIndex(u => u.id === id);
-    if (userIndex !== -1) {
-      mockUsersState[userIndex] = {
-        ...mockUsersState[userIndex],
-        banner_url,
-        banner_id,
-      };
-    }
+    const updateData = {
+      banner_url,
+      banner_id,
+      updatedAt: serverTimestamp()
+    };
     
-    console.log("user banner updated");
-  } catch (e) {
-    console.log("Error updating user banner");
-    throw e;
+    await updateDoc(userRef, updateData);
+    
+    console.log('✅ [updateBanner] Firestore updated successfully:', updateData);
+    
+    return {
+      success: true,
+      banner_url,
+      banner_id
+    };
+    
+  } catch (error) {
+    console.error('❌ [updateBanner] Error updating banner:', error);
+    console.error('📊 [updateBanner] Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    throw new Error(`Failed to update banner: ${error.message}`);
   }
 };
 

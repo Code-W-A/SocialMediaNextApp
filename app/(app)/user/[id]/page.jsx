@@ -3,7 +3,7 @@ import React from "react";
 
 export const generateMetadata = async ({ params }) => {
   return {
-    title: `User Profile - AstroMatch`,
+    title: `User Profile - YDestiny`,
     description: `View user profile and compatibility information`,
   };
 };

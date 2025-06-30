@@ -12,7 +12,7 @@ const publicSans = Public_Sans({
   weight: ["400", "500", "600"],
 });
 export const metadata = {
-  title: "AstroMatch - Compatibilitate Astrologică",
+  title: "YDestiny - Compatibilitate Astrologică",
   description: "Descoperă conexiuni autentice bazate pe compatibilitatea astrologică. Găsește-ți perechea perfectă prin intermediul astrelor!",
 };
 

@@ -135,7 +135,7 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
           {compatibility.astrology && (
             <div style={tagStyle('#722ed1')}>
               <Iconify icon="eva:star-fill" width="14px" style={{ marginRight: '6px' }} />
-              Astro Match
+              YDestiny
             </div>
           )}
           {compatibility.numerology && (

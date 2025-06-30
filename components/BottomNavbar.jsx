@@ -12,6 +12,7 @@ import { useSettingsContext } from "@/context/settings/settings-context";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getUserDisplayName, shouldBlockNavigation } from "@/utils/profileHelpers";
 import { openSupport } from "@/utils/supportHelpers";
+import { useLanguage } from "@/lib/i18n";
 
 const BottomNavbar = () => {
   const pathname = usePathname();
@@ -20,6 +21,7 @@ const BottomNavbar = () => {
   const { signOut } = useAuth();
   const [mounted, setMounted] = useState(false);
   const { settings: { theme } } = useSettingsContext();
+  const { t } = useLanguage();
 
   useEffect(() => {
     setMounted(true);
@@ -29,14 +31,14 @@ const BottomNavbar = () => {
     try {
       const result = await signOut();
       if (result.success) {
-        message.success("Signed out successfully!");
+        message.success(t('common.success'));
         router.push("/sign-in");
       } else {
-        message.error("Failed to sign out. Please try again.");
+        message.error(t('common.error'));
       }
     } catch (error) {
       console.error("Sign out error:", error);
-      message.error("Something went wrong. Please try again.");
+      message.error(t('common.error'));
     }
   };
 
@@ -71,26 +73,26 @@ const BottomNavbar = () => {
       console.log('✅ [BottomNavbar] Support opened successfully');
     } catch (error) {
       console.error('❌ [BottomNavbar] Error opening support:', error);
-      message.error('Failed to open support chat');
+      message.error(t('common.error'));
     }
   };
 
   const profileMenuItems = [
     {
       key: 'profile',
-      label: 'My Profile',
+      label: t('common.profile'),
       icon: <Iconify icon="eva:person-fill" width="16px" />,
       onClick: () => router.push(`/profile/${user?.id}?person=${getUserDisplayName(user)}`)
     },
     {
       key: 'settings',
-      label: 'Settings',
+      label: t('common.settings'),
       icon: <Iconify icon="eva:settings-fill" width="16px" />,
       onClick: () => handleNavigation('/settings')
     },
     {
       key: 'support',
-      label: 'Support',
+      label: t('common.support'),
       icon: <Iconify icon="eva:headphones-fill" width="16px" />,
       onClick: handleSupportClick
     },
@@ -99,7 +101,7 @@ const BottomNavbar = () => {
     },
     {
       key: 'logout',
-      label: 'Sign Out',
+      label: t('common.logout'),
       icon: <Iconify icon="eva:log-out-fill" width="16px" />,
       onClick: handleSignOut,
       danger: true
@@ -180,7 +182,7 @@ const BottomNavbar = () => {
                 cursor: 'pointer'
               }}
             >
-              More
+              {t('common.more')}
             </Typography.Text>
           </div>
         </Dropdown>

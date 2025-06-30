@@ -794,7 +794,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                   <Text type="secondary" style={{ fontSize: '14px' }}>
                     {hasCompletedQuestionnaire() 
                       ? "Want to update your astrological preferences or questionnaire answers?"
-                      : "Complete your astrological profile to enhance compatibility matching!"
+                      : "Complete your astrological profile to enhance YDestiny compatibility!"
                     }
                   </Text>
                 </div>

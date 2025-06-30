@@ -22,6 +22,8 @@ import {
 const { Title, Text } = Typography;
 
 const ProfileView = ({ userId }) => {
+  console.log('🔍 [ProfileView] Component rendered with userId:', userId);
+  
   const { user: currentUser } = useUser();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -33,8 +35,23 @@ const ProfileView = ({ userId }) => {
     queryFn: () => getUser(userId),
   });
 
+  console.log('📊 [ProfileView] Query state:', {
+    userId,
+    isLoading,
+    isError,
+    hasData: !!data,
+    bannerUrl: data?.data?.banner_url,
+    imageUrl: data?.data?.image_url
+  });
+
   // Check if this is the current user's profile
   const isCurrentUserProfile = currentUser?.id === userId;
+
+  console.log('👤 [ProfileView] Profile ownership:', {
+    currentUserId: currentUser?.id,
+    profileUserId: userId,
+    isCurrentUserProfile
+  });
 
   // Check if profile is incomplete
   const isProfileIncomplete = data?.data?.isIncomplete && isCurrentUserProfile;
@@ -52,9 +69,23 @@ const ProfileView = ({ userId }) => {
   // Check if user is forced to complete profile (can't navigate away)
   const isProfileCompletionForced = needsProfileCompletion() && isCurrentUserProfile;
 
+  // Handle userId changes - ensure fresh data
+  useEffect(() => {
+    console.log('🔄 [ProfileView] userId changed, ensuring fresh data');
+    console.log('📊 [ProfileView] Previous query cache for userId:', userId);
+    
+    // Reset tab when switching profiles
+    setSelectedTab("1");
+    setShowEditSection(false);
+    
+    // Force refresh for the new user
+    queryClient.invalidateQueries(['user', userId]);
+  }, [userId, queryClient]);
+
   useEffect(() => {
     // Auto-show edit section if profile needs completion
     if (needsProfileCompletion() && !showEditSection) {
+      console.log('📝 [ProfileView] Profile needs completion, showing edit section');
       setShowEditSection(true);
       setSelectedTab("edit");
     }

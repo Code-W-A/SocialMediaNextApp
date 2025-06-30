@@ -162,7 +162,7 @@ export default function PrivacyPolicy() {
               <ul style={{ color: 'rgba(255, 255, 255, 0.8)', paddingLeft: '20px' }}>
                 <li><strong>Access:</strong> Request access to your personal data</li>
                 <li><strong>Rectification:</strong> Request correction of inaccurate data</li>
-                <li><strong>Erasure:</strong> Request deletion of your data ("right to be forgotten")</li>
+                <li><strong>Erasure:</strong> Request deletion of your data (&quot;right to be forgotten&quot;)</li>
                 <li><strong>Portability:</strong> Request transfer of your data</li>
                 <li><strong>Restriction:</strong> Request limitation of processing</li>
                 <li><strong>Objection:</strong> Object to certain types of processing</li>
@@ -238,7 +238,7 @@ export default function PrivacyPolicy() {
 
             {/* Children's Privacy */}
             <div>
-              <Title level={3} style={{ color: '#FFD700' }}>11. Children's Privacy</Title>
+              <Title level={3} style={{ color: '#FFD700' }}>11. Children&apos;s Privacy</Title>
               <Paragraph style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
                 YDestiny is not intended for users under 18 years of age. We do not knowingly collect personal 
                 information from children under 18. If we discover that we have collected information from a child 

@@ -309,7 +309,7 @@ export default function MatrimonialePageDambovita() {
                     marginBottom: '1.5rem',
                     color: '#555'
                   }}>
-                    "{testimonial.text}"
+                    &quot;{testimonial.text}&quot;
                   </Paragraph>
                   <div style={{ textAlign: 'center' }}>
                     <Text strong style={{ color: '#2C3E50', fontSize: '16px' }}>

@@ -30,11 +30,9 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Update local state when initial comments change (from server)
-  // Use JSON.stringify to ensure deep comparison for arrays
-  const initialCommentsString = JSON.stringify(initialComments || []);
   useEffect(() => {
     setComments(initialComments || []);
-  }, [initialCommentsString, postId]);
+  }, [initialComments]);
 
   // Stabilize scroll effect dependencies
   useEffect(() => {
@@ -77,7 +75,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
   }, []);
 
   // Memoize has comments to prevent unnecessary re-renders
-  const hasComments = useMemo(() => comments && comments.length > 0, [comments?.length]);
+  const hasComments = useMemo(() => comments && comments.length > 0, [comments]);
 
   return (
     <Flex vertical gap={"1rem"}>
@@ -276,17 +274,17 @@ const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUp
     },
   });
 
-  const handleEdit = () => {
+  const handleEdit = useCallback(() => {
     setIsEditing(true);
     setEditText(data?.comment || "");
-  };
+  }, [data?.comment]);
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     setIsEditing(false);
     setEditText(data?.comment || "");
-  };
+  }, [data?.comment]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     console.log("🔥 CommentSection: Delete confirmation clicked", {
       commentId: data?.id,
       commentData: data,
@@ -294,15 +292,15 @@ const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUp
       postId
     });
     deleteMutate({ commentId: data?.id });
-  };
+  }, [data?.id, data, postId, deleteMutate]);
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = useCallback(() => {
     if (editText.trim() !== data?.comment) {
       editMutate({ commentId: data?.id, newText: editText.trim() });
     } else {
       setIsEditing(false);
     }
-  };
+  }, [editText, data?.comment, data?.id, editMutate]);
 
   const isOwnComment = data?.authorId === currentUser?.id;
 

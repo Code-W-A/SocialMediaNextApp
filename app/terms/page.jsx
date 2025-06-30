@@ -66,7 +66,7 @@ export default function TermsOfService() {
               <Paragraph style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
                 Welcome to YDestiny, a social networking platform that connects people through shared interests, 
                 cosmic compatibility, and meaningful conversations. By accessing or using our service, you agree 
-                to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, please do 
+                to be bound by these Terms of Service (&quot;Terms&quot;). If you do not agree to these Terms, please do 
                 not use our service.
               </Paragraph>
             </div>
@@ -170,7 +170,7 @@ export default function TermsOfService() {
             <div>
               <Title level={3} style={{ color: '#FFD700' }}>10. Disclaimer of Warranties</Title>
               <Paragraph style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                YDestiny is provided "as is" without warranties of any kind. We do not guarantee uninterrupted 
+                YDestiny is provided &quot;as is&quot; without warranties of any kind. We do not guarantee uninterrupted 
                 or error-free service. We disclaim all warranties, express or implied, including but not limited 
                 to merchantability, fitness for a particular purpose, and non-infringement.
               </Paragraph>

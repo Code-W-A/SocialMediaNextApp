@@ -111,8 +111,8 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
               lineHeight: 1.6,
               marginBottom: '32px'
             }}>
-              We're putting the finishing touches on the most revolutionary astrological dating platform. 
-              Get ready to discover your cosmic connections like never before.
+                           We&apos;re putting the finishing touches on the most revolutionary astrological dating platform. 
+               Get ready to discover your cosmic connections like never before.
             </Paragraph>
           </div>
 
@@ -124,7 +124,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
             marginBottom: '32px'
           }}>
             <Title level={4} style={{ color: '#667eea', marginBottom: '20px' }}>
-              What's Coming:
+                             What&apos;s Coming:
             </Title>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -266,13 +266,13 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
           }}>
             <Text type="secondary" style={{ fontSize: '12px' }}>
               <Iconify icon="eva:info-fill" style={{ marginRight: '4px' }} />
-              For preview access, contact the development team
+                             For preview access, contact the development team
             </Text>
             
             {/* Development helper - will be hidden in production */}
             {process.env.NODE_ENV === 'development' && (
               <div style={{ marginTop: '8px', fontSize: '10px', color: '#999' }}>
-                Dev: Password is "1234567890"
+                Dev: Password is &quot;1234567890&quot;
               </div>
             )}
           </div>

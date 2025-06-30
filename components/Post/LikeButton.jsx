@@ -33,7 +33,7 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
       newLikes: initialLikes?.map(like => ({ id: like.id, authorId: like.authorId }))
     });
     setLikes(initialLikes || []);
-  }, [initialLikes]);
+  }, [initialLikes, likes?.length, postId]);
 
   // Memoize user liked status to prevent unnecessary re-calculations
   const isUserLiked = useMemo(() => {
@@ -46,7 +46,7 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
       likeAuthors: likes?.map(like => like.authorId)
     });
     return userLiked;
-  }, [likes, user?.id]);
+  }, [likes, user?.id, postId]);
 
   // Update isLiked state only when the computed value changes
   useEffect(() => {
@@ -56,7 +56,7 @@ const LikeButton = ({ postId, likes: initialLikes, queryId }) => {
       newIsLiked: isUserLiked
     });
     setIsLiked(isUserLiked);
-  }, [isUserLiked]);
+  }, [isUserLiked, isLiked, postId]);
 
   const actionType = isLiked ? "unlike" : "like";
 

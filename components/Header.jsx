@@ -15,6 +15,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { CrownOutlined } from "@ant-design/icons";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n";
+import { openSupport } from "@/utils/supportHelpers";
 
 const Header = () => {
   const { user } = useUser();
@@ -42,6 +43,17 @@ const Header = () => {
     router.push(path);
   };
 
+  const handleSupportClick = () => {
+    console.log('🎧 [Header] Support menu item clicked');
+    try {
+      openSupport();
+      console.log('✅ [Header] Support opened successfully');
+    } catch (error) {
+      console.error('❌ [Header] Error opening support:', error);
+      message.error('Failed to open support chat');
+    }
+  };
+
   const userMenuItems = [
     {
       key: 'profile',
@@ -60,6 +72,12 @@ const Header = () => {
       label: t('common.settings'),
       icon: <Iconify icon="eva:settings-fill" width="16px" />,
       onClick: () => handleNavigation('/settings')
+    },
+    {
+      key: 'support',
+      label: t('common.support'),
+      icon: <Iconify icon="eva:headphones-fill" width="16px" />,
+      onClick: handleSupportClick
     },
     {
       type: 'divider',

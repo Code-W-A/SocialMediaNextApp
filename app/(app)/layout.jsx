@@ -60,8 +60,8 @@ const HomeLayout = async ({ children }) => {
                   {/* Bottom Navigation for Mobile */}
                   <BottomNavbar />
                   
-                  {/* Admin Chat Support FAB */}
-                  <AdminChatSupport trigger="fab" />
+                  {/* Admin Chat Support - Hidden, used via dropdown triggers */}
+                  <AdminChatSupport trigger="hidden" />
                 </div>
               </Box>
             </V1MigrationWrapper>

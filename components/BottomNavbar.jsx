@@ -11,6 +11,7 @@ import { sidebarRoutes } from "@/lib/sidebar";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getUserDisplayName, shouldBlockNavigation } from "@/utils/profileHelpers";
+import { openSupport } from "@/utils/supportHelpers";
 
 const BottomNavbar = () => {
   const pathname = usePathname();
@@ -63,6 +64,17 @@ const BottomNavbar = () => {
     }
   };
 
+  const handleSupportClick = () => {
+    console.log('🎧 [BottomNavbar] Support menu item clicked');
+    try {
+      openSupport();
+      console.log('✅ [BottomNavbar] Support opened successfully');
+    } catch (error) {
+      console.error('❌ [BottomNavbar] Error opening support:', error);
+      message.error('Failed to open support chat');
+    }
+  };
+
   const profileMenuItems = [
     {
       key: 'profile',
@@ -75,6 +87,12 @@ const BottomNavbar = () => {
       label: 'Settings',
       icon: <Iconify icon="eva:settings-fill" width="16px" />,
       onClick: () => handleNavigation('/settings')
+    },
+    {
+      key: 'support',
+      label: 'Support',
+      icon: <Iconify icon="eva:headphones-fill" width="16px" />,
+      onClick: handleSupportClick
     },
     {
       type: 'divider',

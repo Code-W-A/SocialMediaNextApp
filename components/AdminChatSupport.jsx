@@ -16,7 +16,8 @@ import {
   Tooltip,
   Spin,
   Empty,
-  message as antMessage
+  message as antMessage,
+  List
 } from 'antd';
 import { 
   CustomerServiceOutlined, 
@@ -25,21 +26,28 @@ import {
   MailOutlined,
   MessageOutlined,
   UserOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  ArrowLeftOutlined
 } from '@ant-design/icons';
 import { useAdminChat } from '@/hooks/useAdminChat';
 import { useUser } from '@/hooks/useFirebaseAuth';
 import { useLanguage } from '@/lib/i18n';
+import { setSupportOpener } from '@/utils/supportHelpers';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 const { Option } = Select;
 
+// Global reference for opening support from anywhere
+let globalSupportOpener = null;
+
 const AdminChatSupport = ({ 
-  trigger = "button", // "button" or "fab"
+  trigger = "button", // "button", "fab", or "hidden"
   buttonText = null,
   size = "default"
 }) => {
+  console.log('🎯 [AdminChatSupport] Component rendered with trigger:', trigger);
+  
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isChatMode, setIsChatMode] = useState(false);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -49,6 +57,10 @@ const AdminChatSupport = ({
   
   const { user } = useUser();
   const { t, language } = useLanguage();
+  
+  console.log('🔐 [AdminChatSupport] Current user:', user?.id || 'Not logged in');
+  console.log('🌍 [AdminChatSupport] Current language:', language);
+  
   const {
     userChats,
     isLoadingUserChats,
@@ -63,9 +75,39 @@ const AdminChatSupport = ({
     getUnreadCount
   } = useAdminChat(activeChatId, isModalVisible);
 
+  // Set up global opener when component mounts
+  useEffect(() => {
+    console.log('📡 [AdminChatSupport] Setting up global support opener');
+    const opener = () => {
+      console.log('🚀 [AdminChatSupport] Opening support via global trigger');
+      setIsModalVisible(true);
+    };
+
+    // Set in utils helper
+    setSupportOpener(opener);
+    
+    // Also set global reference for direct access
+    globalSupportOpener = opener;
+    
+    // Expose to window for debugging
+    if (typeof window !== 'undefined') {
+      window.openSupport = opener;
+      console.log('🪟 [AdminChatSupport] Exposed window.openSupport() for debugging');
+    }
+    
+    return () => {
+      setSupportOpener(null);
+      globalSupportOpener = null;
+      if (typeof window !== 'undefined') {
+        delete window.openSupport;
+      }
+    };
+  }, []);
+
   // Auto scroll to bottom when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
+      console.log('📜 [AdminChatSupport] Auto-scrolling to bottom, messages:', realTimeMessages?.length || 0);
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [realTimeMessages]);
@@ -73,16 +115,31 @@ const AdminChatSupport = ({
   // Mark messages as read when chat is opened
   useEffect(() => {
     if (activeChatId && realTimeMessages.length > 0) {
+      console.log('👀 [AdminChatSupport] Checking for unread messages in chat:', activeChatId);
       const hasUnreadAdminMessages = realTimeMessages.some(
         msg => msg.from === 'admin' && !msg.read
       );
       if (hasUnreadAdminMessages) {
+        console.log('✅ [AdminChatSupport] Marking admin messages as read');
         markAsRead(false);
+      } else {
+        console.log('📭 [AdminChatSupport] No unread admin messages found');
       }
     }
   }, [activeChatId, realTimeMessages, markAsRead]);
 
+  // Log modal state changes
+  useEffect(() => {
+    console.log('🎭 [AdminChatSupport] Modal state changed:', {
+      isModalVisible,
+      isChatMode,
+      activeChatId,
+      userChatsCount: userChats?.length || 0
+    });
+  }, [isModalVisible, isChatMode, activeChatId, userChats]);
+
   const handleStartChat = async (values) => {
+    console.log('🚀 [AdminChatSupport] Starting new chat with values:', values);
     try {
       const chatData = {
         email: values.email,
@@ -92,32 +149,52 @@ const AdminChatSupport = ({
         name: values.name || `${user?.firstName} ${user?.lastName}` || user?.email
       };
 
+      console.log('📦 [AdminChatSupport] Prepared chat data:', chatData);
       const result = await createChat(chatData);
+      
       if (result.success) {
+        console.log('✅ [AdminChatSupport] Chat created successfully:', result.chatId);
         setActiveChatId(result.chatId);
         setIsChatMode(true);
         form.resetFields();
         antMessage.success('Chat support created successfully!');
+      } else {
+        console.error('❌ [AdminChatSupport] Failed to create chat:', result);
+        throw new Error(result.error || 'Failed to create chat');
       }
     } catch (error) {
-      console.error('Error starting chat:', error);
+      console.error('💥 [AdminChatSupport] Error starting chat:', error);
+      console.error('📊 [AdminChatSupport] Error stack:', error.stack);
       antMessage.error('Failed to create chat support.');
     }
   };
 
   const handleSendMessage = () => {
-    if (!messageText.trim() || !activeChatId) return;
+    if (!messageText.trim() || !activeChatId) {
+      console.warn('⚠️ [AdminChatSupport] Cannot send message:', {
+        messageText: messageText.trim(),
+        activeChatId
+      });
+      return;
+    }
+    
+    console.log('💬 [AdminChatSupport] Sending message:', {
+      chatId: activeChatId,
+      messageLength: messageText.trim().length
+    });
     
     sendMessage(messageText.trim());
     setMessageText('');
   };
 
   const handleOpenExistingChat = (chatId) => {
+    console.log('📂 [AdminChatSupport] Opening existing chat:', chatId);
     setActiveChatId(chatId);
     setIsChatMode(true);
   };
 
   const handleCloseModal = () => {
+    console.log('❌ [AdminChatSupport] Closing modal and resetting state');
     setIsModalVisible(false);
     setIsChatMode(false);
     setActiveChatId(null);
@@ -150,9 +227,19 @@ const AdminChatSupport = ({
   };
 
   const unreadCount = getUnreadCount();
+  console.log('📬 [AdminChatSupport] Current unread count:', unreadCount);
 
-  // Trigger button/fab
-  const triggerElement = trigger === "fab" ? (
+  // Trigger button/fab rendering
+  if (trigger === "hidden") {
+    console.log('👻 [AdminChatSupport] Hidden trigger mode - no UI element rendered');
+    // Hidden mode - no trigger element, controlled externally
+  } else if (trigger === "fab") {
+    console.log('🎈 [AdminChatSupport] Rendering FAB trigger');
+  } else {
+    console.log('🔘 [AdminChatSupport] Rendering button trigger');
+  }
+
+  const triggerElement = trigger === "hidden" ? null : trigger === "fab" ? (
     <div style={{
       position: 'fixed',
       bottom: '100px',
@@ -165,7 +252,10 @@ const AdminChatSupport = ({
           shape="circle"
           size="large"
           icon={<CustomerServiceOutlined />}
-          onClick={() => setIsModalVisible(true)}
+          onClick={() => {
+            console.log('🎈 [AdminChatSupport] FAB clicked');
+            setIsModalVisible(true);
+          }}
           style={{
             width: '56px',
             height: '56px',
@@ -182,7 +272,10 @@ const AdminChatSupport = ({
         type="primary"
         size={size}
         icon={<CustomerServiceOutlined />}
-        onClick={() => setIsModalVisible(true)}
+        onClick={() => {
+          console.log('🔘 [AdminChatSupport] Button clicked');
+          setIsModalVisible(true);
+        }}
         style={{
           background: 'linear-gradient(135deg, #1890ff, #40a9ff)',
           border: 'none'

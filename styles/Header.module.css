@@ -72,6 +72,32 @@
   }
 }
 
+/* Mobile Specific Styles */
+@media (max-width: 768px) {
+  .wrapper {
+    height: 60px;
+  }
+  
+  .container {
+    padding: 0.5rem 1rem;
+  }
+  
+  /* Hide premium button text on mobile, show only crown icon */
+  .premiumText {
+    display: none;
+  }
+  
+  .premiumButton {
+    min-width: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
 /* Mobile Specific Classes */
 .mobileWrapper {
   height: 45px; /* Even smaller height for mobile */

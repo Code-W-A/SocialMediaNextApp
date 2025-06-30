@@ -48,6 +48,21 @@ const BottomNavbar = () => {
     router.push(path);
   };
 
+  const handleNavClick = (e, route) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const targetPath = route.route === `/profile/${user?.id}`
+      ? `${route.route}?person=${getUserDisplayName(user)}`
+      : route.route;
+    
+    if (route.route.includes('/profile') || !shouldBlockNavigation(user, route.route)) {
+      router.push(targetPath);
+    } else {
+      handleNavigation(route.route);
+    }
+  };
+
   const profileMenuItems = [
     {
       key: 'profile',
@@ -85,28 +100,19 @@ const BottomNavbar = () => {
   if (!mounted) return null;
 
   return (
-    <div 
-      className={`${css.wrapper} ${theme === 'dark' ? css.dark : css.light}`}
-      data-testid="bottom-navbar"
-    >
+    <div className={`${css.wrapper} ${theme === 'dark' ? css.dark : css.light}`}>
       <div className={css.container}>
         {/* Navigation Items */}
         {sidebarRoutes(user).slice(0, 4).map((route, index) => (
           <div
             key={index}
             className={cx(css.navItem, isActive(route))}
-            onClick={() => {
-              const targetPath = route.route === `/profile/${user?.id}`
-                ? `${route.route}?person=${getUserDisplayName(user)}`
-                : route.route;
-              
-              if (route.route.includes('/profile') || !shouldBlockNavigation(user, route.route)) {
-                router.push(targetPath);
-              } else {
-                handleNavigation(route.route);
-              }
-            }}
-            style={{ cursor: 'pointer' }}
+            onClick={(e) => handleNavClick(e, route)}
+            onTouchStart={(e) => e.currentTarget.style.opacity = '0.7'}
+            onTouchEnd={(e) => e.currentTarget.style.opacity = '1'}
+            role="button"
+            tabIndex={0}
+            aria-label={route.name}
           >
             <div className={css.iconContainer}>
               <Iconify 
@@ -132,7 +138,12 @@ const BottomNavbar = () => {
           arrow={{ pointAtCenter: true }}
           trigger={['click']}
         >
-          <div className={cx(css.navItem, pathname.includes('profile') ? css.active : '')}>
+          <div 
+            className={cx(css.navItem, pathname.includes('profile') ? css.active : '')}
+            role="button"
+            tabIndex={0}
+            aria-label="More options"
+          >
             <div className={css.iconContainer}>
               <Avatar 
                 src={getMainProfileImage(user?.images)} 

@@ -111,6 +111,10 @@ const FollowButton = ({ id }) => {
   if (isError)
     return <Alert message="Error while fetching data" type="error" />;
 
+  // TEMPORARILY COMMENTED OUT - FOLLOW FUNCTIONALITY
+  return null;
+  
+  /*
   return (
     <Button
       disabled={isPending}
@@ -158,6 +162,7 @@ const FollowButton = ({ id }) => {
       )}
     </Button>
   );
+  */
 };
 
 export default FollowButton;

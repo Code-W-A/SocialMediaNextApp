@@ -1,5 +1,7 @@
+import { toSerializableDate } from './dateHelpers';
+
 /**
- * Convert Firebase Timestamp objects to plain JavaScript objects
+ * Convert Firebase Timestamp objects to serializable ISO strings
  * This is needed because Firebase Timestamps cannot be passed directly to Client Components
  */
 export const convertFirebaseTimestamps = (obj) => {
@@ -14,7 +16,8 @@ export const convertFirebaseTimestamps = (obj) => {
 
   // Handle Firebase Timestamp objects
   if (obj.seconds !== undefined && obj.nanoseconds !== undefined) {
-    return new Date(obj.seconds * 1000 + obj.nanoseconds / 1000000);
+    // Convert directly to ISO string instead of Date object
+    return toSerializableDate(new Date(obj.seconds * 1000 + obj.nanoseconds / 1000000));
   }
 
   // Handle regular objects recursively
@@ -28,13 +31,13 @@ export const convertFirebaseTimestamps = (obj) => {
 
 /**
  * Serialize Firebase data for Client Components
- * Converts Timestamps and other Firebase objects to plain objects
+ * Converts Timestamps and other Firebase objects to serializable values
  */
 export const serializeFirebaseData = (data) => {
   if (!data) return data;
   
   try {
-    // Convert timestamps first
+    // Convert timestamps to ISO strings
     const converted = convertFirebaseTimestamps(data);
     
     // Return the converted data

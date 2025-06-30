@@ -3,59 +3,36 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/lib/i18n';
-import { Button, Typography, Space, Card, Row, Col, Steps } from 'antd';
-import { HeartOutlined, StarOutlined, MessageOutlined, UserOutlined, ThunderboltOutlined, EyeOutlined, CrownOutlined, FireOutlined, GiftOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Button, Typography, Space, Row, Col, Carousel } from 'antd';
+import { HeartOutlined, MessageOutlined } from '@ant-design/icons';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import ComingSoonPage from '@/components/ComingSoonPage';
 
 const { Title, Paragraph, Text } = Typography;
-const { Step } = Steps;
 
 export default function LandingPage() {
   const { isSignedIn, loading } = useAuth();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [progressKey, setProgressKey] = useState(0);
-  const totalSlides = 2;
-  const autoSlideInterval = 5000; // 5 seconds
+  const [hasPreviewAccess, setHasPreviewAccess] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    // Check if user has preview access from localStorage
+    const previewAccess = localStorage.getItem('ydestiny_preview_access');
+    setHasPreviewAccess(previewAccess === 'granted');
   }, []);
-
-  // Auto-slide functionality
-  useEffect(() => {
-    if (isPaused) return;
-    
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % totalSlides);
-    }, autoSlideInterval);
-
-    return () => clearInterval(interval);
-  }, [totalSlides, autoSlideInterval, isPaused]);
-
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % totalSlides);
-    setProgressKey(prev => prev + 1);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + totalSlides) % totalSlides);
-    setProgressKey(prev => prev + 1);
-  };
-
-  const goToSlide = (index) => {
-    setCurrentSlide(index);
-    setProgressKey(prev => prev + 1);
-  };
 
   useEffect(() => {
     if (!loading && isSignedIn) {
       router.push('/home');
     }
   }, [loading, isSignedIn, router]);
+
+  const handlePasswordSuccess = () => {
+    setHasPreviewAccess(true);
+  };
 
   if (!mounted || loading) {
     return (
@@ -64,11 +41,11 @@ export default function LandingPage() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        background: 'linear-gradient(135deg, #FFEDC9 0%, #FFF8E7 50%, #FFEDC9 100%)'
+        background: 'linear-gradient(135deg, #fefcf3 0%, #f7f3e7 50%, #f0ebe0 100%)'
       }}>
         <div style={{
           textAlign: 'center',
-          color: '#FF8C00',
+          color: '#2c3e50',
           fontSize: '1.2rem'
         }}>
           Loading...
@@ -81,836 +58,789 @@ export default function LandingPage() {
     return null;
   }
 
+  // Show Coming Soon page if no preview access (only if password protection is enabled)
+  const passwordProtectionEnabled = process.env.NEXT_PUBLIC_ENABLE_PASSWORD_PROTECTION === 'true';
+  
+  if (passwordProtectionEnabled && !hasPreviewAccess) {
+    return <ComingSoonPage onPasswordSuccess={handlePasswordSuccess} />;
+  }
+
   return (
     <>
       <style jsx global>{`
-        body {
-          margin: 0;
-          overflow-x: hidden;
-        }
-        
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
+          50% { transform: translateY(-15px); }
         }
-        
-        @keyframes floatSlow {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-30px) rotate(180deg); }
-        }
-        
-        @keyframes slideInLeft {
-          0% {
-            opacity: 0;
-            transform: translateX(-50px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        
-        @keyframes slideInRight {
-          0% {
-            opacity: 0;
-            transform: translateX(50px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        
-        @keyframes slideInUp {
-          0% {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        @keyframes fadeIn {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-        
         @keyframes pulse {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.05); }
         }
         
-        @keyframes starTwinkle {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.7; transform: scale(1.2); }
+        /* Hide scrollbars but keep functionality */
+        body {
+          overflow-x: hidden;
         }
         
-        .highlight {
-          background: linear-gradient(135deg, var(--primary), #FFB84D);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+        /* Carousel styles */
+        .landing-carousel .ant-carousel .slick-dots {
+          bottom: 30px;
         }
-
-        .landing-image-desktop {
-          width: 100%;
-          max-width: 400px;
-          height: auto;
-          border-radius: 20px;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1), 0 8px 24px rgba(0, 0, 0, 0.08);
-          animation: float 4s ease-in-out infinite;
-        }
-
-        .landing-image-mobile {
-          width: 100%;
-          max-width: 280px;
-          height: auto;
-          border-radius: 16px;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-          margin: 0 auto 2rem auto;
-          display: block;
-          animation: float 3s ease-in-out infinite;
-        }
-
-        .slide-container {
-          position: relative;
-          overflow: hidden;
-          height: 100vh;
-        }
-
-        .slide {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          transition: transform 0.5s ease-in-out;
-        }
-
-        .slide.active {
-          transform: translateX(0);
-        }
-
-        .slide.prev {
-          transform: translateX(-100%);
-        }
-
-        .slide.next {
-          transform: translateX(100%);
-        }
-
-        .slide-navigation {
-          position: fixed;
-          bottom: 2rem;
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          gap: 0.5rem;
-          z-index: 100;
-        }
-
-        .slide-dot {
+        .landing-carousel .ant-carousel .slick-dots li button {
+          background: rgba(44, 62, 80, 0.3);
+          border-radius: 50%;
           width: 12px;
           height: 12px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.5);
-          cursor: pointer;
-          transition: all 0.3s ease;
         }
-
-        .slide-dot.active {
-          background: var(--primary);
-          transform: scale(1.2);
-          position: relative;
-          overflow: hidden;
-        }
-
-        .slide-dot.active::after {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          height: 100%;
-          background: rgba(255, 255, 255, 0.3);
-          animation: slideProgress 5s linear;
-        }
-
-        @keyframes slideProgress {
-          0% { width: 0%; }
-          100% { width: 100%; }
-        }
-
-        .slide-container:hover .slide-dot.active::after {
-          animation-play-state: paused;
-        }
-
-        .slide-arrows {
-          position: fixed;
-          top: 50%;
-          transform: translateY(-50%);
-          z-index: 100;
-          display: flex;
-          justify-content: space-between;
-          width: 100%;
-          padding: 0 2rem;
-          pointer-events: none;
-        }
-
-        @media (max-width: 768px) {
-          .slide-arrows {
-            display: none;
-          }
-        }
-
-        .slide-arrow {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          background: rgba(255, 255, 255, 0.9);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          pointer-events: all;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .slide-arrow:hover {
-          background: white;
-          transform: scale(1.1);
-        }
-
-        /* Mobile App-like Styles */
-        @media (max-width: 768px) {
-          body {
-            overflow: hidden;
-          }
-          
-          .mobile-app-container {
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .mobile-hero {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 1rem;
-            position: relative;
-          }
-          
-          .mobile-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem 0;
-            z-index: 10;
-          }
-          
-          .mobile-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            text-align: center;
-            z-index: 10;
-          }
-          
-          .mobile-actions {
-            padding: 1rem 0 2rem;
-            z-index: 10;
-          }
-          
-          .mobile-title {
-            font-size: 2.2rem !important;
-            font-weight: 800 !important;
-            line-height: 1.2 !important;
-            margin-bottom: 1rem !important;
-          }
-          
-          .mobile-subtitle {
-            font-size: 1rem !important;
-            line-height: 1.5 !important;
-            margin-bottom: 2rem !important;
-            opacity: 0.8;
-          }
-          
-          .mobile-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
-          }
-          
-          .mobile-button {
-            width: 100% !important;
-            height: 50px !important;
-            border-radius: 12px !important;
-            font-size: 1rem !important;
-            font-weight: 600 !important;
-          }
-          
-          .mobile-trust {
-            font-size: 0.8rem !important;
-            opacity: 0.7;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-          }
-          
-          .desktop-only {
-            display: none !important;
-          }
+        .landing-carousel .ant-carousel .slick-dots li.slick-active button {
+          background: #2c3e50;
+          box-shadow: 0 0 10px rgba(44, 62, 80, 0.5);
         }
         
-        @media (min-width: 769px) {
-          .mobile-only {
-            display: none !important;
+        /* Language switcher mobile optimization */
+        @media (max-width: 768px) {
+          .ant-select.ant-select-sm {
+            min-width: 50px !important;
           }
-        }
-        
-        @media (max-width: 480px) {
-          .mobile-title {
-            font-size: 1.8rem !important;
+          .ant-select.ant-select-sm .ant-select-selection-item {
+            font-size: 0 !important;
           }
-          
-          .mobile-subtitle {
+          .ant-select.ant-select-sm .ant-select-selection-item span:first-child {
+            font-size: 1.2rem !important;
+            margin-right: 0 !important;
+          }
+          .ant-select-dropdown .ant-select-item-option-content {
             font-size: 0.9rem !important;
           }
-          
-          .mobile-hero {
-            padding: 0.75rem;
+        }
+        
+        /* Mobile responsive styles - PWA optimized */
+        @media (max-width: 768px) {
+          .slide-content {
+            flex-direction: column !important;
+            text-align: center !important;
+            padding: 60px 20px 100px 20px !important;
+            justify-content: center !important;
+            min-height: 100vh !important;
+          }
+          .slide-left-content {
+            padding-right: 0 !important;
+            padding-top: 0 !important;
+            margin-bottom: 30px !important;
+            order: 2;
+          }
+          .slide-right-content {
+            order: 1;
+            margin-bottom: 20px !important;
+          }
+          .slide-image-container {
+            width: 260px !important;
+            height: 260px !important;
+            margin: 0 auto !important;
+          }
+          .slide-title {
+            font-size: 1.8rem !important;
+            line-height: 1.1 !important;
+            margin-bottom: 15px !important;
+          }
+          .slide-subtitle {
+            font-size: 1rem !important;
+            margin-bottom: 25px !important;
+          }
+          .slide-header {
+            position: absolute !important;
+            top: 15px !important;
+            left: 20px !important;
+            right: 20px !important;
+            z-index: 10 !important;
+            flex-wrap: wrap !important;
+            justify-content: space-between !important;
+          }
+          .mobile-header-buttons {
+            display: none !important;
+          }
+          .mobile-logo {
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+          }
+          .mobile-logo .ant-typography {
+            font-size: 1.1rem !important;
+          }
+          .mobile-logo-icon {
+            width: 30px !important;
+            height: 30px !important;
+            font-size: 14px !important;
+          }
+          .navigation-buttons {
+            bottom: 15px !important;
+            padding: 8px 15px !important;
+            gap: 8px !important;
+          }
+          .navigation-buttons div {
+            width: 30px !important;
+            height: 3px !important;
+          }
+          .slide-badge {
+            font-size: 0.75rem !important;
+            padding: 6px 15px !important;
+            margin-bottom: 20px !important;
+          }
+          .slide-buttons {
+            flex-direction: column !important;
+            gap: 12px !important;
+            align-items: center !important;
+          }
+          .slide-buttons .ant-btn {
+            width: 100% !important;
+            max-width: 260px !important;
+            height: 45px !important;
+            font-size: 1rem !important;
+          }
+          .feature-list {
+            display: none !important;
+          }
+          .decorative-element {
+            display: none !important;
+          }
+        }
+        
+        /* Very small mobile devices */
+        @media (max-width: 480px) {
+          .slide-content {
+            padding: 50px 15px 90px 15px !important;
+          }
+          .slide-image-container {
+            width: 200px !important;
+            height: 200px !important;
+          }
+          .slide-title {
+            font-size: 1.6rem !important;
+          }
+          .slide-subtitle {
+            font-size: 0.9rem !important;
+          }
+          .slide-buttons .ant-btn {
+            max-width: 240px !important;
+            height: 42px !important;
+            font-size: 0.95rem !important;
+          }
+        }
+        
+        /* Tablet responsive */
+        @media (min-width: 769px) and (max-width: 1024px) {
+          .slide-content {
+            padding: 0 40px !important;
+          }
+          .slide-image-container {
+            width: 350px !important;
+            height: 350px !important;
+          }
+          .slide-title {
+            font-size: 3rem !important;
+          }
+          .slide-header {
+            left: 40px !important;
+            right: 40px !important;
+          }
+        }
+        
+        /* Ensure gradient text visibility */
+        .gradient-text {
+          background: linear-gradient(45deg, #FFD700, #FF6B6B) !important;
+          -webkit-background-clip: text !important;
+          -webkit-text-fill-color: transparent !important;
+          background-clip: text !important;
+          /* Fallback for browsers that don't support gradient text */
+          color: #FFD700;
+        }
+        
+        @supports (-webkit-background-clip: text) {
+          .gradient-text {
+            color: transparent;
           }
         }
       `}</style>
       
-      <div 
-        className="slide-container"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-        onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setIsPaused(false)}
-      >
-        {/* Slide Navigation */}
-        <div className="slide-navigation">
-          {Array.from({ length: totalSlides }, (_, index) => (
-            <div
-              key={index}
-              className={`slide-dot ${currentSlide === index ? 'active' : ''}`}
-              onClick={() => goToSlide(index)}
-            />
-          ))}
-        </div>
-
-        {/* Slide Arrows */}
-        <div className="slide-arrows desktop-only">
-          <div className="slide-arrow" onClick={prevSlide}>
-            ←
-          </div>
-          <div className="slide-arrow" onClick={nextSlide}>
-            →
-          </div>
-        </div>
-
-        {/* Background Elements */}
-      <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: 'none',
-          zIndex: 0,
-          background: 'linear-gradient(135deg, #FFEDC9 0%, #FFF8E7 50%, #FFEDC9 100%)'
-      }}>
-        <div style={{
-          position: 'absolute',
-            top: '10%',
-            left: '10%',
-            width: '200px',
-            height: '200px',
-            background: 'linear-gradient(135deg, var(--primary), rgba(249, 170, 17, 0.3))',
-            borderRadius: '50%',
-            filter: 'blur(60px)',
-            opacity: 0.3,
-          animation: 'float 6s ease-in-out infinite'
-        }} />
-        <div style={{
-          position: 'absolute',
-            top: '60%',
-            right: '15%',
-            width: '150px',
-            height: '150px',
-            background: 'linear-gradient(135deg, #FFB84D, rgba(255, 184, 77, 0.3))',
-            borderRadius: '50%',
-            filter: 'blur(60px)',
-            opacity: 0.3,
-            animation: 'float 6s ease-in-out infinite -2s'
-          }} />
-          <div style={{
-            position: 'absolute',
-            bottom: '20%',
-            left: '20%',
-            width: '180px',
-            height: '180px',
-            background: 'linear-gradient(135deg, var(--primary), rgba(249, 170, 17, 0.2))',
-            borderRadius: '50%',
-            filter: 'blur(60px)',
-            opacity: 0.3,
-            animation: 'float 6s ease-in-out infinite -4s'
-        }} />
-        </div>
-
-        {/* Slide 1: Hero Section */}
-        <div className={`slide ${currentSlide === 0 ? 'active' : currentSlide < 0 ? 'prev' : 'next'}`}>
-          {/* Desktop Version */}
-          <div className="desktop-only" style={{ position: 'relative', zIndex: 1 }}>
-            {/* Language Switcher */}
-          <div style={{
-              position: 'absolute', 
-              top: '20px', 
-              right: '20px',
-              zIndex: 10
+      <div style={{ height: '100vh', overflow: 'hidden' }}>
+        <Carousel 
+          autoplay 
+          dots={{ className: 'custom-dots' }}
+          autoplaySpeed={5000}
+          style={{ height: '100vh' }}
+          className="landing-carousel"
+          ref={(carousel) => window.landingCarousel = carousel}
+        >
+          {/* Slide 1 - Connect & Discover */}
+          <div>
+            <div className="slide-content" style={{
+              height: '100vh',
+              background: 'linear-gradient(135deg, #fefcf3 0%, #f7f3e7 50%, #f0ebe0 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0 60px',
+              position: 'relative',
+              overflow: 'hidden'
             }}>
-              <LanguageSwitcher />
-            </div>
-
-            {/* Hero Section */}
-            <div style={{
-              minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-              maxWidth: '1200px',
-            margin: '0 auto',
-              padding: '0 2rem'
-          }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '4rem',
-                alignItems: 'center',
-                width: '100%'
-              }}>
-                {/* Hero Text */}
-                <div style={{
-                  animation: 'slideInLeft 1s ease-out 0.3s both'
-                }}>
-                  {/* Header */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '15px',
-                    marginBottom: '3rem'
-                  }}>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                      background: 'linear-gradient(45deg, var(--primary), #FFB84D)',
-                borderRadius: '50%',
+              {/* Header */}
+              <div className="slide-header" style={{
+                position: 'absolute',
+                top: '30px',
+                left: '60px',
+                right: '60px',
                 display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
-                justifyContent: 'center',
-                      boxShadow: '0 8px 24px rgba(249, 170, 17, 0.3)'
+                zIndex: 10,
+                flexWrap: 'wrap',
+                gap: '20px'
               }}>
-                      <StarOutlined style={{ fontSize: '24px', color: '#fff' }} />
-              </div>
-              <Title level={2} style={{ 
-                margin: 0, 
-                      background: 'linear-gradient(45deg, var(--primary), #FFB84D)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}>
-                YDestiny
-              </Title>
-          </div>
-
-                  <Title level={1} style={{ 
-                    fontSize: '3.5rem', 
-                    fontWeight: '800',
-                    lineHeight: '1.1',
-                    marginBottom: '1.5rem',
-                    color: 'var(--text-color)'
-            }}>
-                    {language === 'ro' 
-                      ? <>Găsește-ți <span className="highlight">{t('landing.heroTitleHighlight')}</span> prin Magia Astrelor</>
-                      : <>Find Your <span className="highlight">{t('landing.heroTitleHighlight')}</span> Through the Magic of Stars</>
-                    }
-            </Title>
-            
-                  <Paragraph style={{ 
-                    fontSize: '1.25rem', 
-                    lineHeight: '1.6',
-                    color: 'rgba(0, 0, 0, 0.7)',
-                    marginBottom: '2.5rem'
-            }}>
-              {t('landing.heroSubtitle')}
-            </Paragraph>
-            
-                  <div style={{ 
-                    display: 'flex', 
-                    gap: '1rem',
-                    marginBottom: '3rem',
-                    animation: 'slideInUp 1s ease-out 0.8s both'
-                  }}>
-              <Button 
-                type="primary" 
-                size="large"
-                style={{ 
-                        height: '56px',
-                        padding: '0 2rem',
-                        borderRadius: '16px',
-                        background: 'var(--primary)',
-                        border: 'none',
-                  fontWeight: '600',
-                        fontSize: '1.1rem',
-                        boxShadow: '0 8px 24px rgba(249, 170, 17, 0.3)'
-                }}
-                onClick={() => router.push('/sign-up')}
-              >
-                {t('landing.startCosmicJourney')}
-              </Button>
-              <Button 
-                size="large"
-                style={{ 
-                        height: '56px',
-                        padding: '0 2rem',
-                        borderRadius: '16px',
-                        border: '2px solid var(--primary)',
-                        background: 'transparent',
-                        color: 'var(--primary)',
-                        fontWeight: '600',
-                        fontSize: '1.1rem'
-                }}
-                onClick={() => router.push('/sign-in')}
-              >
-                {t('landing.alreadyHaveAccount')}
-              </Button>
-                  </div>
-
-                  {/* Trust Indicators */}
-            <div style={{ 
-              display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '1rem',
-                    animation: 'fadeIn 1s ease-out 1.2s both'
-                  }}>
-                    <Text style={{ fontSize: '0.9rem', color: 'rgba(0, 0, 0, 0.6)' }}>
-                      {t('landing.trustIndicator')}
-                </Text>
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      {[1,2,3,4,5].map((star, index) => (
-                        <StarOutlined 
-                          key={star}
-                          style={{ 
-                            color: 'var(--primary)', 
-                            animation: `starTwinkle 2s ease-in-out infinite ${index * 0.2}s` 
-                          }} 
-                        />
-                      ))}
-              </div>
-            </div>
-          </div>
-
-                {/* Hero Visual */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  position: 'relative',
-                  animation: 'slideInRight 1s ease-out 0.5s both'
-                  }}>
-                  <img 
-                    src="/images/landing-page.jpg" 
-                    alt="YDestiny Landing" 
-                    className="landing-image-desktop"
-                  />
-                  </div>
-                  </div>
-            </div>
-          </div>
-
-          {/* Mobile Version */}
-          <div className="mobile-only mobile-app-container">
-            <div className="mobile-hero">
-              {/* Mobile Header */}
-              <div className="mobile-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    background: 'linear-gradient(45deg, var(--primary), #FFB84D)',
+                <div className="mobile-logo" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div className="mobile-logo-icon" style={{
+                    width: '40px',
+                    height: '40px',
+                    background: 'linear-gradient(45deg, #FFD700, #FFA500)',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    fontSize: '18px'
                   }}>
-                    <StarOutlined style={{ fontSize: '16px', color: '#fff' }} />
+                    ✨
                   </div>
                   <Title level={3} style={{ 
                     margin: 0, 
-                    background: 'linear-gradient(45deg, var(--primary), #FFB84D)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
+                    color: '#2c3e50',
+                    fontWeight: '700'
                   }}>
                     YDestiny
                   </Title>
                 </div>
-                <LanguageSwitcher />
-          </div>
-
-              {/* Mobile Content */}
-              <div className="mobile-content">
-                <img 
-                  src="/images/landing-page.jpg" 
-                  alt="YDestiny Landing" 
-                  className="landing-image-mobile"
-                />
-                
-                <Title className="mobile-title" style={{ 
-                  color: 'var(--text-color)'
-                }}>
-                  {language === 'ro' 
-                    ? <>Găsește-ți <span className="highlight">{t('landing.heroTitleHighlight')}</span></>
-                    : <>Find Your <span className="highlight">{t('landing.heroTitleHighlight')}</span></>
-                  }
-            </Title>
-            
-                <Paragraph className="mobile-subtitle" style={{ 
-                  color: 'rgba(0, 0, 0, 0.7)'
-                }}>
-                  {language === 'ro' 
-                    ? "Descoperă conexiuni cosmice autentice prin compatibilitatea astrologică."
-                    : "Discover authentic cosmic connections through astrological compatibility."
-                  }
-                  </Paragraph>
-              </div>
-              
-              {/* Mobile Actions */}
-              <div className="mobile-actions">
-                <div className="mobile-buttons">
-                  <Button 
-                    type="primary" 
-                    className="mobile-button"
-                  style={{ 
-                      background: 'var(--primary)',
-                      border: 'none',
-                      boxShadow: '0 4px 12px rgba(249, 170, 17, 0.3)'
-                  }}
-                    onClick={() => router.push('/sign-up')}
-                  >
-                    {t('landing.startCosmicJourney')}
-                  </Button>
-                  <Button 
-                    className="mobile-button"
-                  style={{ 
-                      border: '2px solid var(--primary)',
-                      background: 'transparent',
-                      color: 'var(--primary)'
-                  }}
-                    onClick={() => router.push('/sign-in')}
-                >
-                    {t('landing.alreadyHaveAccount')}
-                  </Button>
-                </div>
-                
-                <div className="mobile-trust">
-                  <Text style={{ fontSize: '0.8rem', color: 'rgba(0, 0, 0, 0.6)' }}>
-                    {language === 'ro' ? "10,000+ utilizatori" : "10,000+ users"}
-                  </Text>
-                  <div style={{ display: 'flex', gap: '0.2rem' }}>
-                    {[1,2,3,4,5].map((star) => (
-                      <StarOutlined 
-                        key={star}
-                  style={{ 
-                          color: 'var(--primary)', 
-                          fontSize: '0.7rem'
-                        }} 
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Slide 2: Community Section */}
-        <div className={`slide ${currentSlide === 1 ? 'active' : currentSlide < 1 ? 'prev' : 'next'}`}>
-          {/* Desktop Version */}
-          <div className="desktop-only" style={{ position: 'relative', zIndex: 1 }}>
-            {/* Language Switcher */}
-                  <div style={{
-              position: 'absolute', 
-              top: '20px', 
-              right: '20px',
-              zIndex: 10
-            }}>
-              <LanguageSwitcher />
-          </div>
-
-            {/* Community Section */}
-          <div style={{
-              minHeight: '100vh',
-              display: 'flex',
-              alignItems: 'center',
-            maxWidth: '1200px',
-              margin: '0 auto',
-              padding: '0 2rem'
-          }}>
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '4rem',
-              alignItems: 'center',
-                width: '100%'
-              }}>
-                {/* Community Text */}
-                <div style={{
-                  animation: 'slideInLeft 1s ease-out 0.3s both'
-            }}>
-                  <Title level={1} style={{ 
-                    fontSize: '3.5rem', 
-                    fontWeight: '800',
-                    lineHeight: '1.1',
-                    marginBottom: '1.5rem',
-                    color: 'var(--text-color)'
-            }}>
-                    {t('landing.communityTitle')}
-            </Title>
-            
-            <Paragraph style={{ 
-                    fontSize: '1.25rem', 
-                    lineHeight: '1.6',
-                    color: 'rgba(0, 0, 0, 0.7)',
-                    marginBottom: '2.5rem'
-            }}>
-                    {t('landing.communitySubtitle')}
-            </Paragraph>
-
-                  <div style={{
-                    display: 'flex',
-                    gap: '1rem',
-                    animation: 'slideInUp 1s ease-out 0.8s both'
-                  }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <LanguageSwitcher size="small" />
+                  <Space className="mobile-header-buttons" style={{ flexWrap: 'wrap' }}>
+                    <Button 
+                      size="large"
+                      onClick={() => router.push('/sign-in')}
+                      style={{
+                        backgroundColor: 'transparent',
+                        borderColor: '#2c3e50',
+                        color: '#2c3e50',
+                        borderRadius: '25px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      {t('landing.signIn')}
+                    </Button>
                     <Button 
                       type="primary" 
                       size="large"
                       style={{ 
-                        height: '56px',
-                        padding: '0 2rem',
-                        borderRadius: '16px',
-                        background: 'var(--primary)',
-                        border: 'none',
+                        background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                        borderColor: 'transparent',
+                        color: '#000',
                         fontWeight: '600',
-                        fontSize: '1.1rem',
-                        boxShadow: '0 8px 24px rgba(249, 170, 17, 0.3)'
+                        borderRadius: '25px',
+                        boxShadow: '0 4px 15px rgba(255, 215, 0, 0.3)'
                       }}
                       onClick={() => router.push('/sign-up')}
                     >
-                      {t('landing.startCosmicJourney')}
+                      {t('landing.signUp')}
                     </Button>
-                  </div>
+                  </Space>
                 </div>
+              </div>
+
+              {/* Left Content */}
+              <div className="slide-left-content" style={{ 
+                flex: '1', 
+                paddingRight: '60px',
+                zIndex: 2,
+                paddingTop: '100px'
+              }}>
+                <div className="slide-badge" style={{
+                  display: 'inline-block',
+                  background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                  color: '#000',
+                  padding: '10px 25px',
+                  borderRadius: '30px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  marginBottom: '35px',
+                  boxShadow: '0 4px 15px rgba(255, 215, 0, 0.3)'
+                }}>
+                  {t('landing.slide1Badge')}
+                </div>
+                
+                <Title level={1} className="slide-title" style={{ 
+                  color: '#2c3e50',
+                  fontSize: '4rem',
+                  lineHeight: 1.1,
+                  marginBottom: '30px',
+                  fontWeight: '800'
+                }}>
+                  {t('landing.slide1Title1')}<br />
+                  <span className="gradient-text">
+                    {t('landing.slide1Title2')}
+                  </span>
+                </Title>
+                
+                <Paragraph className="slide-subtitle" style={{ 
+                  fontSize: '1.4rem',
+                  color: '#5d6d7e',
+                  lineHeight: 1.6,
+                  marginBottom: '50px',
+                  maxWidth: '500px'
+                }}>
+                  {t('landing.slide1Description')}
+                </Paragraph>
+                
+                <Space className="slide-buttons" size="large" style={{ flexWrap: 'wrap' }}>
+                  <Button 
+                    type="primary" 
+                    size="large"
+                    style={{ 
+                      background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                      borderColor: 'transparent',
+                      color: '#000',
+                      height: '60px',
+                      fontSize: '1.2rem',
+                      padding: '0 40px',
+                      borderRadius: '30px',
+                      fontWeight: '600',
+                      boxShadow: '0 8px 25px rgba(255, 215, 0, 0.4)'
+                    }}
+                    onClick={() => router.push('/sign-up')}
+                  >
+                    {t('landing.slide1Button1')}
+                  </Button>
+                  <Button 
+                    size="large"
+                    style={{ 
+                      backgroundColor: 'transparent',
+                      borderColor: '#2c3e50',
+                      color: '#2c3e50',
+                      height: '60px',
+                      fontSize: '1.1rem',
+                      padding: '0 35px',
+                      borderRadius: '30px',
+                      fontWeight: '500'
+                    }}
+                    onClick={() => router.push('/sign-in')}
+                  >
+                    {t('landing.slide1Button2')}
+                  </Button>
+                </Space>
+              </div>
               
-                {/* Community Visual */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                  alignItems: 'center',
-                  position: 'relative',
-                  animation: 'slideInRight 1s ease-out 0.5s both'
-                  }}>
+              {/* Right Image */}
+              <div className="slide-right-content" style={{ 
+                flex: '1',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative'
+              }}>
+                <div className="slide-image-container" style={{
+                  width: '450px',
+                  height: '450px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  boxShadow: '0 25px 60px rgba(0, 0, 0, 0.1)',
+                  border: '10px solid rgba(255, 215, 0, 0.15)'
+                }}>
                   <img 
-                    src="/images/comunity.jpg" 
-                    alt="YDestiny Community" 
-                    className="landing-image-desktop"
+                    src="/images/Minimalist digital illustration showing a group of people standing in a circle, holding hands, viewed from above, soft golden light casting long shadows, creamy white background with subtle texture, elegant line work, harmonious and inclusi.jpg"
+                    alt="Community Connection"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
                   />
-                  </div>
                 </div>
+                
+                {/* Decorative Elements */}
+                <div className="decorative-element" style={{
+                  position: 'absolute',
+                  top: '15%',
+                  right: '10%',
+                  width: '70px',
+                  height: '70px',
+                  background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '28px',
+                  animation: 'float 3s ease-in-out infinite',
+                  boxShadow: '0 10px 25px rgba(255, 215, 0, 0.3)'
+                }}>
+                  ✨
+                </div>
+                
+                <div className="decorative-element" style={{
+                  position: 'absolute',
+                  bottom: '20%',
+                  left: '5%',
+                  width: '80px',
+                  height: '80px',
+                  background: 'linear-gradient(45deg, #FF69B4, #FFB6C1)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '32px',
+                  animation: 'float 3s ease-in-out infinite 1s',
+                  boxShadow: '0 10px 25px rgba(255, 105, 180, 0.3)'
+                }}>
+                  💫
+                </div>
+              </div>
             </div>
           </div>
-              
-          {/* Mobile Version */}
-          <div className="mobile-only mobile-app-container">
-            <div className="mobile-hero">
-              {/* Mobile Header */}
-              <div className="mobile-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    background: 'linear-gradient(45deg, var(--primary), #FFB84D)',
+
+          {/* Slide 2 - Build Community */}
+          <div>
+            <div className="slide-content" style={{
+              height: '100vh',
+              background: 'linear-gradient(135deg, #f8f9fa 0%, #f1f3f4 50%, #e8eaed 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0 60px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Header */}
+              <div className="slide-header" style={{
+                position: 'absolute',
+                top: '30px',
+                left: '60px',
+                right: '60px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                zIndex: 10,
+                flexWrap: 'wrap',
+                gap: '20px'
+              }}>
+                <div className="mobile-logo" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div className="mobile-logo-icon" style={{
+                    width: '40px',
+                    height: '40px',
+                    background: 'linear-gradient(45deg, #FFD700, #FFA500)',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    fontSize: '18px'
                   }}>
-                    <StarOutlined style={{ fontSize: '16px', color: '#fff' }} />
+                    🌟
                   </div>
                   <Title level={3} style={{ 
-                    margin: 0,
-                    background: 'linear-gradient(45deg, var(--primary), #FFB84D)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
+                    margin: 0, 
+                    color: '#2c3e50',
+                    fontWeight: '700'
                   }}>
                     YDestiny
                   </Title>
                 </div>
-                <LanguageSwitcher />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <LanguageSwitcher size="small" />
+                  <Space className="mobile-header-buttons" style={{ flexWrap: 'wrap' }}>
+                    <Button 
+                      size="large"
+                      onClick={() => router.push('/sign-in')}
+                      style={{
+                        backgroundColor: 'transparent',
+                        borderColor: '#2c3e50',
+                        color: '#2c3e50',
+                        borderRadius: '25px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      {t('landing.signIn')}
+                    </Button>
+                    <Button 
+                      type="primary" 
+                      size="large"
+                      style={{ 
+                        background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                        borderColor: 'transparent',
+                        color: '#000',
+                        fontWeight: '600',
+                        borderRadius: '25px',
+                        boxShadow: '0 4px 15px rgba(255, 215, 0, 0.3)'
+                      }}
+                      onClick={() => router.push('/sign-up')}
+                    >
+                      {t('landing.signUp')}
+                    </Button>
+                  </Space>
                 </div>
-
-              {/* Mobile Content */}
-              <div className="mobile-content">
-                <img 
-                  src="/images/comunity.jpg" 
-                  alt="YDestiny Community" 
-                  className="landing-image-mobile"
-                />
-            
-                <Title className="mobile-title" style={{ 
-                  color: 'var(--text-color)'
-              }}>
-                  {t('landing.communityTitle')}
-              </Title>
-                
-                <Paragraph className="mobile-subtitle" style={{ 
-                  color: 'rgba(0, 0, 0, 0.7)'
-              }}>
-                  {t('landing.communitySubtitle')}
-              </Paragraph>
               </div>
 
-              {/* Mobile Actions */}
-              <div className="mobile-actions">
-                <div className="mobile-buttons">
-              <Button 
-                type="primary" 
-                    className="mobile-button"
-                style={{ 
-                      background: 'var(--primary)',
-                      border: 'none',
-                      boxShadow: '0 4px 12px rgba(249, 170, 17, 0.3)'
-                }}
-                onClick={() => router.push('/sign-up')}
-              >
-                    {t('landing.startCosmicJourney')}
-              </Button>
+              {/* Left Content */}
+              <div className="slide-left-content" style={{ 
+                flex: '1', 
+                paddingRight: '60px',
+                zIndex: 2,
+                paddingTop: '100px'
+              }}>
+                <div className="slide-badge" style={{
+                  display: 'inline-block',
+                  background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                  color: '#000',
+                  padding: '10px 25px',
+                  borderRadius: '30px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  marginBottom: '35px',
+                  boxShadow: '0 4px 15px rgba(255, 215, 0, 0.3)'
+                }}>
+                  {t('landing.slide2Badge')}
+                </div>
+                
+                <Title level={1} className="slide-title" style={{ 
+                  color: '#2c3e50',
+                  fontSize: '4rem',
+                  lineHeight: 1.1,
+                  marginBottom: '30px',
+                  fontWeight: '800'
+                }}>
+                  {t('landing.slide2Title1')}<br />
+                  <span style={{ 
+                    color: '#FFD700',
+                    textShadow: '0 2px 4px rgba(255, 215, 0, 0.3)'
+                  }}>
+                    {t('landing.slide2Title2')}
+                  </span>
+                </Title>
+                
+                <Paragraph className="slide-subtitle" style={{ 
+                  fontSize: '1.4rem',
+                  color: '#5d6d7e',
+                  lineHeight: 1.6,
+                  marginBottom: '40px',
+                  maxWidth: '500px'
+                }}>
+                  {t('landing.slide2Description')}
+                </Paragraph>
+                
+                <div className="feature-list" style={{ marginBottom: '50px' }}>
+                  <Row gutter={[0, 20]}>
+                    <Col span={24}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                        <div className="feature-icon" style={{
+                          width: '50px',
+                          height: '50px',
+                          background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 6px 20px rgba(255, 215, 0, 0.3)'
+                        }}>
+                          <HeartOutlined style={{ color: '#000', fontSize: '20px' }} />
+                        </div>
+                        <Text className="feature-item" style={{ fontSize: '1.2rem', color: '#2c3e50', fontWeight: '500' }}>
+                          {t('landing.slide2Feature1')}
+                        </Text>
+                      </div>
+                    </Col>
+                    <Col span={24}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                        <div className="feature-icon" style={{
+                          width: '50px',
+                          height: '50px',
+                          background: 'linear-gradient(45deg, #FF69B4, #FFB6C1)',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 6px 20px rgba(255, 105, 180, 0.3)'
+                        }}>
+                          <MessageOutlined style={{ color: '#fff', fontSize: '20px' }} />
+                        </div>
+                        <Text className="feature-item" style={{ fontSize: '1.2rem', color: '#2c3e50', fontWeight: '500' }}>
+                          {t('landing.slide2Feature2')}
+                        </Text>
+                      </div>
+                    </Col>
+                  </Row>
+                </div>
+                
+                <Button 
+                  type="primary" 
+                  size="large"
+                  style={{ 
+                    background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                    borderColor: 'transparent',
+                    color: '#000',
+                    height: '60px',
+                    fontSize: '1.2rem',
+                    padding: '0 40px',
+                    borderRadius: '30px',
+                    fontWeight: '600',
+                    boxShadow: '0 8px 25px rgba(255, 215, 0, 0.4)'
+                  }}
+                  onClick={() => router.push('/sign-up')}
+                >
+                  {t('landing.slide2Button')}
+                </Button>
+              </div>
+              
+              {/* Right Image */}
+              <div className="slide-right-content" style={{ 
+                flex: '1',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative'
+              }}>
+                <div className="slide-image-container" style={{
+                  width: '450px',
+                  height: '450px',
+                  borderRadius: '30px',
+                  overflow: 'hidden',
+                  boxShadow: '0 25px 60px rgba(0, 0, 0, 0.1)',
+                  border: '10px solid rgba(255, 215, 0, 0.15)',
+                  transform: 'rotate(-3deg)'
+                }}>
+                  <img 
+                    src="/images/comunity.jpg"
+                    alt="Community Growth"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transform: 'rotate(3deg) scale(1.1)'
+                    }}
+                  />
+                </div>
+                
+                {/* Decorative Elements */}
+                <div className="decorative-element" style={{
+                  position: 'absolute',
+                  top: '10%',
+                  right: '15%',
+                  width: '75px',
+                  height: '75px',
+                  background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '30px',
+                  animation: 'pulse 2s ease-in-out infinite',
+                  boxShadow: '0 10px 25px rgba(255, 215, 0, 0.3)'
+                }}>
+                  🌟
+                </div>
+                
+                <div className="decorative-element" style={{
+                  position: 'absolute',
+                  bottom: '15%',
+                  left: '10%',
+                  width: '70px',
+                  height: '70px',
+                  background: 'linear-gradient(45deg, #FF69B4, #FFB6C1)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '28px',
+                  animation: 'float 3s ease-in-out infinite 0.5s',
+                  boxShadow: '0 10px 25px rgba(255, 105, 180, 0.3)'
+                }}>
+                  💖
+                </div>
+              </div>
             </div>
           </div>
-                </div>
-          </div>
+        </Carousel>
+        
+        {/* Custom Navigation Bars */}
+        <div className="navigation-buttons" style={{
+          position: 'absolute',
+          bottom: '40px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          gap: '10px',
+          zIndex: 20,
+          background: 'rgba(255, 255, 255, 0.9)',
+          padding: '12px 20px',
+          borderRadius: '25px',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.3)'
+        }}>
+          <div
+            onClick={() => window.landingCarousel?.goTo(0)}
+            style={{
+              width: '40px',
+              height: '4px',
+              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+              borderRadius: '2px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 2px 8px rgba(255, 215, 0, 0.4)'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.height = '6px';
+              e.target.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.height = '4px';
+              e.target.style.boxShadow = '0 2px 8px rgba(255, 215, 0, 0.4)';
+            }}
+          />
+          
+          <div
+            onClick={() => window.landingCarousel?.goTo(1)}
+            style={{
+              width: '40px',
+              height: '4px',
+              background: '#667eea',
+              borderRadius: '2px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 2px 8px rgba(102, 126, 234, 0.4)'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.height = '6px';
+              e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.6)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.height = '4px';
+              e.target.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.4)';
+            }}
+          />
         </div>
-
+        
+        {/* Development Reset Button - Only visible in dev mode with password protection */}
+        {process.env.NODE_ENV === 'development' && passwordProtectionEnabled && (
+          <Button
+            size="small"
+            onClick={() => {
+              localStorage.removeItem('ydestiny_preview_access');
+              setHasPreviewAccess(false);
+            }}
+            style={{
+              position: 'fixed',
+              top: '20px',
+              right: '20px',
+              zIndex: 1000,
+              background: 'rgba(255, 0, 0, 0.7)',
+              color: 'white',
+              border: 'none',
+              fontSize: '10px'
+            }}
+          >
+            Reset Preview
+          </Button>
+        )}
       </div>
     </>
   );

@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useUser, useAuth } from "@/hooks/useFirebaseAuth";
 import { Avatar } from "antd";
 import Box from "./Box";
-import ModeButton from "./ModeButton";
 import SidebarButton from "./SidebarButton";
 import Iconify from "./Iconify";
 import { useRouter } from "next/navigation";
@@ -16,7 +15,6 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { CrownOutlined } from "@ant-design/icons";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n";
-import useIsMobile from "@/hooks/useIsMobile";
 
 const Header = () => {
   const { user } = useUser();
@@ -24,7 +22,6 @@ const Header = () => {
   const router = useRouter();
   const { isPremium } = useSubscription();
   const { t } = useLanguage();
-  const isMobile = useIsMobile();
 
   const handleLogout = async () => {
     const result = await signOut();
@@ -76,40 +73,44 @@ const Header = () => {
     },
   ];
   
-    return (
-    <header className={`${css.wrapper} ${isMobile ? css.mobileWrapper : ''}`}>
+  return (
+    <header className={css.wrapper}>
       <Box style={{ height: "100%" }}>
-        <div className={`${css.container} ${isMobile ? css.mobileContainer : ''}`}>
-          {/* Sidebar button - only on desktop tablet */}
-          {!isMobile && (
-            <div className={css.sidebarButton}>
-              <SidebarButton />
-            </div>
-          )}
+        <div className={css.container}>
+          {/* sidbear button */}
+          <div className={css.sidebarButton}>
+            <SidebarButton />
+          </div>
 
-          {/* Logo - only on desktop */}
-          {!isMobile && (
-            <div className={css.logo}>
-              <Iconify 
-                icon="eva:star-fill" 
-                width="24px" 
-                style={{ color: '#FFD700' }} 
-              />
-              <span className={css.logoText}>
-                YDestiny
-              </span>
-              <span className={css.logoSubtext}>
-                Calea Destinului
-              </span>
-            </div>
-          )}
+          {/* logo */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '12px',
+            padding: '8px 16px',
+            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
+          }}>
+            <Iconify 
+              icon="eva:star-fill" 
+              width="24px" 
+              style={{ color: '#FFD700' }} 
+            />
+            <span style={{
+              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: '18px',
+              fontWeight: '700',
+              letterSpacing: '0.5px'
+            }}>
+              YDestiny
+            </span>
+          </div>
           
-          {/* Actions */}
-          <Flex 
-            gap={isMobile ? 20 : 15} 
-            align="center" 
-            className={`${css.actions} ${isMobile ? css.mobileActions : ''}`}
-          > 
+          {/* actions */}
+          <Flex gap={15} align="center"> 
             {/* Premium Button */}
             {!isPremium && (
               <Button
@@ -117,37 +118,33 @@ const Header = () => {
                 size="small"
                 icon={<CrownOutlined />}
                 onClick={() => handleNavigation('/premium')}
-                className={`${css.premiumButton} ${isMobile ? css.mobilePremiumButton : ''}`}
+                className={css.premiumButton}
+                style={{
+                  background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                  border: 'none',
+                  color: '#000',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)'
+                }}
               >
-                {!isMobile && <span className={css.premiumText}>{t('common.premium')}</span>}
+                <span className={css.premiumText}>{t('common.premium')}</span>
               </Button>
             )}
               
-            <LanguageSwitcher 
-              size="small" 
-              className={`${css.languageSwitcher} ${isMobile ? css.mobileLanguageSwitcher : ''}`} 
-              mobileOnly={isMobile} 
-            />
-            
-            {/* Desktop only elements */}
-            {!isMobile && (
-              <>
-                <ModeButton className={css.modeButton} />
-                <Dropdown
-                  menu={{ items: userMenuItems }}
-                  placement="bottomRight"
-                  arrow={{ pointAtCenter: true }}
-                  trigger={['click']}
-                  className={css.userDropdown}
-                >
-                  <Avatar 
-                    src={getMainProfileImage(user?.images)} 
-                    size={40} 
-                    style={{ cursor: 'pointer' }}
-                  />
-                </Dropdown>
-              </>
-            )}
+            <LanguageSwitcher size="small" />
+            <Dropdown
+              menu={{ items: userMenuItems }}
+              placement="bottomRight"
+              arrow={{ pointAtCenter: true }}
+              trigger={['click']}
+            >
+              <Avatar 
+                src={getMainProfileImage(user?.images)} 
+                size={40} 
+                style={{ cursor: 'pointer' }}
+              />
+            </Dropdown>
           </Flex>
         </div>
       </Box>

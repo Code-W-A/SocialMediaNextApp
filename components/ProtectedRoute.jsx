@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { shouldRedirectToOnboarding, checkOnboardingStatus } from '@/utils/onboardingHelpers';
@@ -10,8 +10,15 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading, isSignedIn } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return; // Don't run effects until mounted
+
     if (!loading && !isSignedIn) {
       router.push('/sign-in');
       return;
@@ -37,7 +44,12 @@ const ProtectedRoute = ({ children }) => {
         }
       }
     }
-  }, [loading, isSignedIn, user, router, pathname]);
+  }, [loading, isSignedIn, user, router, pathname, mounted]);
+
+  // Don't render anything until mounted to prevent hydration issues
+  if (!mounted) {
+    return null;
+  }
 
   if (loading) {
     return (

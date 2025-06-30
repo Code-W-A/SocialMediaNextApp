@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Button, Input, Typography, Form, message, Divider, Checkbox, Select } from "antd";
+import { Button, Input, Typography, Form, message, Checkbox, Select } from "antd";
 import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import css from "@/styles/AuthPages.module.css";
@@ -40,14 +40,6 @@ export default function SignUpPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleSignUp = () => {
-    message.info("Google Sign-Up would be implemented here");
-  };
-
-  const handleFacebookSignUp = () => {
-    message.info("Facebook Sign-Up would be implemented here");
   };
 
   return (
@@ -241,29 +233,6 @@ export default function SignUpPage() {
           </Button>
         </Form.Item>
       </Form>
-
-      <Divider className={css.authDivider}>
-        <Text type="secondary">Or sign up with</Text>
-      </Divider>
-
-      <div className={css.socialButtons}>
-        <Button
-          size="large"
-          icon={<Iconify icon="eva:google-fill" width="20px" />}
-          onClick={handleGoogleSignUp}
-          className={css.socialButton}
-        >
-          Google
-        </Button>
-        <Button
-          size="large"
-          icon={<Iconify icon="eva:facebook-fill" width="20px" />}
-          onClick={handleFacebookSignUp}
-          className={css.socialButton}
-        >
-          Facebook
-        </Button>
-      </div>
 
       <div className={css.authFooter}>
         <Text type="secondary">

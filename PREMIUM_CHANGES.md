@@ -26,7 +26,7 @@ Premium users now receive:
 
 ### 4. Stripe Integration
 - Subscription price: €5/month
-- Price ID: `price_1QHP25KKcy7exYrbKfuDuuH1` (configured in environment)
+- Price ID: `price_1R00DkClBW08h64jdSd6WWkE` (configured in environment)
 - Webhook properly updates subscription status
 - Users can manage subscriptions through Stripe portal
 
@@ -93,7 +93,7 @@ Ensure these are set in your `.env.local`:
 ```
 STRIPE_SECRET_KEY=sk_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
-PRICE_ID=price_1QHP25KKcy7exYrbKfuDuuH1
+PRICE_ID=price_1R00DkClBW08h64jdSd6WWkE
 NEXT_PUBLIC_APP_URL=https://yourdomain.com
 ```
 

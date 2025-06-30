@@ -16,13 +16,17 @@ import {
   Divider,
   Select,
   Checkbox,
-  Slider
+  Slider,
+  Badge,
+  Tooltip,
+  Tabs
 } from "antd";
-import { UserOutlined, HeartOutlined, SearchOutlined, FilterOutlined, CrownOutlined } from "@ant-design/icons";
+import { UserOutlined, HeartOutlined, SearchOutlined, FilterOutlined, CrownOutlined, MessageOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities } from "@/actions/admin";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getAllV1UsersForMigration } from "@/actions/v1Migration";
+import AdminChatDashboard from "@/components/AdminChatDashboard";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -39,7 +43,7 @@ const AdminDashboard = () => {
   const [bulkMode, setBulkMode] = useState(false);
   const [sortBy, setSortBy] = useState('lastActive'); // 'name', 'age', 'lastActive'
   const [compatibilitySearchText, setCompatibilitySearchText] = useState("");
-  const [premiumFilter, setPremiumFilter] = useState(null); // null, true, false
+  const [activeTab, setActiveTab] = useState('users'); // 'users' or 'chats'
   const queryClient = useQueryClient();
 
   // Fetch all users
@@ -139,12 +143,38 @@ const AdminDashboard = () => {
     return v1MigrationData.alreadyMigrated?.some(user => user.id === userId) || false;
   };
 
-  // Helper function to check if user is premium
-  const isUserPremium = (user) => {
-    return user?.subscription?.isPremium || 
-           user?.subscription?.status === 'active' || 
-           user?.subscription?.status === 'trialing' ||
-           user?.subscriptionActive !== undefined;
+  // Check if user is premium
+  const isPremiumUser = (user) => {
+    if (!user?.subscription) return false;
+    const status = user.subscription.status;
+    return status === 'active' || status === 'trialing';
+  };
+
+  // Get premium subscription details
+  const getPremiumDetails = (user) => {
+    if (!isPremiumUser(user)) return null;
+    
+    const subscription = user.subscription;
+    const currentPeriodEnd = subscription.currentPeriodEnd;
+    let endDate = null;
+    
+    if (currentPeriodEnd) {
+      if (currentPeriodEnd.seconds) {
+        endDate = new Date(currentPeriodEnd.seconds * 1000);
+      } else if (currentPeriodEnd._seconds) {
+        endDate = new Date(currentPeriodEnd._seconds * 1000);
+      } else {
+        endDate = new Date(currentPeriodEnd);
+      }
+    }
+    
+    return {
+      status: subscription.status,
+      endDate,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      customerId: subscription.customerId,
+      subscriptionId: subscription.subscriptionId
+    };
   };
 
   const userColumns = [
@@ -167,9 +197,6 @@ const AdminDashboard = () => {
               {(record?.firstName && record?.lastName) 
                 ? `${record.firstName} ${record.lastName}` 
                 : record?.displayName || record?.name || "Unknown User"}
-              {isUserPremium(record) && (
-                <CrownOutlined style={{ color: '#FFD700', marginLeft: '8px', fontSize: '14px' }} />
-              )}
             </div>
             <Text type="secondary" style={{ fontSize: '12px' }}>
               @{record?.username || record?.email?.split('@')[0] || "no-username"}
@@ -183,11 +210,11 @@ const AdminDashboard = () => {
               {record?.age && (
                 <Tag color="green" size="small">{record.age} years</Tag>
               )}
-              {isUserPremium(record) && (
-                <Tag color="gold" size="small" icon={<CrownOutlined />}>Premium</Tag>
-              )}
               {isV1User(record?.id) && (
                 <Tag color="gold" size="small">V1 User</Tag>
+              )}
+              {isPremiumUser(record) && (
+                <Tag color="purple" size="small" icon={<CrownOutlined />}>Premium</Tag>
               )}
             </div>
           </div>
@@ -237,6 +264,75 @@ const AdminDashboard = () => {
           )}
         </div>
       ),
+    },
+    {
+      title: "Premium Status",
+      dataIndex: "subscription",
+      key: "premium",
+      render: (subscription, record) => {
+        if (!isPremiumUser(record)) {
+          return <Tag color="default">Free</Tag>;
+        }
+        
+        const details = getPremiumDetails(record);
+        if (!details) return <Tag color="default">Free</Tag>;
+        
+        const isExpiringSoon = details.endDate && 
+          (details.endDate.getTime() - new Date().getTime()) < (7 * 24 * 60 * 60 * 1000); // 7 days
+        
+        return (
+          <Tooltip 
+            title={
+              <div>
+                <div><strong>Status:</strong> {details.status}</div>
+                {details.endDate && (
+                  <div><strong>Ends:</strong> {details.endDate.toLocaleDateString()}</div>
+                )}
+                {details.cancelAtPeriodEnd && (
+                  <div><strong>⚠️ Will cancel at period end</strong></div>
+                )}
+                {details.customerId && (
+                  <div><strong>Customer ID:</strong> {details.customerId}</div>
+                )}
+              </div>
+            }
+          >
+            <div>
+              <Badge 
+                status={details.status === 'active' ? 'success' : 'processing'} 
+                text={
+                  <Tag 
+                    color={details.status === 'active' ? 'gold' : 'blue'} 
+                    icon={<CrownOutlined />}
+                  >
+                    Premium
+                  </Tag>
+                }
+              />
+              {details.endDate && (
+                <div style={{ fontSize: '11px', color: isExpiringSoon ? '#ff4d4f' : '#666' }}>
+                  Until {details.endDate.toLocaleDateString()}
+                  {details.cancelAtPeriodEnd && ' (canceling)'}
+                </div>
+              )}
+            </div>
+          </Tooltip>
+        );
+      },
+      sorter: (a, b) => {
+        const aIsPremium = isPremiumUser(a) ? 1 : 0;
+        const bIsPremium = isPremiumUser(b) ? 1 : 0;
+        return bIsPremium - aIsPremium; // Premium users first
+      },
+      filters: [
+        { text: 'Premium Users', value: 'premium' },
+        { text: 'Free Users', value: 'free' },
+      ],
+      onFilter: (value, record) => {
+        const userIsPremium = isPremiumUser(record);
+        return value === 'premium' ? userIsPremium : !userIsPremium;
+      },
+      width: 150,
     },
     {
       title: "Last Active",
@@ -374,12 +470,7 @@ const AdminDashboard = () => {
       (user.age || new Date().getFullYear() - new Date(user.dateOfBirth).getFullYear()) : null;
     const matchesAge = !userAge || (userAge >= ageRange[0] && userAge <= ageRange[1]);
     
-    // Premium filter
-    const matchesPremium = premiumFilter === null || 
-      (premiumFilter === true && isUserPremium(user)) ||
-      (premiumFilter === false && !isUserPremium(user));
-    
-    return matchesSearch && matchesGender && matchesAge && matchesPremium;
+    return matchesSearch && matchesGender && matchesAge;
   }) || [];
 
   // Get available users for compatibility (exclude current user and already compatible)
@@ -408,15 +499,98 @@ const AdminDashboard = () => {
     return true;
   }) || [];
 
-  return (
-    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
-      <Card>
-        <Title level={2}>Admin Dashboard - User Compatibilities</Title>
-        <Text type="secondary">
-          Manage manual compatibilities between users. Compatible users can see each other's social media wall and chat.
-        </Text>
-        
-        <Divider />
+  // Premium statistics
+  const premiumStats = users ? {
+    totalUsers: users.length,
+    premiumUsers: users.filter(user => isPremiumUser(user)).length,
+    freeUsers: users.filter(user => !isPremiumUser(user)).length,
+    expiringSoon: users.filter(user => {
+      const details = getPremiumDetails(user);
+      return details?.endDate && 
+        (details.endDate.getTime() - new Date().getTime()) < (7 * 24 * 60 * 60 * 1000);
+    }).length,
+    cancelingUsers: users.filter(user => {
+      const details = getPremiumDetails(user);
+      return details?.cancelAtPeriodEnd;
+    }).length
+  } : null;
+
+  const tabItems = [
+    {
+      key: 'users',
+      label: (
+        <span>
+          <UserOutlined />
+          User Management
+        </span>
+      ),
+      children: (
+        <div>
+          {/* Premium Statistics */}
+          {premiumStats && (
+            <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
+                      {premiumStats.totalUsers}
+                    </div>
+                    <div style={{ color: '#666' }}>Total Users</div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1' }}>
+                      <CrownOutlined style={{ marginRight: '4px' }} />
+                      {premiumStats.premiumUsers}
+                    </div>
+                    <div style={{ color: '#666' }}>Premium Users</div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                      {premiumStats.freeUsers}
+                    </div>
+                    <div style={{ color: '#666' }}>Free Users</div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#faad14' }}>
+                      {premiumStats.expiringSoon}
+                    </div>
+                    <div style={{ color: '#666' }}>Expiring Soon</div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff4d4f' }}>
+                      {premiumStats.cancelingUsers}
+                    </div>
+                    <div style={{ color: '#666' }}>Canceling</div>
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+          )}
+          
+          {/* User Management Section */}
+          <Card>
+            <Title level={3}>User Management & Compatibilities</Title>
+            <Text type="secondary">
+              Manage manual compatibilities between users and monitor premium subscriptions. Compatible users can see each other's social media wall and chat.
+            </Text>
+            
+            <Divider />
 
         {/* V1 Migration Statistics */}
         {v1MigrationData && (
@@ -491,24 +665,7 @@ const AdminDashboard = () => {
               <Select.Option value="other">Other</Select.Option>
             </Select>
           </Col>
-          <Col span={4}>
-            <Select
-              placeholder="Premium status"
-              value={premiumFilter}
-              onChange={setPremiumFilter}
-              allowClear
-              style={{ width: '100%' }}
-            >
-              <Select.Option value={true}>
-                <Space>
-                  <CrownOutlined style={{ color: '#FFD700' }} />
-                  Premium Users
-                </Space>
-              </Select.Option>
-              <Select.Option value={false}>Free Users</Select.Option>
-            </Select>
-          </Col>
-          <Col span={4}>
+          <Col span={6}>
             <div>
               <Text strong style={{ marginBottom: 8, display: 'block' }}>Age Range: {ageRange[0]} - {ageRange[1]}</Text>
               <Slider
@@ -520,13 +677,10 @@ const AdminDashboard = () => {
               />
             </div>
           </Col>
-          <Col span={4}>
+          <Col span={6}>
             <div style={{ textAlign: 'right' }}>
               <Text strong>Total Users: {users?.length || 0}</Text><br/>
-              <Text type="secondary">Filtered: {filteredUsers.length}</Text><br/>
-              <Text style={{ color: '#FFD700' }}>
-                Premium: {users?.filter(isUserPremium).length || 0}
-              </Text>
+              <Text type="secondary">Filtered: {filteredUsers.length}</Text>
             </div>
           </Col>
         </Row>
@@ -580,6 +734,38 @@ const AdminDashboard = () => {
             showQuickJumper: true,
           }}
           scroll={{ x: 800 }}
+        />
+      </Card>
+        </div>
+      )
+    },
+    {
+      key: 'chats',
+      label: (
+        <span>
+          <MessageOutlined />
+          Support Chats
+        </span>
+      ),
+      children: <AdminChatDashboard />
+    }
+  ];
+
+  return (
+    <div style={{ padding: '24px', background: '#f5f5f5', minHeight: '100vh' }}>
+      <Card>
+        <Title level={2}>Admin Dashboard</Title>
+        <Text type="secondary">
+          Manage users, compatibilities, premium subscriptions, and support chats.
+        </Text>
+        
+        <Divider />
+        
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={tabItems}
+          size="large"
         />
       </Card>
 

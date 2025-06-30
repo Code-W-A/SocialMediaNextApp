@@ -187,7 +187,7 @@ export default function PWAInstallPrompt() {
                   border: 'none',
                   boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
                 }}
-                bodyStyle={{ padding: '12px' }}
+                styles={{ body: { padding: '12px' } }}
               >
                 <Text strong style={{ fontSize: '12px', color: '#666' }}>
                   Autentificare rapidă
@@ -218,7 +218,7 @@ export default function PWAInstallPrompt() {
                   border: 'none',
                   boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
                 }}
-                bodyStyle={{ padding: '12px' }}
+                styles={{ body: { padding: '12px' } }}
               >
                 <Text strong style={{ fontSize: '12px', color: '#666' }}>
                   Comunitatea ta
@@ -249,7 +249,7 @@ export default function PWAInstallPrompt() {
                   border: 'none',
                   boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
                 }}
-                bodyStyle={{ padding: '12px' }}
+                styles={{ body: { padding: '12px' } }}
               >
                 <Text strong style={{ fontSize: '12px', color: '#666' }}>
                   Experiență completă

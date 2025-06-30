@@ -28,6 +28,9 @@
   text-decoration: none;
   min-width: 60px;
   position: relative;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .navItem:hover {
@@ -47,6 +50,7 @@
   width: 32px;
   height: 32px;
   margin-bottom: 4px;
+  cursor: pointer;
 }
 
 .activeIndicator {
@@ -85,6 +89,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 50px;
+  cursor: pointer;
+  pointer-events: none; /* Prevent label from interfering with parent click */
 }
 
 /* Light mode styles */
@@ -123,6 +129,25 @@
 
 .dark .navItem.active {
   background: rgba(249, 170, 17, 0.15);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .navItem {
+    padding: 12px 8px;
+    min-width: 50px;
+    touch-action: manipulation;
+  }
+  
+  .iconContainer {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .label {
+    font-size: 10px !important;
+    max-width: 45px;
+  }
 }
 
 /* Large screens - hide bottom navbar */

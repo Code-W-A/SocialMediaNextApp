@@ -12,26 +12,15 @@ export const checkProfileCompletion = (userData, currentUser = null) => {
   const missingFields = [];
   const userInfo = userData.data || userData;
 
-  // Check for essential profile fields - be more flexible with field names
-  const hasFirstName = userInfo.first_name || userInfo.firstName || 
-                      currentUser?.first_name || currentUser?.firstName;
-  const hasLastName = userInfo.last_name || userInfo.lastName || 
-                     currentUser?.last_name || currentUser?.lastName;
-  const hasUsername = userInfo.username || currentUser?.username || 
-                     userInfo.email?.split('@')[0] || currentUser?.email?.split('@')[0];
+  // Check for essential profile fields
+  if (!userInfo.first_name && !userInfo.firstName) missingFields.push('First Name');
+  if (!userInfo.last_name && !userInfo.lastName) missingFields.push('Last Name');
+  if (!userInfo.username) missingFields.push('Username');
+  if (!userInfo.bio) missingFields.push('Bio');
   
-  if (!hasFirstName) missingFields.push('First Name');
-  if (!hasLastName) missingFields.push('Last Name');
-  if (!hasUsername) missingFields.push('Username');
-  if (!userInfo.bio && !currentUser?.bio) missingFields.push('Bio');
-  
-  // Check for profile image from different possible sources - be more lenient
+  // Check for profile image from different possible sources
   const hasProfileImage = userInfo.image_url || 
                          userInfo.imageUrl || 
-                         currentUser?.image_url ||
-                         currentUser?.imageUrl ||
-                         (userInfo.images && userInfo.images.length > 0) ||
-                         (currentUser?.images && currentUser.images.length > 0) ||
                          getMainProfileImage(userInfo.images) !== "/images/placeholder-avatar.png" ||
                          (currentUser && getMainProfileImage(currentUser?.images) !== "/images/placeholder-avatar.png");
   
@@ -45,50 +34,44 @@ export const checkProfileCompletion = (userData, currentUser = null) => {
 };
 
 /**
- * Get display name with multiple fallbacks
+ * Get display name with fallbacks for different data structures
  * @param {Object} userData - User data object
  * @returns {string} Display name
  */
 export const getDisplayName = (userData) => {
-  if (!userData) return 'Unknown User';
+  if (!userData) return "Unknown User";
+  const userInfo = userData.data || userData;
   
-  const user = userData.data || userData;
-  
-  // Try multiple combinations for display name
-  if (user.firstName && user.lastName) {
-    return `${user.firstName} ${user.lastName}`;
+  // Try different combinations of name fields
+  if (userInfo.first_name && userInfo.last_name) {
+    return `${userInfo.first_name} ${userInfo.last_name}`;
   }
-  
-  if (user.first_name && user.last_name) {
-    return `${user.first_name} ${user.last_name}`;
+  if (userInfo.firstName && userInfo.lastName) {
+    return `${userInfo.firstName} ${userInfo.lastName}`;
   }
+  if (userInfo.first_name) return userInfo.first_name;
+  if (userInfo.firstName) return userInfo.firstName;
+  if (userInfo.username) return userInfo.username;
+  if (userInfo.email) return userInfo.email.split('@')[0];
   
-  if (user.firstName || user.first_name) {
-    return user.firstName || user.first_name;
-  }
-  
-  if (user.username) {
-    return user.username;
-  }
-  
-  if (user.email) {
-    return user.email.split('@')[0];
-  }
-  
-  return 'Unknown User';
+  return userInfo.username || userInfo.email?.split('@')[0] || "Unknown User";
 };
 
 /**
- * Get username with multiple fallbacks
+ * Get username with fallbacks for different data structures
  * @param {Object} userData - User data object
  * @returns {string} Username
  */
 export const getUsername = (userData) => {
-  if (!userData) return '';
+  if (!userData) return "unknown";
+  const userInfo = userData.data || userData;
   
-  const user = userData.data || userData;
+  if (userInfo.username) return userInfo.username;
+  if (userInfo.email) return userInfo.email.split('@')[0];
+  if (userInfo.first_name) return userInfo.first_name.toLowerCase();
+  if (userInfo.firstName) return userInfo.firstName.toLowerCase();
   
-  return user.username || user.email?.split('@')[0] || '';
+  return "unknown";
 };
 
 /**
@@ -145,17 +128,6 @@ export const hasMinimumProfileData = (userData) => {
 };
 
 /**
- * Get bio with fallbacks
- * @param {Object} userData - User data object
- * @param {Object} currentUser - Current logged in user
- * @returns {string} Bio text
- */
-export const getBio = (userData, currentUser = null) => {
-  const user = userData?.data || userData;
-  return user?.bio || currentUser?.bio || '';
-};
-
-/**
  * Get profile completion message based on missing fields
  * @param {Array} missingFields - Array of missing field names
  * @returns {string} Completion message
@@ -173,23 +145,17 @@ export const getProfileCompletionMessage = (missingFields) => {
  * @returns {boolean} Whether user should be forced to complete profile
  */
 export const shouldForceProfileCompletion = (userData, currentUser = null) => {
-  if (!userData && !currentUser) return true;
-  
   const profileCompletion = checkProfileCompletion(userData, currentUser);
   
-  // More lenient check - only force if missing critical fields
-  const criticalFields = ['First Name', 'Last Name'];
-  const missingCriticalFields = profileCompletion.missingFields.filter(field => 
-    criticalFields.includes(field)
+  // User must complete profile if missing essential fields:
+  // - First Name, Last Name, Username, Profile Picture
+  const essentialFields = ['First Name', 'Last Name', 'Username', 'Profile Picture'];
+  const missingEssentialFields = profileCompletion.missingFields.filter(field => 
+    essentialFields.includes(field)
   );
   
-  // Only force completion if missing critical fields AND user has no username at all
-  const user = userData?.data || userData || currentUser;
-  const hasAnyIdentifier = user?.username || user?.email || 
-                          user?.firstName || user?.first_name ||
-                          user?.lastName || user?.last_name;
-  
-  return missingCriticalFields.length > 0 && !hasAnyIdentifier;
+  // Force completion if missing any essential field
+  return missingEssentialFields.length > 0;
 };
 
 /**
@@ -202,9 +168,7 @@ export const shouldBypassProfileCompletion = (pathname) => {
     '/sign-in',
     '/sign-up', 
     '/onboarding',
-    '/api',
-    '/profile', // Allow access to profile pages to complete profile
-    '/settings' // Allow access to settings
+    '/api'
   ];
   
   return allowedPaths.some(path => pathname?.startsWith(path));
@@ -218,7 +182,7 @@ export const shouldBypassProfileCompletion = (pathname) => {
  */
 export const shouldBlockNavigation = (user, targetPath) => {
   // Allow navigation to profile pages and auth pages
-  if (shouldBypassProfileCompletion(targetPath)) {
+  if (shouldBypassProfileCompletion(targetPath) || targetPath?.includes('/profile')) {
     return false;
   }
   

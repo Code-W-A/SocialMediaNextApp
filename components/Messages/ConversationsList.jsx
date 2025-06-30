@@ -12,6 +12,7 @@ import { OnlineStatusAvatar } from "../OnlineStatusIndicator";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import PremiumBadge from "@/components/PremiumBadge";
+import { now } from "@/utils/dateHelpers";
 
 dayjs.extend(relativeTime);
 
@@ -135,8 +136,8 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
           lastMessage: null,
           unreadCount: 0,
           isNew: result.isNew,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          createdAt: now(),
+          updatedAt: now()
         };
         
         console.log("Selecting new conversation:", newConversation);

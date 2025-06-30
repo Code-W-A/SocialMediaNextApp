@@ -1,7 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import useOnlineStatus from "@/hooks/useOnlineStatus";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 const OnlineStatusManager = ({ children }) => {
   const { user } = useAuth();

@@ -58,36 +58,12 @@ export const useSubscription = () => {
   const isCanceled = subscription?.cancelAtPeriodEnd || false;
 
   // Start premium subscription
-  const startPremiumSubscription = async (customerEmail = user?.email) => {
+  const startPremiumSubscription = (customerEmail = user?.email) => {
     if (!user?.id) {
       message.error('Trebuie să fii autentificat pentru a face upgrade la Premium.');
       return;
     }
-
-    try {
-      // Create checkout session via API
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customerEmail: customerEmail || user.email,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.url) {
-        // Redirect to Stripe checkout
-        window.location.href = data.url;
-      } else {
-        throw new Error(data.error || 'Failed to create checkout session');
-      }
-    } catch (error) {
-      console.error('Error creating checkout session:', error);
-      message.error('A apărut o eroare la crearea sesiunii de plată. Te rugăm să încerci din nou.');
-    }
+    createCheckoutMutation.mutate(customerEmail);
   };
 
   // Manage subscription (billing portal)

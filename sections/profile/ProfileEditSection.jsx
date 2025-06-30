@@ -122,6 +122,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
       console.log("user.interests:", user?.interests);
       console.log("user.images:", user?.images);
       
+      // Extra debug for specific user
+      if (user?.id === 'D0TBplLwTgUXPMYINyk6rOoitV52') {
+        console.log('\n=== SPECIFIC USER DEBUG ===');
+        console.log('Is this the problem user?', true);
+        console.log('All properties:', Object.keys(user || {}));
+        console.log('Raw userData.data:', userData?.data);
+        console.log('=== END SPECIFIC DEBUG ===\n');
+      }
+      
       // Load GPS coordinates - prioritize Firestore, fallback to localStorage
       let coordinatesLoaded = false;
       
@@ -143,10 +152,26 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
         }
       }
       
-      // Show location dialog if no GPS coordinates found and user hasn't explicitly skipped
+      // Show location dialog if no GPS coordinates found and user hasn't made a choice yet
       if (!coordinatesLoaded && typeof window !== 'undefined') {
-        const locationSkipped = localStorage.getItem('locationDetected');
-        if (!locationSkipped && navigator.geolocation) {
+        const locationChoice = localStorage.getItem('locationDetected');
+        const hasFirestoreGPS = userData?.gpsCoordinates && 
+          (userData.gpsCoordinates.latitude && userData.gpsCoordinates.longitude);
+        
+        console.log('Location Dialog Check:', {
+          coordinatesLoaded,
+          locationChoice,
+          hasFirestoreGPS,
+          hasGeolocation: !!navigator.geolocation,
+          willShow: !locationChoice && !hasFirestoreGPS && navigator.geolocation
+        });
+        
+        // Only show dialog if:
+        // 1. User hasn't made any choice in localStorage (neither 'true' nor 'skipped')
+        // 2. User doesn't have GPS coordinates in Firestore
+        // 3. Geolocation is supported
+        if (!locationChoice && !hasFirestoreGPS && navigator.geolocation) {
+          console.log('Showing location dialog in 2 seconds...');
           // Show dialog after a short delay to allow UI to settle
           setTimeout(() => {
             setShowLocationDialog(true);
@@ -327,11 +352,14 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
   };
 
   const handleAllowLocationInEdit = () => {
+    console.log('Location allow requested in profile edit');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
           const { latitude, longitude } = position.coords;
           const coordinatesObj = { latitude, longitude };
+          
+          console.log('Location detected:', coordinatesObj);
           
           // Store coordinates in localStorage and mark as detected
           localStorage.setItem('userLocation', JSON.stringify(coordinatesObj));
@@ -385,6 +413,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
   };
 
   const handleSkipLocationInEdit = () => {
+    console.log('Location skipped in profile edit');
     localStorage.setItem('locationDetected', 'skipped');
     setShowLocationDialog(false);
   };

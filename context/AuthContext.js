@@ -7,11 +7,16 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { updateLastTimeActive } from '@/actions/user';
+import { serializeFirebaseData } from "@/utils/firebaseHelpers";
+import { now } from "@/utils/dateHelpers";
 
 const AuthContext = createContext();
 
@@ -27,22 +32,22 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const lastUpdateRef = useRef(null);
-  const intervalRef = useRef(null);
+  
+  // Use refs for stable references
   const userCacheRef = useRef(null);
   const lastUserFetchRef = useRef(0);
-  const debouncedUpdateLastTimeActive = useRef(null);
+  const debouncedTimeoutRef = useRef(null);
+  const mountedRef = useRef(true);
 
-  // Optimized user data fetch with caching
-  const fetchUserData = async (firebaseUser, forceRefresh = false) => {
-    if (!firebaseUser) return null;
+  // Stable user data fetch function
+  const fetchUserData = useCallback(async (firebaseUser, forceRefresh = false) => {
+    if (!firebaseUser || !mountedRef.current) return null;
 
-    const now = Date.now();
-    const cacheAge = now - lastUserFetchRef.current;
+    const currentTime = Date.now();
+    const cacheAge = currentTime - lastUserFetchRef.current;
     
     // Use cached data if less than 5 minutes old and not forcing refresh
-    if (!forceRefresh && userCacheRef.current && cacheAge < 300000) { // 5 minutes cache
-      console.log('Using cached user data');
+    if (!forceRefresh && userCacheRef.current && cacheAge < 300000) {
       return userCacheRef.current;
     }
 
@@ -59,33 +64,23 @@ export const AuthProvider = ({ children }) => {
         };
         
         // Auto-grant premium if user has subscriptionActive property
-        if (docData.subscriptionActive !== undefined) {
-          // User has subscriptionActive property, grant premium
-          if (!docData.subscription || docData.subscription.status !== 'active') {
-            // Update subscription data to reflect premium status
-            userData.subscription = {
-              ...docData.subscription,
-              status: 'active',
-              isPremium: true,
-              type: 'legacy_premium',
-              source: 'subscriptionActive_property',
-              grantedAt: new Date(),
-            };
-            
-            // Update in Firestore
-            await updateDoc(doc(db, 'Users', firebaseUser.uid), {
-              subscription: userData.subscription
-            });
-            
-            console.log('Auto-granted premium to user with subscriptionActive property');
-          }
+        if (docData.subscriptionActive !== undefined && !docData.subscription?.status) {
+          userData.subscription = {
+            ...docData.subscription,
+            status: 'active',
+            isPremium: true,
+            type: 'legacy_premium',
+            source: 'subscriptionActive_property',
+            grantedAt: now(),
+          };
+          
+          // Update in Firestore (fire and forget)
+          updateDoc(doc(db, 'Users', firebaseUser.uid), {
+            subscription: userData.subscription
+          }).catch(() => {
+            // Handle error silently
+          });
         }
-        
-        // Cache the user data
-        userCacheRef.current = userData;
-        lastUserFetchRef.current = now;
-        
-        console.log('User data loaded from Firestore:', userData);
       } else {
         // User document doesn't exist, create basic user object
         userData = {
@@ -93,91 +88,104 @@ export const AuthProvider = ({ children }) => {
           email: firebaseUser.email,
           username: firebaseUser.displayName || firebaseUser.email.split('@')[0],
         };
-        
-        // Cache basic user data
-        userCacheRef.current = userData;
-        lastUserFetchRef.current = now;
-        
-        console.log('Basic user created:', userData);
       }
+      
+      // Cache the user data
+      userCacheRef.current = userData;
+      lastUserFetchRef.current = currentTime;
       
       return userData;
     } catch (error) {
-      console.error('Error fetching user data:', error);
       // Return cached data if available, otherwise null
       return userCacheRef.current || null;
     }
-  };
-
-  // Debounced last time active update - increased delay
-  const updateLastTimeActiveDebounced = useCallback((userId) => {
-    if (debouncedUpdateLastTimeActive.current) {
-      clearTimeout(debouncedUpdateLastTimeActive.current);
-    }
-    
-    debouncedUpdateLastTimeActive.current = setTimeout(async () => {
-      try {
-        await updateLastTimeActive(userId);
-      } catch (error) {
-        console.error('Error updating last time active:', error);
-      }
-    }, 60000); // 60 seconds debounce (increased from 30)
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
+  // Stable debounced last time active update
+  const updateLastTimeActiveDebounced = useCallback((userId) => {
+    if (!userId || !mountedRef.current) return;
+    
+    if (debouncedTimeoutRef.current) {
+      clearTimeout(debouncedTimeoutRef.current);
+    }
+    
+    debouncedTimeoutRef.current = setTimeout(async () => {
+      if (mountedRef.current) {
         try {
-          const userData = await fetchUserData(firebaseUser);
-          
-          if (userData) {
-            setUser(userData);
-            setIsSignedIn(true);
-            
-            // Update last time active with debouncing
-            updateLastTimeActiveDebounced(firebaseUser.uid);
-          } else {
-            setUser(null);
-            setIsSignedIn(false);
-          }
+          await updateLastTimeActive(userId);
         } catch (error) {
-          console.error('Error in auth state change:', error);
+          // Handle error silently
+        }
+      }
+    }, 60000); // 60 seconds debounce
+  }, []);
+
+  // Stable auth state handler
+  const handleAuthStateChange = useCallback(async (firebaseUser) => {
+    if (!mountedRef.current) return;
+    
+    if (firebaseUser) {
+      try {
+        const userData = await fetchUserData(firebaseUser);
+        
+        if (userData && mountedRef.current) {
+          setUser(userData);
+          setIsSignedIn(true);
+          
+          // Update last time active with debouncing
+          updateLastTimeActiveDebounced(firebaseUser.uid);
+        } else if (mountedRef.current) {
           setUser(null);
           setIsSignedIn(false);
         }
-      } else {
-        // Clear cache when user logs out
-        userCacheRef.current = null;
-        lastUserFetchRef.current = 0;
+      } catch (error) {
+        if (mountedRef.current) {
+          setUser(null);
+          setIsSignedIn(false);
+        }
+      }
+    } else {
+      // Clear cache when user logs out
+      userCacheRef.current = null;
+      lastUserFetchRef.current = 0;
+      if (mountedRef.current) {
         setUser(null);
         setIsSignedIn(false);
       }
+    }
+    
+    if (mountedRef.current) {
       setLoading(false);
-    });
+    }
+  }, [fetchUserData, updateLastTimeActiveDebounced]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
 
     return () => {
+      mountedRef.current = false;
       unsubscribe();
-      if (debouncedUpdateLastTimeActive.current) {
-        clearTimeout(debouncedUpdateLastTimeActive.current);
+      if (debouncedTimeoutRef.current) {
+        clearTimeout(debouncedTimeoutRef.current);
       }
     };
-  }, [updateLastTimeActiveDebounced]);
+  }, [handleAuthStateChange]);
 
-  const signIn = async ({ email, password }) => {
+  const signIn = useCallback(async ({ email, password }) => {
     try {
       const { user: firebaseUser } = await signInWithEmailAndPassword(auth, email, password);
       
       // Force refresh user data on sign in
       const userData = await fetchUserData(firebaseUser, true);
-      if (userData) {
+      if (userData && mountedRef.current) {
         setUser(userData);
         setIsSignedIn(true);
       }
       
       return { success: true, user: firebaseUser };
     } catch (error) {
-      console.error('Sign in error:', error);
-      
       let errorMessage = 'Failed to sign in';
       switch (error.code) {
         case 'auth/user-not-found':
@@ -193,94 +201,135 @@ export const AuthProvider = ({ children }) => {
           errorMessage = 'Too many failed attempts. Please try again later';
           break;
         default:
-          errorMessage = error.message;
+          errorMessage = error.message || 'Sign in failed';
       }
       
-      return { 
-        success: false, 
-        error: errorMessage 
-      };
+      return { success: false, error: errorMessage };
     }
-  };
+  }, [fetchUserData]);
 
-  const signUp = async ({ email, password, firstName, lastName, username, gender }) => {
+  const signUp = useCallback(async ({ email, password, firstName, lastName, username, gender }) => {
     try {
-      // Create Firebase user
       const { user: firebaseUser } = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Update Firebase user profile
-      await updateProfile(firebaseUser, {
-        displayName: username || `${firstName} ${lastName}`.trim()
-      });
-
-      // Create user document in Firestore with the existing structure
+      // Update Firebase Auth profile
+      if (firstName || lastName) {
+        await updateProfile(firebaseUser, {
+          displayName: `${firstName || ''} ${lastName || ''}`.trim()
+        });
+      }
+      
+      // Create user document in Firestore
       const userData = {
-        email,
-        username: username || `${firstName} ${lastName}`.trim(),
-        gender: gender || 'other',
         firstName,
         lastName,
-        images: [], // Empty array for profile images initially
+        username,
+        email: firebaseUser.email,
+        gender,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        // Add any other default fields you need
-        bio: '',
-        location: '',
-        website: '',
-        verified: false,
-        followers: [],
-        following: []
+        subscription: {
+          status: 'free',
+          isPremium: false
+        }
       };
-
+      
       await setDoc(doc(db, 'Users', firebaseUser.uid), userData);
-
-      // Update cache with new user data
-      const newUserData = {
-        id: firebaseUser.uid,
-        email: firebaseUser.email,
-        ...userData
-      };
-      userCacheRef.current = newUserData;
-      lastUserFetchRef.current = Date.now();
-
+      
+      // Fetch and set user data
+      const completeUserData = await fetchUserData(firebaseUser, true);
+      if (completeUserData && mountedRef.current) {
+        setUser(completeUserData);
+        setIsSignedIn(true);
+      }
+      
       return { success: true, user: firebaseUser };
     } catch (error) {
-      console.error('Sign up error:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Failed to create account' 
-      };
+      let errorMessage = 'Failed to create account';
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'Email address is already registered';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password should be at least 6 characters';
+          break;
+        default:
+          errorMessage = error.message || 'Account creation failed';
+      }
+      
+      return { success: false, error: errorMessage };
     }
-  };
+  }, [fetchUserData]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
-      // Clear all cache and timeouts
+      // Clear cache and state
       userCacheRef.current = null;
       lastUserFetchRef.current = 0;
-      if (debouncedUpdateLastTimeActive.current) {
-        clearTimeout(debouncedUpdateLastTimeActive.current);
+      
+      if (debouncedTimeoutRef.current) {
+        clearTimeout(debouncedTimeoutRef.current);
       }
       
       await firebaseSignOut(auth);
-      setUser(null);
-      setIsSignedIn(false);
+      
+      if (mountedRef.current) {
+        setUser(null);
+        setIsSignedIn(false);
+      }
+      
       return { success: true };
     } catch (error) {
-      console.error('Sign out error:', error);
       return { success: false, error: error.message };
     }
-  };
+  }, []);
 
-  // Function to refresh user data (for use after profile updates)
-  const refreshUser = async () => {
-    if (auth.currentUser) {
-      const userData = await fetchUserData(auth.currentUser, true); // Force refresh
-      if (userData) {
+  const refreshUser = useCallback(async () => {
+    if (auth.currentUser && mountedRef.current) {
+      const userData = await fetchUserData(auth.currentUser, true);
+      if (userData && mountedRef.current) {
         setUser(userData);
       }
+      return userData;
     }
-  };
+    return null;
+  }, [fetchUserData]);
+
+  const loginWithGoogle = useCallback(async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      
+      // Load or create user data
+      await fetchUserData(result.user, true);
+      
+      return { success: true, user: result.user };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, [fetchUserData]);
+
+  const resetPassword = useCallback(async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }, []);
+
+  const refreshUserData = useCallback(async () => {
+    if (auth.currentUser && mountedRef.current) {
+      // Clear cache for current user
+      userCacheRef.current = null;
+      lastUserFetchRef.current = 0;
+      return await fetchUserData(auth.currentUser, true);
+    }
+    return null;
+  }, [fetchUserData]);
 
   const value = {
     user,
@@ -289,8 +338,15 @@ export const AuthProvider = ({ children }) => {
     signIn,
     signUp,
     signOut,
-    refreshUser // Expose refresh function
+    refreshUser,
+    loginWithGoogle,
+    resetPassword,
+    refreshUserData
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }; 

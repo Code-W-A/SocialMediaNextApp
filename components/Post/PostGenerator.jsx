@@ -16,7 +16,7 @@ import { useDailyUsageTracking } from "@/hooks/useDailyUsageTracking";
 import { hasReachedDailyLimit, canPerformAction } from "@/utils/premiumHelpers";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import { getUserLimits } from "@/utils/premiumHelpers";
-import { uploadImage } from "@/actions/upload";
+import { now } from "@/utils/dateHelpers";
 
 const YDestinyPrompts = [
   "Ce emoție te domină azi?",
@@ -47,13 +47,36 @@ const PostGenerator = () => {
   const canPost = canPerformAction('DAILY_POSTS', dailyUsage, subscription);
 
   const { mutate: execute, isPending } = useMutation({
-    mutationFn: (data) => createPost({ ...data, authorId: user?.id }),
+    mutationFn: (data) => {
+      console.log("🔥 PostGenerator: Starting createPost mutation", {
+        postText: data.postText?.substring(0, 50) + "...",
+        hasMedia: !!data.media,
+        authorId: user?.id,
+        userData: {
+          id: user?.id,
+          firstName: user?.firstName,
+          lastName: user?.lastName
+        }
+      });
+      return createPost({ ...data, authorId: user?.id });
+    },
     onMutate: async (newPost) => {
+      console.log("🔄 PostGenerator: onMutate - Starting optimistic update", {
+        postText: newPost.postText?.substring(0, 50) + "...",
+        hasMedia: !!newPost.media,
+        userId: user?.id
+      });
+      
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["posts"] });
 
       // Snapshot the previous value
       const previousPosts = queryClient.getQueryData(["posts", "all", user?.id]);
+      console.log("📊 Previous posts data:", {
+        exists: !!previousPosts,
+        hasPages: !!previousPosts?.pages,
+        firstPageDataLength: previousPosts?.pages?.[0]?.data?.length
+      });
 
       // Optimistically update to the new value
       if (previousPosts) {
@@ -62,8 +85,8 @@ const PostGenerator = () => {
           postText: newPost.postText || '',
           media: newPost.media,
           authorId: user?.id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: now(),
+          updatedAt: now(),
           edited: false,
           likes: [],
           likesCount: 0,
@@ -82,6 +105,12 @@ const PostGenerator = () => {
           comments: []
         };
 
+        console.log("📝 Created optimistic post:", {
+          id: optimisticPost.id,
+          hasText: !!optimisticPost.postText,
+          hasMedia: !!optimisticPost.media
+        });
+
         queryClient.setQueryData(["posts", "all", user?.id], (old) => {
           if (!old) return old;
           return {
@@ -95,32 +124,51 @@ const PostGenerator = () => {
             ]
           };
         });
+        console.log("✅ PostGenerator: Optimistic update completed");
+      } else {
+        console.log("⚠️ No previous posts data found, skipping optimistic update");
       }
 
       return { previousPosts };
     },
     onSuccess: (result) => {
+      console.log("✅ PostGenerator: Post creation successful", {
+        result,
+        postId: result?.post?.id,
+        success: result?.success
+      });
       handleSuccess();
       // Increment daily usage counter
       incrementUsage('DAILY_POSTS');
       // Invalidate all posts queries to refresh with real data
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      console.log("🔄 PostGenerator: Invalidated posts queries");
     },
     onError: (err, newPost, context) => {
+      console.error("❌ PostGenerator: Post creation failed", {
+        error: err,
+        errorMessage: err.message,
+        postText: newPost?.postText?.substring(0, 50) + "...",
+        hasMedia: !!newPost?.media
+      });
+      
       // Restore previous data on error
       if (context?.previousPosts) {
         queryClient.setQueryData(["posts", "all", user?.id], context.previousPosts);
+        console.log("🔄 PostGenerator: Restored previous posts data");
       }
       showError("Something wrong happened. Try again!");
     },
   });
 
   const handleSuccess = () => {
+    console.log("🎉 PostGenerator: handleSuccess called - cleaning up form");
     setSelectedFile(null);
     setFileType(null);
     setPostText("");
     setSelectedPrompt(null);
     toast.success("Postarea ta a fost partajată pe Calea Destinului! ✨");
+    console.log("✅ PostGenerator: Form cleaned up and success message shown");
   };
 
   const handlePromptSelect = (prompt) => {
@@ -163,17 +211,32 @@ const PostGenerator = () => {
   };
 
   function handleSubmitPost() {
+    console.log("🚀 PostGenerator: handleSubmitPost called", {
+      postText: postText?.substring(0, 50) + "...",
+      hasSelectedFile: !!selectedFile,
+      postTextEmpty: postText === "" || !postText,
+      canPerform: canPost.canPerform,
+      user: {
+        id: user?.id,
+        firstName: user?.firstName,
+        lastName: user?.lastName
+      }
+    });
+    
     if ((postText === "" || !postText) && !selectedFile) {
+      console.error("❌ Empty post attempted");
       showError("Nu poți face o postare goală");
       return;
     }
 
     // Check daily limit for free users
     if (!canPost.canPerform) {
+      console.warn("⚠️ Daily post limit reached, showing modal");
       setShowLimitModal(true);
       return;
     }
 
+    console.log("🎯 Executing post creation...");
     // don't forget to tell about the next.config.js file where we have set the limit of 5mb
     execute({ postText, media: selectedFile });
   }

@@ -8,6 +8,7 @@ import {
 import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { serializeFirebaseData } from '@/utils/firebaseHelpers';
+import { now } from '@/utils/dateHelpers';
 
 // Global variables to simulate database state
 let mockUsersState = [...mockUsers];
@@ -89,6 +90,7 @@ export const getUser = async (id) => {
     if (userDoc.exists()) {
       const userData = userDoc.data();
       console.log('Firestore user data retrieved:', userData);
+
       
       const userDataResult = {
         id: userDoc.id,
@@ -507,8 +509,8 @@ export const updateUserPresence = async (userId, status = 'online') => {
     const userRef = doc(db, "Users", userId);
     const presenceData = {
       status, // 'online', 'away', 'offline'
-      lastSeen: new Date(),
-      lastActivity: new Date(),
+      lastSeen: serverTimestamp(),
+      lastActivity: serverTimestamp(),
     };
     
     console.log("📝 Writing presence data:", presenceData);
@@ -523,7 +525,7 @@ export const updateUserPresence = async (userId, status = 'online') => {
     // Update user document with presence info
     await updateDoc(userRef, {
       presence: presenceData,
-      updatedAt: new Date()
+      updatedAt: serverTimestamp()
     });
     
     console.log("✅ User presence updated successfully in Firestore");
@@ -544,7 +546,7 @@ export const setUserOnline = async (userId) => {
     // Set up automatic offline detection after inactivity
     const userRef = doc(db, "Users", userId);
     await updateDoc(userRef, {
-      'presence.connectedAt': new Date(),
+      'presence.connectedAt': serverTimestamp(),
       'presence.sessionId': `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     });
     
@@ -586,7 +588,7 @@ export const updateLastActivity = async (userId) => {
     
     const userRef = doc(db, "Users", userId);
     await updateDoc(userRef, {
-      'presence.lastActivity': new Date(),
+      'presence.lastActivity': serverTimestamp(),
       'presence.status': 'online' // Reset to online if they were away
     });
     
@@ -609,12 +611,24 @@ export const getUsersWithPresence = async (userIds) => {
         const userData = userDoc.data();
         const presence = userData.presence || {
           status: 'offline',
-          lastSeen: new Date(),
-          lastActivity: new Date()
+          lastSeen: serverTimestamp(),
+          lastActivity: serverTimestamp()
         };
         
         // Calculate if user should be considered offline due to inactivity
-        const lastActivity = presence.lastActivity?.toDate() || new Date();
+        let lastActivity = new Date();
+        if (presence.lastActivity) {
+          // Handle both Firebase Timestamp and already converted timestamps
+          if (typeof presence.lastActivity.toDate === 'function') {
+            lastActivity = presence.lastActivity.toDate();
+          } else if (presence.lastActivity.seconds) {
+            // Convert from Firebase timestamp format
+            lastActivity = new Date(presence.lastActivity.seconds * 1000 + (presence.lastActivity.nanoseconds || 0) / 1000000);
+          } else if (typeof presence.lastActivity === 'string') {
+            lastActivity = new Date(presence.lastActivity);
+          }
+        }
+        
         const now = new Date();
         const inactiveMinutes = (now - lastActivity) / (1000 * 60);
         
@@ -626,18 +640,21 @@ export const getUsersWithPresence = async (userIds) => {
           actualStatus = 'away';
         }
         
-        users.push({
+        // Create the user object with properly serialized data
+        const userWithPresence = {
           id: userDoc.id,
           ...userData,
           presence: {
-            ...presence,
             status: actualStatus,
-            lastSeen: presence.lastSeen?.toDate() || new Date(),
-            lastActivity: presence.lastActivity?.toDate() || new Date(),
+            lastSeen: presence.lastSeen,
+            lastActivity: presence.lastActivity,
             isOnline: actualStatus === 'online',
             inactiveMinutes: Math.floor(inactiveMinutes)
           }
-        });
+        };
+        
+        // Serialize all Firebase data before returning
+        users.push(serializeFirebaseData(userWithPresence));
       }
     }
     

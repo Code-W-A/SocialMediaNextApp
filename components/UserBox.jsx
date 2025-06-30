@@ -46,8 +46,6 @@ const UserBox = ({ data, type, loggedInUserData }) => {
       queryClient.setQueryData(
         ["user", currentUser?.id, "followInfo"],
         (old) => {
-          console.log("this is old", old);
-          console.log(type);
           const newData = {
             ...old,
             following:
@@ -64,7 +62,6 @@ const UserBox = ({ data, type, loggedInUserData }) => {
                     (person) => person.followingId !== params.id
                   ),
           };
-          console.log("this is new Data", newData);
           return newData;
         }
       );
@@ -109,6 +106,8 @@ const UserBox = ({ data, type, loggedInUserData }) => {
         </div>
       </div>
 
+      {/* TEMPORARILY COMMENTED OUT - FOLLOW/UNFOLLOW FUNCTIONALITY */}
+      {/* 
       {data?.[type]?.id === currentUser?.id ? (
         <div className={css.right}></div>
       ) : (
@@ -145,6 +144,8 @@ const UserBox = ({ data, type, loggedInUserData }) => {
           )}
         </div>
       )}
+      */}
+      <div className={css.right}></div>
     </Box>
   );
 };

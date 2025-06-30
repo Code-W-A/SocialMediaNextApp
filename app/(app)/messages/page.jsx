@@ -63,10 +63,10 @@ const MessagesPage = () => {
       return unsubscribe;
     } catch (error) {
       console.error("Error subscribing to conversations:", error);
-      setError('Error loading messages');
+      setError(t('messages.errorLoadingMessages'));
       setLoading(false);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, t]);
 
   // Handle conversation selection from URL params
   useEffect(() => {

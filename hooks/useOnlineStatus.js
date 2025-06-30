@@ -1,221 +1,179 @@
 "use client";
-import { useEffect, useRef, useCallback } from "react";
-import { setUserOnline, setUserOffline, updateUserActivity } from "@/actions/user";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { updateUserActivity } from '@/actions/chat';
 
-const useOnlineStatus = (userId) => {
-  const isOnlineRef = useRef(false);
-  const isAwayRef = useRef(false);
-  const activityTimeoutRef = useRef(null);
-  const awayTimeoutRef = useRef(null);
-  const pendingStatusUpdateRef = useRef(null);
+const ACTIVITY_THROTTLE_MS = 30000; // 30 seconds
+const AWAY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const HEARTBEAT_INTERVAL_MS = 60000; // 1 minute
+
+export function useOnlineStatus(userId) {
+  const [isOnline, setIsOnline] = useState(navigator?.onLine ?? true);
+  const [isAway, setIsAway] = useState(false);
   const lastActivityRef = useRef(Date.now());
-  const lastTypingUpdateRef = useRef(0);
-  const isMountedRef = useRef(true);
+  const awayTimeoutRef = useRef(null);
+  const heartbeatIntervalRef = useRef(null);
+  const lastUpdateRef = useRef(0);
+  const mountedRef = useRef(true);
 
-  // Debounced activity update with longer delay
-  const debouncedUpdateActivity = useCallback(async () => {
-    if (!userId || !isMountedRef.current) return;
+  // Throttled activity update
+  const updateActivity = useCallback(async () => {
+    if (!userId || !mountedRef.current) return;
     
     const now = Date.now();
-    const timeSinceLastActivity = now - lastActivityRef.current;
-    
-    // Only update if more than 2 minutes have passed
-    if (timeSinceLastActivity < 120000) { // 2 minutes
-      console.log("⏭️ Skipping activity update - too soon");
+    if (now - lastUpdateRef.current < ACTIVITY_THROTTLE_MS) {
       return;
     }
-    
+
     try {
-      console.log("📊 Updating user activity");
       await updateUserActivity(userId);
-      lastActivityRef.current = now;
+      lastUpdateRef.current = now;
     } catch (error) {
-      console.error("Failed to update activity:", error);
+      // Handle activity update error silently
     }
   }, [userId]);
 
-  // Debounced status update with pending update tracking
-  const debouncedStatusUpdate = useCallback((statusUpdateFunc) => {
-    return new Promise(async (resolve) => {
-      if (pendingStatusUpdateRef.current) {
-        clearTimeout(pendingStatusUpdateRef.current);
-      }
-      
-      pendingStatusUpdateRef.current = setTimeout(async () => {
-        if (!isMountedRef.current) {
-          resolve();
-          return;
-        }
-        
-        try {
-          await statusUpdateFunc();
-          resolve();
-        } catch (error) {
-          console.error("Status update failed:", error);
-          resolve();
-        }
-      }, 30000); // 30 seconds debounce for status changes
-    });
-  }, []);
-
-  // Throttled activity handler with reduced frequency
-  const throttledActivity = useCallback(() => {
-    if (!userId || !isMountedRef.current) return;
-    
-    const now = Date.now();
-    lastActivityRef.current = now;
-    
-    // Clear away timeout
+  // Reset away timeout
+  const resetAwayTimeout = useCallback(() => {
     if (awayTimeoutRef.current) {
       clearTimeout(awayTimeoutRef.current);
     }
-    
-    // Set user as away after 5 minutes of inactivity (increased from 2 minutes)
-    awayTimeoutRef.current = setTimeout(() => {
-      if (!isMountedRef.current) return;
-      
-      console.log("⏰ User is away due to inactivity");
-      isAwayRef.current = true;
-      // Don't update status to away - let the backend handle it based on lastActivity
-    }, 300000); // 5 minutes
-    
-    // Clear activity timeout
-    if (activityTimeoutRef.current) {
-      clearTimeout(activityTimeoutRef.current);
+
+    if (isAway) {
+      setIsAway(false);
     }
+
+    awayTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current) {
+        setIsAway(true);
+      }
+    }, AWAY_TIMEOUT_MS);
+  }, [isAway]);
+
+  // Handle user activity
+  const handleActivity = useCallback(() => {
+    if (!mountedRef.current) return;
     
-    // Update activity in Firestore with reduced frequency
-    activityTimeoutRef.current = setTimeout(() => {
-      if (!isMountedRef.current) return;
-      debouncedUpdateActivity();
-    }, 300000); // Update activity every 5 minutes (increased from 30 seconds)
-  }, [userId, debouncedUpdateActivity]);
+    lastActivityRef.current = Date.now();
+    resetAwayTimeout();
+    updateActivity();
+  }, [resetAwayTimeout, updateActivity]);
+
+  // Set user online
+  const setUserOnline = useCallback(async () => {
+    if (!userId || !mountedRef.current) return;
+    
+    try {
+      await updateUserActivity(userId, true);
+      setIsOnline(true);
+    } catch (error) {
+      // Handle online status error silently
+    }
+  }, [userId]);
+
+  // Set user offline
+  const setUserOffline = useCallback(async () => {
+    if (!userId || !mountedRef.current) return;
+    
+    try {
+      await updateUserActivity(userId, false);
+      setIsOnline(false);
+    } catch (error) {
+      // Handle offline status error silently
+    }
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
-      console.log("❌ No userId provided to useOnlineStatus");
       return;
     }
 
-    console.log("🔥 Setting up online status for user:", userId);
-    isMountedRef.current = true;
+    // Set initial online status
+    setUserOnline();
 
-    const setOnline = async () => {
-      try {
-        console.log("🟢 Attempting to set user online:", userId);
-        await debouncedStatusUpdate(() => setUserOnline(userId));
-        isOnlineRef.current = true;
-        isAwayRef.current = false;
-        console.log("✅ User set to online successfully");
-      } catch (error) {
-        console.error("❌ Failed to set online status:", error);
-      }
-    };
-
-    setOnline();
-
-    // Set offline when page unloads
-    const handleBeforeUnload = async () => {
-      if (isOnlineRef.current && isMountedRef.current) {
-        try {
-          console.log("🚪 User leaving - setting offline");
-          // Clear pending updates
-          if (pendingStatusUpdateRef.current) {
-            clearTimeout(pendingStatusUpdateRef.current);
-          }
-          await setUserOffline(userId);
-          isOnlineRef.current = false;
-        } catch (error) {
-          console.error("Failed to set offline status:", error);
-        }
-      }
-    };
-
-    // Handle visibility changes with debouncing
-    const handleVisibilityChange = () => {
-      if (!isMountedRef.current) return;
-      
-      if (document.hidden) {
-        console.log("📱 Page hidden - user might be away");
-        isAwayRef.current = true;
-        // Don't immediately set offline, give user time to come back
-        if (activityTimeoutRef.current) {
-          clearTimeout(activityTimeoutRef.current);
-        }
-      } else {
-        console.log("📱 Page visible - user is back");
-        isAwayRef.current = false;
-        throttledActivity();
-        
-        // Re-set online status if was away for a while
-        if (!isOnlineRef.current) {
-          setOnline();
-        }
-      }
-    };
-
-    // Reduced activity events - removed mousemove and click to reduce overhead
-    const activityEvents = ['keydown', 'scroll', 'touchstart'];
-
-    // Add event listeners
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Activity event listeners
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
     
-    activityEvents.forEach(event => {
-      document.addEventListener(event, throttledActivity, { passive: true });
+    events.forEach(event => {
+      document.addEventListener(event, handleActivity, { passive: true });
     });
 
-    // Initial activity
-    throttledActivity();
-
-    // Cleanup
-    return () => {
-      console.log("🧹 Cleaning up online status tracking");
-      isMountedRef.current = false;
-      
-      // Clear timeouts
-      if (activityTimeoutRef.current) {
-        clearTimeout(activityTimeoutRef.current);
+    // Page visibility API
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // User might be away, but don't immediately set offline
+        // The away timeout will handle this
+      } else {
+        // User is back, reset away status
+        handleActivity();
       }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Online/offline event listeners
+    const handleOnline = () => {
+      setIsOnline(true);
+      setUserOnline();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setUserOffline();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Beforeunload event (user leaving)
+    const handleBeforeUnload = () => {
+      // Set user offline when leaving
+      navigator.sendBeacon?.('/api/user/offline', JSON.stringify({ userId }));
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Initialize away timeout
+    resetAwayTimeout();
+
+    // Heartbeat to maintain presence
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (mountedRef.current && !isAway && isOnline) {
+        updateActivity();
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // Cleanup function
+    return () => {
+      mountedRef.current = false;
+      
+      events.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+      
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
       if (awayTimeoutRef.current) {
         clearTimeout(awayTimeoutRef.current);
       }
-      if (pendingStatusUpdateRef.current) {
-        clearTimeout(pendingStatusUpdateRef.current);
+      
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
       }
       
-      // Set offline
-      if (isOnlineRef.current) {
-        setUserOffline(userId).catch(console.error);
-      }
-      
-      // Remove listeners
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      
-      activityEvents.forEach(event => {
-        document.removeEventListener(event, throttledActivity);
-      });
+      // Set offline when component unmounts
+      setUserOffline();
     };
-  }, [userId, debouncedUpdateActivity, debouncedStatusUpdate, throttledActivity]);
+  }, [userId, handleActivity, resetAwayTimeout, setUserOnline, setUserOffline, updateActivity, isAway, isOnline]);
 
-  // Reduced periodic activity update frequency
-  useEffect(() => {
-    if (!userId) return;
-
-    const interval = setInterval(async () => {
-      if (isOnlineRef.current && !document.hidden && !isAwayRef.current && isMountedRef.current) {
-        try {
-          console.log("💓 Heartbeat - updating presence");
-          await debouncedUpdateActivity();
-        } catch (error) {
-          console.error("Failed to update periodic activity:", error);
-        }
-      }
-    }, 300000); // Update every 5 minutes (increased from 1 minute)
-
-    return () => clearInterval(interval);
-  }, [userId, debouncedUpdateActivity]);
-};
-
-export default useOnlineStatus; 
+  return {
+    isOnline,
+    isAway,
+    lastActivity: lastActivityRef.current,
+    setUserOnline,
+    setUserOffline,
+    updateActivity
+  };
+} 

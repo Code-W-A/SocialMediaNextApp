@@ -5,7 +5,8 @@ import ProfileHead from "../ProfileHead";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getUser, updateUserProfile } from "@/actions/user";
 import ProfileBody from "../ProfileBody";
-import FollowPersonsBody from "../FollowPersonsBody";
+// TEMPORARILY COMMENTED OUT - FOLLOWERS/FOLLOWING FUNCTIONALITY
+// import FollowPersonsBody from "../FollowPersonsBody";
 import ProfileEditSection from "../ProfileEditSection";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { Button, Typography, Alert, Tabs } from "antd";
@@ -137,26 +138,27 @@ const ProfileView = ({ userId }) => {
         />
       )
     },
-    {
-      key: "2",
-      label: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Iconify icon="ph:heart-fill" width="20px" />
-          Followers
-        </span>
-      ),
-      children: <FollowPersonsBody type={"followers"} id={userId} />
-    },
-    {
-      key: "3",
-      label: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Iconify icon="fluent:people-20-filled" width="20px" />
-          Following
-        </span>
-      ),
-      children: <FollowPersonsBody type={"following"} id={userId} />
-    }
+    // TEMPORARILY COMMENTED OUT - FOLLOWERS/FOLLOWING FUNCTIONALITY
+    // {
+    //   key: "2",
+    //   label: (
+    //     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+    //       <Iconify icon="ph:heart-fill" width="20px" />
+    //       Followers
+    //     </span>
+    //   ),
+    //   children: <FollowPersonsBody type={"followers"} id={userId} />
+    // },
+    // {
+    //   key: "3",
+    //   label: (
+    //     <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+    //       <Iconify icon="fluent:people-20-filled" width="20px" />
+    //       Following
+    //     </span>
+    //   ),
+    //   children: <FollowPersonsBody type={"following"} id={userId} />
+    // }
   ];
 
   // Add edit tab for current user

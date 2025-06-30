@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import OnlineStatusIndicator, { OnlineStatusAvatar } from "@/components/OnlineStatusIndicator";
-import PremiumBadge from "@/components/PremiumBadge";
 
 const { Text, Title } = Typography;
 
@@ -92,6 +91,9 @@ const UserProfileHead = ({
   }
 
   const user = userData?.data;
+  
+
+  
   if (!user) return null;
 
   const displayName = getDisplayName ? getDisplayName(userData) : 
@@ -183,11 +185,6 @@ const UserProfileHead = ({
                 <Title level={3} className={css.displayName} style={{ margin: 0 }}>
                   {displayName}
                 </Title>
-                <PremiumBadge 
-                  user={user} 
-                  size="default" 
-                  showText={false}
-                />
                 {user.verified && (
                   <div style={{
                     background: 'linear-gradient(135deg, #1890ff, #40a9ff)',

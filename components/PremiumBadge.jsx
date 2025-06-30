@@ -9,14 +9,12 @@ const PremiumBadge = ({
   user, 
   size = 'default', 
   showText = true, 
-  style = {},
-  showTooltip = true
+  style = {} 
 }) => {
   // Check if user has premium subscription
   const isPremium = user?.subscription?.isPremium || 
                    user?.subscription?.status === 'active' || 
-                   user?.subscription?.status === 'trialing' ||
-                   user?.subscriptionActive !== undefined; // Check for subscriptionActive property
+                   user?.subscription?.status === 'trialing';
 
   if (!isPremium) {
     return null;
@@ -31,30 +29,20 @@ const PremiumBadge = ({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    boxShadow: '0 2px 4px rgba(255, 215, 0, 0.3)',
     ...style
   };
 
   const iconSize = size === 'small' ? '12px' : size === 'large' ? '16px' : '14px';
   const fontSize = size === 'small' ? '11px' : size === 'large' ? '14px' : '12px';
-  const padding = size === 'small' ? '2px 6px' : size === 'large' ? '6px 12px' : '4px 8px';
 
-  const badge = (
-    <Tag style={{ ...badgeStyle, fontSize, padding }}>
-      <CrownOutlined style={{ fontSize: iconSize }} />
-      {showText && 'Premium'}
-    </Tag>
+  return (
+    <Tooltip title="Utilizator Premium - Profil verificat">
+      <Tag style={{ ...badgeStyle, fontSize }}>
+        <CrownOutlined style={{ fontSize: iconSize }} />
+        {showText && 'Premium'}
+      </Tag>
+    </Tooltip>
   );
-
-  if (showTooltip) {
-    return (
-      <Tooltip title="Cont Premium - Prioritate în compatibilități">
-        {badge}
-      </Tooltip>
-    );
-  }
-
-  return badge;
 };
 
 export default PremiumBadge; 

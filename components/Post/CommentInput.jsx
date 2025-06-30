@@ -6,10 +6,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { getMainProfileImage } from "@/utils/imageHelpers";
+import { now } from "@/utils/dateHelpers";
 
 const CommentInput = ({ postId, setExpanded, queryId, onCommentAdded, setIsLoading }) => {
-  console.log("🔥 CommentInput rendered:", { postId, queryId, hasOnCommentAdded: !!onCommentAdded });
-  
   const [value, setValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useUser();
@@ -39,8 +38,7 @@ const CommentInput = ({ postId, setExpanded, queryId, onCommentAdded, setIsLoadi
     }
     
     validationTimeoutRef.current = setTimeout(() => {
-      // Perform any client-side validation here if needed
-      // For now, just basic trim validation
+      // Basic trim validation
       const isValid = inputValue.trim().length > 0 && inputValue.trim().length <= 500;
       // Could emit validation state if needed
     }, 300); // 300ms debounce
@@ -63,65 +61,53 @@ const CommentInput = ({ postId, setExpanded, queryId, onCommentAdded, setIsLoadi
   
   const { isPending, mutate } = useMutation({
     mutationFn: useCallback((postId) => {
-      console.log("🚀 Executing comment mutation:", { postId, comment: value, userId: user?.id });
       return addComment(postId, value, user?.id);
     }, [value, user?.id]),
     
     onMutate: useCallback(async () => {
-      console.log("⏳ Optimistic comment update starting:", { postId, comment: value });
       setExpanded(true);
       setIsLoading(true);
       setIsSubmitting(true);
 
       // Create optimistic comment with memoized author
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const optimisticComment = {
-        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // More unique ID
+        id: tempId,
         comment: value.trim(),
         authorId: user?.id,
         postId: postId,
-        createdAt: new Date(),
+        createdAt: now(),
         author: optimisticAuthor
       };
-
-      console.log("➕ Created optimistic comment:", optimisticComment);
+      
+      console.log("🔄 CommentInput: Creating optimistic comment", {
+        tempId,
+        comment: value.trim().substring(0, 30) + "...",
+        postId,
+        userId: user?.id
+      });
       
       // Add to parent component's local state first (faster UI update)
       if (onCommentAdded) {
-        console.log("📤 Calling onCommentAdded callback...");
         onCommentAdded(optimisticComment);
-        console.log("✅ onCommentAdded callback executed");
-      } else {
-        console.warn("⚠️ onCommentAdded callback not provided!");
       }
 
       // Batch cache updates to reduce re-renders
-      console.log("💾 Updating query cache...");
       await queryClient.cancelQueries({ queryKey: ["posts", queryId] });
       const previousPosts = queryClient.getQueryData(["posts", queryId]);
-
-      console.log("📊 Previous posts data:", {
-        hasData: !!previousPosts,
-        pagesCount: previousPosts?.pages?.length
-      });
 
       // Optimized cache update with minimal object creation
       queryClient.setQueryData(["posts", queryId], (old) => {
         if (!old) {
-          console.log("⚠️ No old query data found");
           return old;
         }
         
-        console.log("🔄 Updating query data...");
         return {
           ...old,
           pages: old.pages.map((page) => ({
             ...page,
             data: page.data.map((post) => {
               if (post.id === postId) {
-                console.log("📝 Found target post, updating comments:", {
-                  postId,
-                  currentCommentsCount: post.comments?.length || 0
-                });
                 return {
                   ...post,
                   comments: [...(post.comments || []), optimisticComment],
@@ -134,72 +120,95 @@ const CommentInput = ({ postId, setExpanded, queryId, onCommentAdded, setIsLoadi
         };
       });
 
+      console.log("✅ CommentInput: Optimistic comment added to cache");
       return { previousPosts, optimisticComment };
     }, [postId, value, user?.id, optimisticAuthor, setExpanded, setIsLoading, onCommentAdded, queryClient, queryId]),
     
     onSuccess: useCallback((result) => {
-      console.log("✅ Comment mutation successful:", result);
+      console.log("✅ CommentInput: Comment added successfully", {
+        result,
+        tempId: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        realId: result?.id
+      });
+      
       setValue(""); // Reset input on success
       setIsLoading(false);
       setIsSubmitting(false);
-      console.log("🎯 Comment flow completed successfully");
-    }, [setIsLoading]),
+      
+      // Update cache to replace temporary ID with real ID from server
+      if (result?.id) {
+        queryClient.setQueryData(["posts", queryId], (old) => {
+          if (!old) return old;
+          
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              data: page.data.map((post) => {
+                if (post.id === postId) {
+                  // Find and replace the temporary comment with the real one
+                  const updatedComments = post.comments.map((comment) => {
+                    // Replace the last temporary comment (most recent) with server response
+                    if (comment.id.startsWith('temp-') && comment.authorId === user?.id && comment.comment === result.comment) {
+                      console.log("🔄 CommentInput: Replacing temp ID with real ID", {
+                        tempId: comment.id,
+                        realId: result.id
+                      });
+                      return {
+                        ...result, // Use the complete comment data from server
+                        author: comment.author // Keep the author data from optimistic update
+                      };
+                    }
+                    return comment;
+                  });
+                  
+                  return {
+                    ...post,
+                    comments: updatedComments
+                  };
+                }
+                return post;
+              }),
+            })),
+          };
+        });
+      }
+    }, [setIsLoading, queryId, postId, user?.id, queryClient]),
     
     onError: useCallback((err, variables, context) => {
-      console.error("❌ Comment mutation error:", err);
-      console.error("❌ Error details:", {
-        message: err.message,
-        variables,
-        context
-      });
       toast.error("Something wrong happened. Try again!");
       setIsLoading(false);
       setIsSubmitting(false);
       
       // Revert optimistic update on error
       if (context?.previousPosts) {
-        console.log("🔄 Reverting query cache to previous state");
         queryClient.setQueryData(["posts", queryId], context.previousPosts);
       }
-      
-      // Note: We can't easily revert the parent's local state here,
-      // but the error is unlikely and the page will refresh eventually
     }, [setIsLoading, queryClient, queryId]),
   });
 
   // Optimized submit handler with additional validation
   const handleSubmit = useCallback(() => {
     const trimmedValue = value.trim();
-    console.log("🖱️ Comment submit clicked:", { 
-      postId, 
-      comment: trimmedValue, 
-      hasUser: !!user?.id,
-      commentLength: trimmedValue.length
-    });
     
     if (!trimmedValue) {
-      console.warn("⚠️ Empty comment, not submitting");
       return;
     }
     
     if (trimmedValue.length > 500) {
-      console.warn("⚠️ Comment too long, not submitting");
       toast.error("Comment is too long (max 500 characters)");
       return;
     }
     
     if (!user?.id) {
-      console.error("❌ No user ID, cannot submit comment");
       toast.error("You must be logged in to comment");
       return;
     }
     
     if (isSubmitting || isPending) {
-      console.warn("⚠️ Already submitting, ignoring duplicate request");
       return;
     }
     
-    console.log("🚀 Initiating comment mutation...");
     mutate(postId);
   }, [value, postId, user?.id, isSubmitting, isPending, mutate]);
 
@@ -225,14 +234,6 @@ const CommentInput = ({ postId, setExpanded, queryId, onCommentAdded, setIsLoadi
     isPending || isSubmitting || !value.trim() || value.trim().length > 500
   , [isPending, isSubmitting, value]);
 
-  console.log("🎨 CommentInput rendering with:", { 
-    value: value.trim(), 
-    isPending,
-    isSubmitting,
-    hasUser: !!user?.id,
-    isDisabled
-  });
-
   return (
     <Flex gap={"1rem"} align="center">
       {/* avatar */}
@@ -248,27 +249,26 @@ const CommentInput = ({ postId, setExpanded, queryId, onCommentAdded, setIsLoadi
       <Input.TextArea
         disabled={isPending || isSubmitting}
         placeholder="Write a comment..."
-        style={{ resize: "none" }}
-        autoSize={{ minRows: 1, maxRows: 5 }}
         value={value}
         onChange={handleChange}
-        onKeyPress={handleKeyPress}
-        showCount={{
-          max: 500,
-          style: { fontSize: '12px', color: value.length > 450 ? '#ff4d4f' : '#999' }
-        }}
+        onKeyDown={handleKeyPress}
+        autoSize={{ minRows: 1, maxRows: 3 }}
+        maxLength={500}
+        showCount={value.length > 400}
+        style={{ flex: 1 }}
       />
 
+      {/* send button */}
       <Button
         type="primary"
-        onClick={handleSubmit}
+        shape="circle"
         disabled={isDisabled}
         loading={isPending || isSubmitting}
-      >
-        <Iconify icon="iconamoon:send-fill" width="1.2rem" />
-      </Button>
+        onClick={handleSubmit}
+        icon={<Iconify icon="ph:paper-plane-tilt-fill" />}
+      />
     </Flex>
   );
 };
 
-export default React.memo(CommentInput);
+export default CommentInput;

@@ -75,9 +75,7 @@ const CompatibilityCard = ({ currentUser, profileUser }) => {
         borderRadius: '16px',
         color: 'white'
       }}
-              styles={{
-          body: { padding: '16px' }
-        }}
+      bodyStyle={{ padding: '16px' }}
     >
       <div style={{ textAlign: 'center', marginBottom: '16px' }}>
         <Space align="center" size="small">

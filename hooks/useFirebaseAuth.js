@@ -1,12 +1,16 @@
 "use client";
+import { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
 // Custom hook that maintains compatibility with the existing useUser hook
 export const useUser = () => {
   const { user, loading, isSignedIn } = useAuth();
   
-  return {
-    user: user ? {
+  // Memoize the transformed user object to prevent recreation on every render
+  const transformedUser = useMemo(() => {
+    if (!user) return null;
+    
+    return {
       id: user.id,
       email: user.email,
       first_name: user.firstName || user.username?.split(' ')[0] || '',
@@ -14,10 +18,15 @@ export const useUser = () => {
       email_addresses: [{ email_address: user.email }],
       // Include all other user data
       ...user
-    } : null,
+    };
+  }, [user]);
+
+  // Memoize the return object to prevent recreating it on every render
+  return useMemo(() => ({
+    user: transformedUser,
     isLoaded: !loading,
     isSignedIn,
-  };
+  }), [transformedUser, loading, isSignedIn]);
 };
 
 // Export the auth context hook as well

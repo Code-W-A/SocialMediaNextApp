@@ -1,6 +1,6 @@
 "use client";
 import { Avatar, Button, Flex, Typography, Dropdown, Input, Popconfirm } from "antd";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import css from "@/styles/Post.module.css";
 import Box from "../Box";
 import { SettingsContext } from "@/context/settings/settings-context";
@@ -22,13 +22,6 @@ const EXPAND_ICONS = {
 };
 
 const CommentSection = ({ comments: initialComments, postId, queryId }) => {
-  console.log("🔥 CommentSection rendered:", { 
-    postId, 
-    initialCommentsCount: initialComments?.length, 
-    queryId,
-    initialComments 
-  });
-  
   const [expanded, setExpanded] = useState(false);
   const [parent] = useAutoAnimate();
   
@@ -37,25 +30,15 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Update local state when initial comments change (from server)
+  // Use JSON.stringify to ensure deep comparison for arrays
+  const initialCommentsString = JSON.stringify(initialComments || []);
   useEffect(() => {
-    console.log("📥 Initial comments updated:", { 
-      postId, 
-      commentsCount: initialComments?.length,
-      initialComments 
-    });
     setComments(initialComments || []);
-  }, [initialComments, postId]);
+  }, [initialCommentsString, postId]);
 
-  console.log("💬 CommentSection state:", { 
-    commentsCount: comments?.length, 
-    isLoading,
-    expanded,
-    comments 
-  });
-
+  // Stabilize scroll effect dependencies
   useEffect(() => {
-    if (expanded) {
-      console.log("📜 Scrolling to bottom of comments");
+    if (expanded && comments?.length > 0) {
       // scroll to the bottom of parent
       animateScroll.scrollToBottom({
         containerId: "comments-container",
@@ -63,35 +46,20 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
         duration: 300,
       });
     }
-  }, [expanded, comments]);
+  }, [expanded, comments?.length]);
 
-  const checkIsPostingComment = (index) => {
-    if (index === comments?.length - 1 && isLoading) {
-      return true;
-    } else {
-      return false;
-    }
-  };
+  const checkIsPostingComment = useCallback((index) => {
+    return index === comments?.length - 1 && isLoading;
+  }, [comments?.length, isLoading]);
 
   // Function to add comment optimistically
-  const addCommentOptimistically = (newComment) => {
-    console.log("➕ Adding comment optimistically to local state:", newComment);
-    setComments(prevComments => {
-      const updatedComments = [...(prevComments || []), newComment];
-      console.log("📊 Updated comments state:", {
-        previousCount: prevComments?.length || 0,
-        newCount: updatedComments.length,
-        newComment
-      });
-      return updatedComments;
-    });
+  const addCommentOptimistically = useCallback((newComment) => {
+    setComments(prevComments => [...(prevComments || []), newComment]);
     setExpanded(true); // Auto-expand when adding comment
-    console.log("✅ Comment added to local state and expanded");
-  };
+  }, []);
 
   // Function to update comment optimistically
-  const updateCommentOptimistically = (commentId, newText) => {
-    console.log("📝 Updating comment optimistically:", { commentId, newText });
+  const updateCommentOptimistically = useCallback((commentId, newText) => {
     setComments(prevComments => 
       prevComments.map(comment => 
         comment.id === commentId 
@@ -99,22 +67,17 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
           : comment
       )
     );
-  };
+  }, []);
 
   // Function to remove comment optimistically
-  const removeCommentOptimistically = (commentId) => {
-    console.log("🗑️ Removing comment optimistically:", commentId);
+  const removeCommentOptimistically = useCallback((commentId) => {
     setComments(prevComments => 
       prevComments.filter(comment => comment.id !== commentId)
     );
-  };
+  }, []);
 
-  console.log("🎨 CommentSection rendering with:", { 
-    commentsCount: comments?.length, 
-    expanded, 
-    isLoading,
-    hasComments: comments && comments.length > 0
-  });
+  // Memoize has comments to prevent unnecessary re-renders
+  const hasComments = useMemo(() => comments && comments.length > 0, [comments?.length]);
 
   return (
     <Flex vertical gap={"1rem"}>
@@ -128,7 +91,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
           </Button>
         )}
         {/* comments */}
-        {comments?.length > 0 && (
+        {hasComments && (
           <Flex
             vertical
             gap={".5rem"}
@@ -146,24 +109,17 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
                 onCommentDeleted={removeCommentOptimistically}
               />
             ) : (
-              comments?.map((comment, index) => {
-                console.log("🔄 Rendering comment:", { 
-                  index, 
-                  commentId: comment.id, 
-                  comment: comment.comment?.substring(0, 30)
-                });
-                return (
-                  <Comment
-                    key={comment.id || index}
-                    data={comment}
-                    postingComment={() => checkIsPostingComment(index)}
-                    postId={postId}
-                    queryId={queryId}
-                    onCommentUpdated={updateCommentOptimistically}
-                    onCommentDeleted={removeCommentOptimistically}
-                  />
-                );
-              })
+              comments?.map((comment, index) => (
+                <Comment
+                  key={comment.id || index}
+                  data={comment}
+                  postingComment={() => checkIsPostingComment(index)}
+                  postId={postId}
+                  queryId={queryId}
+                  onCommentUpdated={updateCommentOptimistically}
+                  onCommentDeleted={removeCommentOptimistically}
+                />
+              ))
             )}
           </Flex>
         )}
@@ -194,7 +150,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
 
 export default CommentSection;
 
-function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) {
+const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) {
   const {
     settings: { theme },
   } = useContext(SettingsContext);
@@ -204,19 +160,10 @@ function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) 
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(data?.comment || "");
 
-  console.log("🔄 Comment component rendered:", { 
-    commentId: data?.id, 
-    authorName: `${data?.author?.first_name} ${data?.author?.last_name}`,
-    comment: data?.comment?.substring(0, 30),
-    isOwn: data?.authorId === currentUser?.id
-  });
-
   // Edit comment mutation
   const { mutate: editMutate, isPending: isEditPending } = useMutation({
     mutationFn: ({ commentId, newText }) => editComment(postId, commentId, newText, currentUser?.id),
     onMutate: async ({ commentId, newText }) => {
-      console.log("⏳ Optimistic comment edit:", { commentId, newText });
-      
       // Update local state optimistically
       if (onCommentUpdated) {
         onCommentUpdated(commentId, newText);
@@ -252,31 +199,33 @@ function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) 
       return { previousPosts };
     },
     onSuccess: () => {
-      console.log("✅ Comment edit successful");
       setIsEditing(false);
       toast.success("Comment updated successfully!");
     },
     onError: (err, variables, context) => {
-      console.error("❌ Comment edit error:", err);
-      toast.error("Failed to update comment");
-      
-      // Revert optimistic update
       if (context?.previousPosts) {
         queryClient.setQueryData(["posts", queryId], context.previousPosts);
       }
-      
-      // Revert local state
-      if (onCommentUpdated) {
-        onCommentUpdated(data.id, data.comment);
-      }
+      toast.error("Failed to update comment");
     },
   });
 
   // Delete comment mutation
   const { mutate: deleteMutate, isPending: isDeletePending } = useMutation({
-    mutationFn: (commentId) => deleteComment(postId, commentId, currentUser?.id),
-    onMutate: async (commentId) => {
-      console.log("⏳ Optimistic comment delete:", commentId);
+    mutationFn: ({ commentId }) => {
+      console.log("🗑️ CommentSection: Delete mutation started", {
+        commentId,
+        postId,
+        userId: currentUser?.id,
+        isTemporary: commentId?.startsWith('temp-')
+      });
+      return deleteComment(postId, commentId, currentUser?.id);
+    },
+    onMutate: async ({ commentId }) => {
+      console.log("🔄 CommentSection: onMutate - Starting optimistic delete", {
+        commentId,
+        postId
+      });
       
       // Update local state optimistically
       if (onCommentDeleted) {
@@ -298,7 +247,7 @@ function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) 
                 return {
                   ...post,
                   comments: post.comments.filter(comment => comment.id !== commentId),
-                  commentsCount: Math.max(0, (post.commentsCount || 1) - 1)
+                  commentsCount: Math.max(0, (post.commentsCount || 0) - 1)
                 };
               }
               return post;
@@ -307,52 +256,66 @@ function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) 
         };
       });
 
+      console.log("✅ CommentSection: Optimistic delete completed");
       return { previousPosts };
     },
-    onSuccess: () => {
-      console.log("✅ Comment delete successful");
+    onSuccess: (result) => {
+      console.log("✅ CommentSection: Delete mutation successful", result);
       toast.success("Comment deleted successfully!");
     },
     onError: (err, variables, context) => {
-      console.error("❌ Comment delete error:", err);
-      toast.error("Failed to delete comment");
-      
-      // Revert optimistic update
+      console.error("❌ CommentSection: Delete mutation failed", {
+        error: err,
+        errorMessage: err.message,
+        variables
+      });
       if (context?.previousPosts) {
         queryClient.setQueryData(["posts", queryId], context.previousPosts);
       }
+      toast.error("Failed to delete comment");
     },
   });
 
   const handleEdit = () => {
-    if (editText.trim() !== data?.comment && editText.trim()) {
-      editMutate({ commentId: data.id, newText: editText.trim() });
+    setIsEditing(true);
+    setEditText(data?.comment || "");
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditText(data?.comment || "");
+  };
+
+  const handleDelete = () => {
+    console.log("🔥 CommentSection: Delete confirmation clicked", {
+      commentId: data?.id,
+      commentData: data,
+      isTemporary: data?.id?.startsWith('temp-'),
+      postId
+    });
+    deleteMutate({ commentId: data?.id });
+  };
+
+  const handleSaveEdit = () => {
+    if (editText.trim() !== data?.comment) {
+      editMutate({ commentId: data?.id, newText: editText.trim() });
     } else {
       setIsEditing(false);
     }
   };
 
-  const handleCancelEdit = () => {
-    setEditText(data?.comment || "");
-    setIsEditing(false);
-  };
-
-  const handleDelete = () => {
-    deleteMutate(data.id);
-  };
-
-  // Dropdown menu items (only for own comments)
   const isOwnComment = data?.authorId === currentUser?.id;
-  const menuItems = isOwnComment ? [
+
+  // Memoize dropdown items to prevent recreation
+  const dropdownItems = useMemo(() => [
     {
       key: "edit",
-      label: "Edit Comment",
-      icon: <Iconify icon="eva:edit-fill" width="16px" />,
-      onClick: () => setIsEditing(true),
+      label: "Edit",
+      icon: <Iconify icon="ph:pencil" />,
+      onClick: handleEdit,
     },
     {
       key: "delete",
-      danger: true,
       label: (
         <Popconfirm
           title="Delete comment"
@@ -360,115 +323,104 @@ function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) 
           onConfirm={handleDelete}
           okText="Yes"
           cancelText="No"
+          placement="left"
         >
-          Delete Comment
+          <span style={{ color: "red" }}>Delete</span>
         </Popconfirm>
       ),
+      icon: <Iconify icon="ph:trash" style={{ color: "red" }} />,
+      danger: true,
     },
-  ] : [];
+  ], [handleEdit, handleDelete]);
 
   return (
-    <Box>
-      <Flex gap={".5rem"}>
-        {/* person image */}
+    <Box
+      className={cx(css.comment, {
+        [css.commentDark]: theme === "dark",
+      })}
+    >
+      <Flex gap={"1rem"} align="flex-start">
+        {/* avatar */}
         <Avatar 
-          size={30} 
-          src={getMainProfileImage(data?.author?.images) || data?.author?.image_url}
+          src={getMainProfileImage(data?.author?.images)} 
+          size={32}
+          style={{ minWidth: "32px" }}
         >
-          {data?.author?.first_name?.[0] || data?.author?.firstName?.[0] || data?.author?.username?.[0] || data?.author?.email?.[0]}
+          {data?.author?.firstName?.[0] || data?.author?.username?.[0]}
         </Avatar>
 
-        {/* person comment */}
-        <Flex
-          vertical
-          flex={1}
-          gap={".5rem"}
-          className={cx(css.comment, css[theme])}
-        >
-          {/* name, date and actions */}
-          <Flex align="center" justify="space-between">
-            <Flex align="center" gap=".5rem">
-              {/* name */}
-              <Typography.Text className="typoSubtitle2">
-                {data?.author?.first_name} {data?.author?.last_name}
+        <Flex vertical style={{ width: "100%" }}>
+          {/* author name and comment */}
+          <Flex justify="space-between" align="flex-start">
+            <Flex vertical>
+              <Typography.Text strong className="typoCaption">
+                {`${data?.author?.first_name || data?.author?.firstName || ""} ${
+                  data?.author?.last_name || data?.author?.lastName || ""
+                }`.trim() || data?.author?.username || "Anonymous"}
+                {data?.edited && (
+                  <Typography.Text className="typoCaption" style={{ color: "#999", marginLeft: "8px" }}>
+                    (edited)
+                  </Typography.Text>
+                )}
               </Typography.Text>
-
-              {/* date */}
-              <Typography.Text className="typoCaption" type="secondary" strong>
-                {dayjs(data?.created_at || data?.createdAt).format("DD MMM YYYY")}
-              </Typography.Text>
-
-              {/* edited indicator */}
-              {data?.edited && (
-                <Typography.Text 
-                  type="secondary" 
-                  style={{ fontSize: '10px', fontStyle: 'italic' }}
-                >
-                  (edited)
+              {isEditing ? (
+                <Flex vertical gap="8px" style={{ marginTop: "4px" }}>
+                  <Input.TextArea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    disabled={isEditPending}
+                  />
+                  <Flex gap="8px">
+                    <Button 
+                      size="small" 
+                      type="primary" 
+                      onClick={handleSaveEdit}
+                      loading={isEditPending}
+                      disabled={!editText.trim() || editText.trim() === data?.comment}
+                    >
+                      Save
+                    </Button>
+                    <Button 
+                      size="small" 
+                      onClick={handleCancelEdit}
+                      disabled={isEditPending}
+                    >
+                      Cancel
+                    </Button>
+                  </Flex>
+                </Flex>
+              ) : (
+                <Typography.Text className="typoBody2" style={{ marginTop: "2px" }}>
+                  {data?.comment}
                 </Typography.Text>
               )}
             </Flex>
 
-            {/* actions dropdown - only for own comments */}
-            {isOwnComment && (
-              <Dropdown 
-                menu={{ items: menuItems }} 
+            {/* dropdown menu for owner */}
+            {isOwnComment && !isEditing && (
+              <Dropdown
+                menu={{ items: dropdownItems }}
                 trigger={["click"]}
                 placement="bottomRight"
               >
                 <Button 
-                  ghost 
-                  shape="circle" 
-                  size="small"
-                  style={{ 
-                    opacity: 0.7,
-                    color: '#000',
-                    borderColor: 'transparent'
-                  }}
-                  loading={isEditPending || isDeletePending}
-                >
-                  <Iconify 
-                    icon="akar-icons:more-vertical" 
-                    width={14} 
-                    style={{ color: '#000' }}
-                  />
-                </Button>
+                  type="text" 
+                  size="small" 
+                  icon={<Iconify icon="ph:dots-three-vertical" />}
+                  disabled={isDeletePending}
+                />
               </Dropdown>
             )}
           </Flex>
 
-          {/* comment text or edit input */}
-          {isEditing ? (
-            <div style={{ marginTop: '0.5rem' }}>
-              <Input.TextArea
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                placeholder="Edit your comment..."
-                autoSize={{ minRows: 2, maxRows: 4 }}
-                style={{ marginBottom: '8px' }}
-              />
-              <Flex gap="8px" justify="flex-end">
-                <Button size="small" onClick={handleCancelEdit}>
-                  Cancel
-                </Button>
-                <Button 
-                  type="primary" 
-                  size="small" 
-                  onClick={handleEdit}
-                  disabled={!editText.trim() || editText.trim() === data?.comment}
-                  loading={isEditPending}
-                >
-                  Save Changes
-                </Button>
-              </Flex>
-            </div>
-          ) : (
-            <Typography.Text className="typoBody2">
-              {data?.comment}
-            </Typography.Text>
-          )}
+          {/* time */}
+          <Typography.Text className="typoCaption" style={{ color: "#999", marginTop: "4px" }}>
+            {dayjs(data?.createdAt).fromNow()}
+          </Typography.Text>
         </Flex>
       </Flex>
     </Box>
   );
-}
+});

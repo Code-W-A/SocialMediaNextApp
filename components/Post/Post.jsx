@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import css from "@/styles/Post.module.css";
 import Box from "../Box";
 import {
@@ -32,65 +32,119 @@ const Post = ({ data, queryId }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(data?.postText || "");
 
-  // Debug logging for posts with media
-  React.useEffect(() => {
-    if (data?.media) {
-      console.log("Post with media:", {
-        postId: data?.id,
-        mediaUrl: data?.media,
-        fileType: getFileTypeFromUrl(data?.media),
-        authorId: data?.authorId,
-        postText: data?.postText
-      });
-    }
-  }, [data]);
+  // Create the correct query key that matches Posts.jsx
+  const queryKey = useMemo(() => ["posts", queryId, currentUser?.id], [queryId, currentUser?.id]);
 
   const { mutate } = useMutation({
-    mutationFn: () => deletePost(data?.id, currentUser?.id),
+    mutationFn: () => {
+      console.log("🗑️ Post component: Starting delete mutation", { 
+        postId: data?.id, 
+        userId: currentUser?.id,
+        postData: data,
+        queryId: queryId,
+        queryKey: queryKey
+      });
+      console.log("📡 About to call deletePost server action...");
+      return deletePost(data?.id, currentUser?.id);
+    },
 
     // This function will be run just before the mutation function
     onMutate: async () => {
+      console.log("🔄 Post component: onMutate - Starting optimistic update");
+      console.log("🔑 Using query key:", queryKey);
       // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries(["posts", queryId]);
+      await queryClient.cancelQueries(queryKey);
 
       // Snapshot the previous value
-      const previousPosts = queryClient.getQueryData(["posts", queryId]);
-
-      // Optimistically update to the new value
-      queryClient.setQueryData(["posts", queryId], (old) => {
-        return {
-          ...old,
-          pages: old.pages.map((page) => {
-            return {
-              ...page,
-              data: page.data.filter((post) => post.id !== data?.id),
-            };
-          }),
-        };
+      const previousPosts = queryClient.getQueryData(queryKey);
+      console.log("📊 Previous posts data:", { 
+        exists: !!previousPosts, 
+        hasPages: !!previousPosts?.pages,
+        pagesCount: previousPosts?.pages?.length 
       });
+
+      // Only update if we have existing data
+      if (previousPosts && previousPosts.pages) {
+        // Optimistically update to the new value
+        queryClient.setQueryData(queryKey, (old) => {
+          if (!old || !old.pages) {
+            console.warn("⚠️ Old data is missing, skipping optimistic update");
+            return old;
+          }
+          
+          return {
+            ...old,
+            pages: old.pages.map((page) => {
+              return {
+                ...page,
+                data: page.data.filter((post) => post.id !== data?.id),
+              };
+            }),
+          };
+        });
+        console.log("✅ Post component: Optimistic update completed");
+      } else {
+        console.log("⚠️ No existing posts data found, skipping optimistic update");
+      }
 
       // Return a context object with the snapshotted value
       return { previousPosts };
     },
     onError: (err, variables, context) => {
-      console.log("this is error", err);
-      queryClient.setQueryData(["posts", queryId], context.previousPosts);
+      console.error("❌ Post component: Delete mutation failed", {
+        error: err,
+        errorMessage: err.message,
+        variables,
+        postId: data?.id
+      });
+      
+      // Only restore previous state if we have it
+      if (context?.previousPosts) {
+        queryClient.setQueryData(queryKey, context.previousPosts);
+        console.log("🔄 Restored previous posts data after error");
+      } else {
+        console.log("⚠️ No previous posts data to restore");
+      }
+    },
+    onSuccess: (result) => {
+      console.log("✅ Post component: Delete mutation successful", {
+        result,
+        postId: data?.id
+      });
     },
 
     // // Always refetch after error or success:
     onSettled: () => {
-      queryClient.invalidateQueries(["posts", queryId]);
+      console.log("🔄 Post component: onSettled - Invalidating queries");
+      queryClient.invalidateQueries(queryKey);
     },
   });
 
   const { mutate: editMutate } = useMutation({
-    mutationFn: ({ postId, newText }) => editPost(postId, newText, currentUser?.id),
-    onSuccess: () => {
+    mutationFn: ({ postId, newText }) => {
+      console.log("✏️ Post component: Starting edit mutation", { 
+        postId, 
+        newText: newText?.substring(0, 50) + "...",
+        userId: currentUser?.id,
+        queryKey: queryKey
+      });
+      return editPost(postId, newText, currentUser?.id);
+    },
+    onSuccess: (result) => {
+      console.log("✅ Post component: Edit mutation successful", {
+        result,
+        postId: data?.id
+      });
       setIsEditing(false);
-      queryClient.invalidateQueries(["posts", queryId]);
+      queryClient.invalidateQueries(queryKey);
     },
     onError: (err) => {
-      console.log("Edit error:", err);
+      console.error("❌ Post component: Edit mutation failed", {
+        error: err,
+        errorMessage: err.message,
+        postId: data?.id
+      });
+      // Handle edit error silently or with toast
     },
   });
 
@@ -107,6 +161,16 @@ const Post = ({ data, queryId }) => {
     setIsEditing(false);
   };
 
+  const handleDelete = () => {
+    console.log("🔥 Post component: Delete confirmation clicked", {
+      postId: data?.id,
+      userId: currentUser?.id,
+      isOwner: data?.authorId === currentUser?.id,
+      queryId: queryId
+    });
+    mutate();
+  };
+
   const items = [
     {
       key: "1",
@@ -121,7 +185,7 @@ const Post = ({ data, queryId }) => {
         <Popconfirm
           title="Delete the post"
           description="Are you sure to delete this post?"
-          onConfirm={mutate}
+          onConfirm={handleDelete}
         >
           Delete Post
         </Popconfirm>
@@ -248,7 +312,6 @@ const Post = ({ data, queryId }) => {
                 }}
                 fallback="/images/placeholder-image.png"
                 onError={(e) => {
-                  console.log("Image failed to load:", data?.media);
                   e.target.style.display = 'none';
                 }}
               />

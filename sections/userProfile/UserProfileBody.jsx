@@ -22,6 +22,8 @@ const UserProfileBody = ({
 
   const user = userData.data;
 
+
+
   if (showCompatibility) {
     // Get compatibility data
     const compatibility = getFullCompatibility(currentUser, user);

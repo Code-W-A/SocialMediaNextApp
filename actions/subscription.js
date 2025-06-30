@@ -1,8 +1,10 @@
 "use server";
 
 import { stripe, STRIPE_CONFIG, isSubscriptionActive } from '@/lib/stripe';
-import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { serializeFirebaseData } from '@/utils/firebaseHelpers';
+import { toSerializableDate } from '@/utils/dateHelpers';
 
 // Create checkout session for premium subscription
 export const createCheckoutSession = async (userId, customerEmail) => {
@@ -75,12 +77,15 @@ export const getUserSubscription = async (userId) => {
     const userData = userDoc.data();
     const subscription = userData.subscription || {};
 
+    // Serialize the subscription data to handle Firebase timestamps
+    const serializedSubscription = serializeFirebaseData(subscription);
+
     return {
       isPremium: subscription.status && isSubscriptionActive(subscription.status),
       status: subscription.status || 'inactive',
       customerId: subscription.customerId || null,
       subscriptionId: subscription.subscriptionId || null,
-      currentPeriodEnd: subscription.currentPeriodEnd || null,
+      currentPeriodEnd: serializedSubscription.currentPeriodEnd || null,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || false,
     };
   } catch (error) {
@@ -100,7 +105,7 @@ export const updateUserSubscription = async (userId, subscriptionData) => {
     await updateDoc(userRef, {
       subscription: {
         ...subscriptionData,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       },
     });
 
@@ -127,8 +132,8 @@ export const handleSubscriptionChange = async (subscription) => {
       customerId: subscription.customer,
       status: subscription.status,
       isPremium: isPremiumStatus,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodStart: toSerializableDate(new Date(subscription.current_period_start * 1000)),
+      currentPeriodEnd: toSerializableDate(new Date(subscription.current_period_end * 1000)),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       priceId: subscription.items.data[0]?.price?.id,
     };
@@ -156,7 +161,7 @@ export const cancelSubscription = async (subscriptionId) => {
     return {
       success: true,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodEnd: toSerializableDate(new Date(subscription.current_period_end * 1000)),
     };
   } catch (error) {
     console.error('Error canceling subscription:', error);

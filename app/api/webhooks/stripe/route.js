@@ -2,12 +2,18 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { handleSubscriptionChange } from '@/actions/subscription';
+import { validateSubscriptionWebhookData } from '@/utils/premiumHelpers';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export async function POST(request) {
   const body = await request.text();
   const signature = headers().get('stripe-signature');
+
+  console.log('\n🔔 ===== STRIPE WEBHOOK RECEIVED =====');
+  console.log('📅 Timestamp:', new Date().toISOString());
+  console.log('🔐 Signature present:', !!signature);
+  console.log('📝 Body length:', body.length);
 
   let event;
 
@@ -17,82 +23,162 @@ export async function POST(request) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET
     );
+    console.log('✅ Webhook signature verified successfully');
   } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
+    console.error('❌ Webhook signature verification failed:', err.message);
+    console.error('🔑 Webhook secret exists:', !!process.env.STRIPE_WEBHOOK_SECRET);
+    console.error('🔐 Signature:', signature?.substring(0, 50) + '...');
     return NextResponse.json(
       { error: 'Webhook signature verification failed' },
       { status: 400 }
     );
   }
 
-  console.log('Received Stripe webhook event:', event.type);
+  console.log('\n🎯 Event Details:');
+  console.log('📋 Event Type:', event.type);
+  console.log('🆔 Event ID:', event.id);
+  console.log('📦 Event Data Keys:', Object.keys(event.data.object));
 
   try {
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
+        // Validate subscription data before processing
+        if (!validateSubscriptionWebhookData(event.data.object)) {
+          console.error('Invalid subscription webhook data received');
+          return NextResponse.json(
+            { error: 'Invalid subscription data' },
+            { status: 400 }
+          );
+        }
         await handleSubscriptionChange(event.data.object);
         break;
 
       case 'checkout.session.completed':
         // Handle successful checkout - FIRST payment confirmation
         const session = event.data.object;
-        console.log('🎉 Checkout session completed:', session.id);
+        console.log('\n🎉 ===== CHECKOUT SESSION COMPLETED =====');
+        console.log('🛒 Session ID:', session.id);
+        console.log('👤 Customer ID:', session.customer);
+        console.log('💰 Amount Total:', session.amount_total);
+        console.log('💵 Currency:', session.currency);
+        console.log('📋 Payment Status:', session.payment_status);
+        console.log('🔗 Subscription ID:', session.subscription);
+        console.log('📊 Metadata:', session.metadata);
         
         try {
           // Get user ID from metadata
           const userId = session.metadata?.userId;
+          console.log('🔍 Extracted User ID:', userId);
+          
           if (userId) {
-            // Update user's payment status immediately
-            await updateDoc(doc(db, 'Users', userId), {
+            console.log('📝 Writing to Firestore...');
+            const firestoreData = {
               'subscription.checkoutCompleted': true,
               'subscription.checkoutCompletedAt': new Date(),
               'subscription.stripeCustomerId': session.customer,
               'subscription.lastPaymentStatus': 'completed',
               'subscription.updatedAt': new Date()
-            });
+            };
+            console.log('📦 Firestore Data:', firestoreData);
             
-            console.log(`✅ Updated checkout status for user: ${userId}`);
+            // Update user's payment status immediately
+            await updateDoc(doc(db, 'Users', userId), firestoreData);
+            
+            console.log('✅ Successfully updated checkout status for user:', userId);
+            
+            // Verify the update by reading back
+            const userDoc = await getDoc(doc(db, 'Users', userId));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              console.log('🔄 Verification - User subscription data:', userData.subscription);
+            } else {
+              console.error('❌ User document not found after update!');
+            }
+          } else {
+            console.error('❌ No userId found in session metadata!');
           }
           
           // Retrieve and update subscription if exists
           if (session.subscription) {
+            console.log('🔄 Processing subscription:', session.subscription);
             const subscription = await stripe.subscriptions.retrieve(session.subscription);
+            console.log('📋 Subscription details:', {
+              id: subscription.id,
+              status: subscription.status,
+              current_period_start: new Date(subscription.current_period_start * 1000),
+              current_period_end: new Date(subscription.current_period_end * 1000),
+              metadata: subscription.metadata
+            });
             await handleSubscriptionChange(subscription);
+            console.log('✅ Subscription change handled');
+          } else {
+            console.log('ℹ️ No subscription attached to this session');
           }
         } catch (error) {
-          console.error('Error processing checkout completion:', error);
+          console.error('❌ Error processing checkout completion:', error);
+          console.error('📊 Error stack:', error.stack);
         }
         break;
 
       case 'invoice.payment_succeeded':
         // Handle successful payment - FINAL payment confirmation
         const invoice = event.data.object;
-        console.log('💰 Payment succeeded for invoice:', invoice.id);
+        console.log('\n💰 ===== PAYMENT SUCCEEDED =====');
+        console.log('🧾 Invoice ID:', invoice.id);
+        console.log('💵 Amount Paid:', invoice.amount_paid);
+        console.log('💴 Currency:', invoice.currency);
+        console.log('🔗 Subscription ID:', invoice.subscription);
+        console.log('👤 Customer ID:', invoice.customer);
+        console.log('📅 Period Start:', new Date(invoice.period_start * 1000));
+        console.log('📅 Period End:', new Date(invoice.period_end * 1000));
+        console.log('💳 Payment Status:', invoice.status);
         
         try {
           // If this is a subscription invoice, update the subscription
           if (invoice.subscription) {
+            console.log('🔄 Retrieving subscription details...');
             const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
             const userId = subscription.metadata?.userId;
             
+            console.log('🔍 Extracted User ID from subscription:', userId);
+            console.log('📋 Subscription Status:', subscription.status);
+            
             if (userId) {
-              // Update payment success status
-              await updateDoc(doc(db, 'Users', userId), {
+              console.log('📝 Updating payment success in Firestore...');
+              const firestoreData = {
                 'subscription.lastPaymentStatus': 'succeeded',
                 'subscription.lastPaymentDate': new Date(),
                 'subscription.lastInvoiceId': invoice.id,
                 'subscription.updatedAt': new Date()
-              });
+              };
+              console.log('📦 Payment Success Data:', firestoreData);
               
-              console.log(`✅ Payment confirmed for user: ${userId}`);
+              // Update payment success status
+              await updateDoc(doc(db, 'Users', userId), firestoreData);
+              
+              console.log('✅ Payment confirmed and saved for user:', userId);
+              
+              // Verify the update
+              const userDoc = await getDoc(doc(db, 'Users', userId));
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                console.log('🔄 Verification - Updated subscription data:', userData.subscription);
+              }
+            } else {
+              console.error('❌ No userId found in subscription metadata!');
             }
             
+            console.log('🔄 Processing subscription change...');
             await handleSubscriptionChange(subscription);
+            console.log('✅ Subscription change processed successfully');
+          } else {
+            console.log('ℹ️ Invoice not associated with a subscription');
           }
         } catch (error) {
-          console.error('Error processing payment success:', error);
+          console.error('❌ Error processing payment success:', error);
+          console.error('📊 Error stack:', error.stack);
         }
         break;
 
@@ -177,14 +263,35 @@ export async function POST(request) {
         break;
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.log(`⚠️ Unhandled event type: ${event.type}`);
+        console.log('📦 Event data keys:', Object.keys(event.data.object));
     }
 
-    return NextResponse.json({ received: true });
+    console.log('\n✅ ===== WEBHOOK PROCESSED SUCCESSFULLY =====');
+    console.log('🎯 Event:', event.type);
+    console.log('⏰ Processing time:', Date.now() - new Date(event.created * 1000).getTime(), 'ms');
+    console.log('=====================================\n');
+
+    return NextResponse.json({ 
+      received: true, 
+      eventType: event.type,
+      eventId: event.id,
+      processedAt: new Date().toISOString()
+    });
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    console.error('\n❌ ===== WEBHOOK PROCESSING FAILED =====');
+    console.error('🔥 Error:', error.message);
+    console.error('📊 Stack:', error.stack);
+    console.error('🎯 Event Type:', event?.type);
+    console.error('🆔 Event ID:', event?.id);
+    console.error('========================================\n');
     return NextResponse.json(
-      { error: 'Webhook processing failed' },
+      { 
+        error: 'Webhook processing failed',
+        eventType: event?.type,
+        eventId: event?.id,
+        errorMessage: error.message
+      },
       { status: 500 }
     );
   }

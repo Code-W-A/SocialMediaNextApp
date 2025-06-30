@@ -13,132 +13,26 @@ import Iconify from "@/components/Iconify";
 import OnlineStatusIndicator, { OnlineStatusAvatar } from "@/components/OnlineStatusIndicator";
 import css from "@/styles/Home.module.css";
 import { useLanguage } from "@/lib/i18n";
-import { useIsMobile } from "@/hooks/useIsMobile";
 
 const { Title, Text, Paragraph } = Typography;
 
-// Mobile Match Card Component
-const MobileMatchCard = ({ user, currentUser, onStartChat }) => {
-  const router = useRouter();
-  const mainImage = getMainProfileImage(user.images);
-  const scoreDetails = getCompatibilityScoreDetails(currentUser, user);
-  
-  const displayName = user.firstName && user.lastName 
-    ? `${user.firstName} ${user.lastName}` 
-    : user.username || user.email?.split('@')[0] || 'Unknown User';
-
-  const zodiacSign = user.questionnaire?.zodiacSign || '✨';
-
-  return (
-    <div 
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '200px',
-        borderRadius: '16px',
-        overflow: 'hidden',
-        cursor: 'pointer',
-        backgroundImage: `linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.7)), url(${mainImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
-        padding: '16px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        transition: 'transform 0.2s ease',
-      }}
-      onClick={() => router.push(`/profile/${user.id}?person=${displayName}`)}
-      onTouchStart={(e) => {
-        e.currentTarget.style.transform = 'scale(0.98)';
-      }}
-      onTouchEnd={(e) => {
-        e.currentTarget.style.transform = 'scale(1)';
-      }}
-    >
-      {/* Compatibility Badge */}
-      <div style={{
-        position: 'absolute',
-        top: '12px',
-        right: '12px',
-        background: `linear-gradient(135deg, ${scoreDetails.color}, ${scoreDetails.color}dd)`,
-        padding: '4px 8px',
-        borderRadius: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        backdropFilter: 'blur(10px)',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-      }}>
-        <Text style={{ 
-          color: 'white', 
-          fontSize: '12px', 
-          fontWeight: '700',
-          margin: 0
-        }}>
-          {scoreDetails.overall}%
-        </Text>
-      </div>
-
-      {/* Online Status */}
-      <div style={{
-        position: 'absolute',
-        top: '12px',
-        left: '12px',
-      }}>
-        <OnlineStatusIndicator 
-          userId={user.id} 
-          showText={false} 
-          size="small"
-        />
-      </div>
-
-      {/* Content */}
-      <div style={{ color: 'white' }}>
-        <div style={{
-          fontSize: '16px',
-          fontWeight: '700',
-          marginBottom: '4px',
-          textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}>
-          {displayName}
-        </div>
-        
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <span style={{
-            fontSize: '14px',
-            color: 'rgba(255,255,255,0.9)',
-            textShadow: '0 1px 2px rgba(0,0,0,0.8)'
-          }}>
-            {zodiacSign}
-          </span>
-          {user.age && (
-            <span style={{
-              fontSize: '14px',
-              color: 'rgba(255,255,255,0.9)',
-              textShadow: '0 1px 2px rgba(0,0,0,0.8)'
-            }}>
-              {user.age}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Desktop Match Card Component (existing card)
-const DesktopMatchCard = ({ user, currentUser, onStartChat }) => {
+const MatchCard = ({ user, currentUser, onStartChat }) => {
   const router = useRouter();
   const [showCompatibility, setShowCompatibility] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Check for mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 480);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   
   const mainImage = getMainProfileImage(user.images);
   const compatibility = getFullCompatibility(currentUser, user);
@@ -509,214 +403,397 @@ const DesktopMatchCard = ({ user, currentUser, onStartChat }) => {
             <div style={{ 
               display: 'flex', 
               flexWrap: 'wrap', 
-              gap: '4px'
+              gap: '4px',
+              maxHeight: '36px',
+              overflow: 'hidden'
             }}>
-              {user.interests.slice(0, 3).map((interest, index) => (
+              {user.interests.slice(0, 5).map((interest, index) => (
                 <div
                   key={index}
                   style={{
-                    background: 'linear-gradient(135deg, #f0f0f0, #e8e8e8)',
+                    background: '#f5f5f5',
                     color: '#666',
                     padding: '2px 6px',
-                    borderRadius: '8px',
+                    borderRadius: '6px',
                     fontSize: '10px',
-                    fontWeight: '500'
+                    fontWeight: '500',
+                    border: '1px solid #e8e8e8',
+                    whiteSpace: 'nowrap'
                   }}
                 >
                   {interest}
                 </div>
               ))}
-              {user.interests.length > 3 && (
+              {user.interests.length > 5 && (
                 <div style={{
-                  color: '#999',
+                  background: '#e6f7ff',
+                  color: '#1890ff',
+                  padding: '2px 6px',
+                  borderRadius: '6px',
                   fontSize: '10px',
-                  padding: '2px 4px'
+                  fontWeight: '600'
                 }}>
-                  +{user.interests.length - 3}
+                  +{user.interests.length - 5}
                 </div>
               )}
             </div>
           </div>
         )}
 
+        {/* Compatibility Info */}
+        <div style={{ marginBottom: '10px' }}>
+          <div style={{ 
+            display: 'flex', 
+            gap: '6px',
+            alignItems: 'center',
+            marginBottom: '6px'
+          }}>
+            <Text style={{ 
+              fontSize: '10px', 
+              color: '#999', 
+              fontWeight: '600',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Compatibility
+            </Text>
+            <div style={{
+              background: scoreDetails.color,
+              color: 'white',
+              padding: '1px 6px',
+              borderRadius: '8px',
+              fontSize: '9px',
+              fontWeight: '700'
+            }}>
+              {scoreDetails.level}
+            </div>
+            <div style={{ flex: 1, height: '1px', background: '#f0f0f0' }} />
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {compatibility.astrology && scoreDetails.astrology > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, #722ed115, #722ed108)',
+                border: '1px solid #722ed130',
+                padding: '6px 8px',
+                borderRadius: '6px',
+                flex: 1
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <Iconify icon="eva:star-fill" width="10px" style={{ color: '#722ed1' }} />
+                    <Text style={{ fontSize: '9px', fontWeight: '600', color: '#722ed1', margin: 0 }}>
+                      Astro
+                    </Text>
+                  </div>
+                  <Text style={{ fontSize: '10px', fontWeight: '700', color: '#722ed1', margin: 0 }}>
+                    {scoreDetails.astrology}%
+                  </Text>
+                </div>
+              </div>
+            )}
+            {compatibility.numerology && scoreDetails.numerology > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, #1890ff15, #1890ff08)',
+                border: '1px solid #1890ff30',
+                padding: '6px 8px',
+                borderRadius: '6px',
+                flex: 1
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <Iconify icon="eva:hash-fill" width="10px" style={{ color: '#1890ff' }} />
+                    <Text style={{ fontSize: '9px', fontWeight: '600', color: '#1890ff', margin: 0 }}>
+                      Numero
+                    </Text>
+                  </div>
+                  <Text style={{ fontSize: '10px', fontWeight: '700', color: '#1890ff', margin: 0 }}>
+                    {scoreDetails.numerology}%
+                  </Text>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Action Buttons */}
         <div style={{ 
           display: 'flex', 
-          gap: '8px',
+          gap: '6px',
           marginTop: 'auto'
         }}>
           <Button
-            type="primary"
+            type="default"
             size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(`/profile/${user.id}?person=${user.firstName || user.username}`);
-            }}
+            icon={<Iconify icon="eva:person-fill" width="14px" />}
+            onClick={() => router.push(`/user/${user.id}`)}
             style={{
               flex: 1,
-              background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
-              border: 'none',
-              borderRadius: '8px',
-              height: '32px',
+              height: '36px',
+              borderRadius: '10px',
+              border: '1px solid #e8e8e8',
+              fontWeight: '600',
               fontSize: '12px',
-              fontWeight: '600'
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#722ed1';
+              e.currentTarget.style.color = '#722ed1';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#e8e8e8';
+              e.currentTarget.style.color = '';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <Iconify icon="eva:eye-fill" width="14px" style={{ marginRight: '4px' }} />
-            View Profile
+            Profile
           </Button>
           
           <Button
             type="default"
             size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              onStartChat(user);
-            }}
+            icon={<Iconify icon="eva:star-outline" width="14px" />}
+            onClick={() => setShowCompatibility(true)}
             style={{
               flex: 1,
-              borderRadius: '8px',
-              height: '32px',
-              fontSize: '12px',
+              height: '36px',
+              borderRadius: '10px',
+              border: '1px solid #e8e8e8',
               fontWeight: '600',
-              border: '1px solid #d9d9d9'
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--primary)';
+              e.currentTarget.style.color = 'var(--primary)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#e8e8e8';
+              e.currentTarget.style.color = '';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <Iconify icon="eva:message-circle-fill" width="14px" style={{ marginRight: '4px' }} />
-            Message
+            Details
           </Button>
-        </div>
 
-        {/* Compatibility Details Button */}
-        <Button
-          type="link"
-          size="small"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowCompatibility(true);
-          }}
-          style={{
-            padding: '4px 0',
-            height: 'auto',
-            fontSize: '11px',
-            color: '#722ed1',
-            fontWeight: '600'
-          }}
-        >
-          <Iconify icon="eva:info-fill" width="12px" style={{ marginRight: '4px' }} />
-          Compatibility Details
-        </Button>
+          <Button
+            type="primary"
+            size="small"
+            icon={<Iconify icon="eva:message-circle-fill" width="14px" />}
+            onClick={() => onStartChat(user)}
+            style={{
+              flex: 1,
+              height: '36px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
+              border: 'none',
+              fontWeight: '600',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '';
+            }}
+          >
+            Chat
+          </Button>
+          
+
+        </div>
       </div>
 
       {/* Compatibility Modal */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Iconify icon="eva:heart-fill" width="20px" style={{ color: '#722ed1' }} />
-            <span>Compatibility with {user.firstName || user.username}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <OnlineStatusAvatar userId={user.id} size="medium">
+                <Avatar src={mainImage} size={40}>
+                  {user.firstName?.[0]}{user.lastName?.[0]}
+                </Avatar>
+              </OnlineStatusAvatar>
+              <div>
+                <span>Compatibility with {user.firstName}</span>
+                <div style={{ marginTop: '4px' }}>
+                  <OnlineStatusIndicator userId={user.id} showText={true} />
+                </div>
+              </div>
+            </div>
+            <div style={{
+              background: `linear-gradient(135deg, ${scoreDetails.color}, ${scoreDetails.color}dd)`,
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <Text style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: 0 }}>
+                {scoreDetails.overall}%
+              </Text>
+              <Text style={{ color: 'white', fontSize: '14px', margin: 0 }}>
+                {scoreDetails.emoji} {scoreDetails.level}
+              </Text>
+            </div>
           </div>
         }
         open={showCompatibility}
         onCancel={() => setShowCompatibility(false)}
         footer={null}
-        width={400}
+        width={700}
       >
         <div style={{ padding: '16px 0' }}>
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{
-              background: `linear-gradient(135deg, ${scoreDetails.color}, ${scoreDetails.color}dd)`,
-              borderRadius: '50%',
-              width: '80px',
-              height: '80px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 12px',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)'
+          {/* Always show compatibility - remove relationship type check */}
+          <>
+            {/* Overall Score Section */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #f0f2ff, #fafbff)',
+              padding: '20px',
+              borderRadius: '12px',
+              marginBottom: '24px',
+              textAlign: 'center'
             }}>
-              <span style={{ 
-                color: 'white', 
-                fontSize: '24px', 
-                fontWeight: '700'
+              <Title level={4} style={{ margin: '0 0 8px 0', color: scoreDetails.color }}>
+                Overall Compatibility Score
+              </Title>
+              <div style={{ 
+                fontSize: '48px', 
+                fontWeight: '800', 
+                color: scoreDetails.color,
+                marginBottom: '8px'
               }}>
                 {scoreDetails.overall}%
-              </span>
+              </div>
+              <Text style={{ fontSize: '16px', color: '#666' }}>
+                {scoreDetails.emoji} {scoreDetails.level} Match
+              </Text>
             </div>
-            <div style={{ fontSize: '18px', marginBottom: '4px' }}>
-              {scoreDetails.emoji}
-            </div>
-            <div style={{ color: '#666', fontSize: '14px' }}>
-              {scoreDetails.description}
-            </div>
-          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {compatibility.astrology && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                background: 'linear-gradient(135deg, #722ed1, #9254de)',
-                borderRadius: '12px',
-                color: 'white'
-              }}>
-                <Iconify icon="eva:star-fill" width="24px" />
-                <div>
-                  <div style={{ fontWeight: '600', marginBottom: '2px' }}>
-                    Astrological Match
+            {compatibility.astrology && scoreDetails.astrology > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  marginBottom: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Iconify icon="eva:star-fill" width="20px" style={{ color: '#722ed1' }} />
+                    <Title level={5} style={{ margin: 0 }}>
+                      Astrological Compatibility
+                    </Title>
                   </div>
-                  <div style={{ fontSize: '12px', opacity: 0.9 }}>
-                    Your zodiac signs are compatible
+                  <div style={{
+                    background: '#722ed1',
+                    color: 'white',
+                    padding: '4px 12px',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '700'
+                  }}>
+                    {scoreDetails.astrology}%
                   </div>
                 </div>
+                
+                <Card size="small" style={{ marginBottom: '12px', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Iconify icon="eva:heart-fill" width="16px" style={{ color: '#722ed1' }} />
+                    <Text strong>Love & Relationships</Text>
+                  </div>
+                  <Paragraph style={{ marginBottom: 0 }}>
+                    {compatibility.astrology.dragoste}
+                  </Paragraph>
+                </Card>
+                
+                <Card size="small" style={{ borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Iconify icon="eva:trending-up-fill" width="16px" style={{ color: '#722ed1' }} />
+                    <Text strong>Financial Compatibility</Text>
+                  </div>
+                  <Paragraph style={{ marginBottom: 0 }}>
+                    {compatibility.astrology.finante}
+                  </Paragraph>
+                </Card>
               </div>
             )}
 
-            {compatibility.numerology && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                background: 'linear-gradient(135deg, #1890ff, #40a9ff)',
-                borderRadius: '12px',
-                color: 'white'
-              }}>
-                <Iconify icon="eva:hash-fill" width="24px" />
-                <div>
-                  <div style={{ fontWeight: '600', marginBottom: '2px' }}>
-                    Numerology Match
+            {compatibility.numerology && scoreDetails.numerology > 0 && (
+              <div>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  marginBottom: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Iconify icon="eva:hash-fill" width="20px" style={{ color: '#1890ff' }} />
+                    <Title level={5} style={{ margin: 0 }}>
+                      Numerological Compatibility
+                    </Title>
                   </div>
-                  <div style={{ fontSize: '12px', opacity: 0.9 }}>
-                    Your life path numbers align
+                  <div style={{
+                    background: '#1890ff',
+                    color: 'white',
+                    padding: '4px 12px',
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                    fontWeight: '700'
+                  }}>
+                    {scoreDetails.numerology}%
                   </div>
                 </div>
+                
+                <Card size="small" style={{ marginBottom: '12px', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Iconify icon="eva:heart-fill" width="16px" style={{ color: '#1890ff' }} />
+                    <Text strong>Love & Relationships</Text>
+                  </div>
+                  <Paragraph style={{ marginBottom: 0 }}>
+                    {compatibility.numerology.dragoste}
+                  </Paragraph>
+                </Card>
+                
+                <Card size="small" style={{ borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <Iconify icon="eva:trending-up-fill" width="16px" style={{ color: '#1890ff' }} />
+                    <Text strong>Financial Compatibility</Text>
+                  </div>
+                  <Paragraph style={{ marginBottom: 0 }}>
+                    {compatibility.numerology.finante}
+                  </Paragraph>
+                </Card>
               </div>
             )}
 
-            {relationshipCompatible && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                background: 'linear-gradient(135deg, #52c41a, #73d13d)',
-                borderRadius: '12px',
-                color: 'white'
-              }}>
-                <Iconify icon="eva:heart-fill" width="24px" />
-                <div>
-                  <div style={{ fontWeight: '600', marginBottom: '2px' }}>
-                    Relationship Goals
-                  </div>
-                  <div style={{ fontSize: '12px', opacity: 0.9 }}>
-                    You're looking for similar things
-                  </div>
-                </div>
+            {/* Show message if no compatibility data available */}
+            {!compatibility.astrology && !compatibility.numerology && (
+              <div style={{ textAlign: 'center', padding: '32px' }}>
+                <Iconify icon="eva:star-outline" width="48px" style={{ color: '#ccc', marginBottom: '16px' }} />
+                <Title level={4} type="secondary">Compatibility Analysis</Title>
+                <Text type="secondary">
+                  Complete your profile questionnaire to see detailed compatibility analysis.
+                </Text>
               </div>
             )}
-          </div>
+          </>
         </div>
       </Modal>
     </div>
@@ -727,7 +804,6 @@ const MatchesPage = () => {
   const { user: currentUser } = useUser();
   const { t } = useLanguage();
   const router = useRouter();
-  const isMobile = useIsMobile();
 
   // Get user's compatible user IDs
   const { data: compatibleUserIds, isLoading: loadingCompatibilities } = useQuery({
@@ -778,22 +854,22 @@ const MatchesPage = () => {
       height: '100vh',
       overflowY: 'auto',
       overflowX: 'hidden',
-      padding: '0',
-      paddingBottom: isMobile ? '120px' : '4rem'
+      padding: '0'
     }}>
       <div style={{ 
         width: '100%',
         maxWidth: 'none',
-        padding: isMobile ? '1rem' : '1.5rem 2rem',
+        padding: '1.5rem 2rem',
         minHeight: '100%',
+        paddingBottom: '4rem'
       }}>
         {/* Header */}
         <div style={{ 
           textAlign: 'center',
-          marginBottom: isMobile ? '1.5rem' : '3rem',
+          marginBottom: '3rem',
           background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
-          borderRadius: isMobile ? '16px' : '24px',
-          padding: isMobile ? '1.5rem 1rem' : '2.5rem 2rem',
+          borderRadius: '24px',
+          padding: '2.5rem 2rem',
           color: 'white',
           position: 'relative',
           overflow: 'hidden'
@@ -809,79 +885,61 @@ const MatchesPage = () => {
           }} />
           
           <div style={{ position: 'relative', zIndex: 1 }}>
-            {!isMobile && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '16px',
-                marginBottom: '16px'
-              }}>
-                <Iconify icon="eva:heart-fill" width="40px" style={{ color: 'white' }} />
-                <Title level={1} style={{ 
-                  margin: 0, 
-                  color: 'white',
-                  fontSize: '2.5rem',
-                  fontWeight: '800'
-                }}>
-                  {t('matches.title')}
-                </Title>
-              </div>
-            )}
-            
-            {/* Mobile: Only title */}
-            {isMobile && (
-              <Title level={2} style={{ 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '16px',
+              marginBottom: '16px'
+            }}>
+              <Iconify icon="eva:heart-fill" width="40px" style={{ color: 'white' }} />
+              <Title level={1} style={{ 
                 margin: 0, 
                 color: 'white',
-                fontSize: '1.5rem',
-                fontWeight: '700'
+                fontSize: '2.5rem',
+                fontWeight: '800'
               }}>
                 {t('matches.title')}
               </Title>
-            )}
+            </div>
             
-            {!isMobile && (
-              <>
-                <Text style={{ 
-                  fontSize: '18px',
-                  color: 'rgba(255, 255, 255, 0.9)',
-                  display: 'block',
-                  marginBottom: '24px'
-                }}>
-                  {t('matches.subtitle')}
-                </Text>
-                
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  padding: '12px 24px',
-                  borderRadius: '50px',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255, 255, 255, 0.3)'
-                }}>
-                  <Text strong style={{ fontSize: '24px', color: 'white' }}>
-                    {compatibleUsers.length}
-                  </Text>
-                  <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '16px' }}>
-                    {t('matches.compatibleSoulsFound')}
-                  </Text>
-                </div>
-              </>
-            )}
+            <Text style={{ 
+              fontSize: '18px',
+              color: 'rgba(255, 255, 255, 0.9)',
+              display: 'block',
+              marginBottom: '24px'
+            }}>
+              {t('matches.subtitle')}
+            </Text>
+            
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              padding: '12px 24px',
+              borderRadius: '50px',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.3)'
+            }}>
+              <Text strong style={{ fontSize: '24px', color: 'white' }}>
+                {compatibleUsers.length}
+              </Text>
+              <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '16px' }}>
+                {t('matches.compatibleSoulsFound')}
+              </Text>
+            </div>
           </div>
         </div>
 
         {/* Loading State */}
         {isLoading && (
-          <Row gutter={isMobile ? [12, 16] : [24, 32]} style={{ marginBottom: '3rem' }}>
+          <Row gutter={[24, 32]} style={{ marginBottom: '3rem' }}>
             {Array(6).fill(0).map((_, i) => (
-              <Col xs={12} sm={12} lg={8} key={i}>
+              <Col xs={24} sm={12} lg={8} key={i}>
                 <div style={{
-                  height: isMobile ? '200px' : '480px',
-                  borderRadius: isMobile ? '16px' : '20px',
+                  height: '480px',
+                  borderRadius: '20px',
                   background: 'linear-gradient(135deg, #f5f5f5, #e8e8e8)',
                   animation: 'pulse 1.5s ease-in-out infinite'
                 }} />
@@ -892,22 +950,14 @@ const MatchesPage = () => {
 
         {/* Matches Grid */}
         {!isLoading && compatibleUsers.length > 0 ? (
-          <Row gutter={isMobile ? [12, 16] : [24, 32]} style={{ marginBottom: '3rem' }}>
+          <Row gutter={[24, 32]} style={{ marginBottom: '3rem' }}>
             {compatibleUsers.map((user) => (
-              <Col xs={12} sm={12} lg={8} key={user.id}>
-                {isMobile ? (
-                  <MobileMatchCard
-                    user={user}
-                    currentUser={currentUser}
-                    onStartChat={handleStartChat}
-                  />
-                ) : (
-                  <DesktopMatchCard
-                    user={user}
-                    currentUser={currentUser}
-                    onStartChat={handleStartChat}
-                  />
-                )}
+              <Col xs={24} sm={12} lg={8} key={user.id}>
+                <MatchCard
+                  user={user}
+                  currentUser={currentUser}
+                  onStartChat={handleStartChat}
+                />
               </Col>
             ))}
           </Row>
@@ -915,50 +965,48 @@ const MatchesPage = () => {
           !isLoading && (
             <div style={{ 
               textAlign: "center", 
-              padding: isMobile ? "2rem 1rem" : "4rem 2rem",
+              padding: "4rem 2rem",
               background: 'linear-gradient(135deg, #f8f9fa, #e9ecef)',
-              borderRadius: isMobile ? '16px' : '24px',
+              borderRadius: '24px',
               border: '1px solid #dee2e6',
               marginBottom: '3rem'
             }}>
               <div style={{
                 background: 'linear-gradient(135deg, #ccc, #999)',
                 borderRadius: '50%',
-                width: isMobile ? '60px' : '100px',
-                height: isMobile ? '60px' : '100px',
+                width: '100px',
+                height: '100px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: `0 auto ${isMobile ? '16px' : '32px'}`
+                margin: '0 auto 32px'
               }}>
-                <Iconify icon="eva:heart-outline" width={isMobile ? "32px" : "48px"} style={{ color: 'white' }} />
+                <Iconify icon="eva:heart-outline" width="48px" style={{ color: 'white' }} />
               </div>
-              <Title level={isMobile ? 3 : 2} style={{ marginBottom: '16px', color: '#666' }}>
+              <Title level={2} style={{ marginBottom: '16px', color: '#666' }}>
                 No cosmic matches yet
               </Title>
-              {!isMobile && (
-                <Paragraph style={{ 
-                  fontSize: '16px', 
-                  maxWidth: '500px', 
-                  margin: '0 auto 32px',
-                  lineHeight: '1.6',
-                  color: '#888'
-                }}>
-                  Our cosmic compatibility system is working behind the scenes. 
-                  Compatibilities are carefully curated by our team based on astrological and numerological analysis.
-                </Paragraph>
-              )}
+              <Paragraph style={{ 
+                fontSize: '16px', 
+                maxWidth: '500px', 
+                margin: '0 auto 32px',
+                lineHeight: '1.6',
+                color: '#888'
+              }}>
+                Our cosmic compatibility system is working behind the scenes. 
+                Compatibilities are carefully curated by our team based on astrological and numerological analysis.
+              </Paragraph>
               <Button 
                 type="primary" 
-                size={isMobile ? "middle" : "large"}
+                size="large"
                 onClick={() => router.push('/home')}
                 style={{
                   background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
                   border: 'none',
                   borderRadius: '12px',
-                  height: isMobile ? '40px' : '48px',
-                  padding: isMobile ? '0 24px' : '0 32px',
-                  fontSize: isMobile ? '14px' : '16px',
+                  height: '48px',
+                  padding: '0 32px',
+                  fontSize: '16px',
                   fontWeight: '600'
                 }}
               >

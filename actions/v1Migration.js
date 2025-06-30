@@ -130,7 +130,7 @@ export const markV1WelcomeShown = async (userId) => {
     const userRef = doc(db, 'Users', userId);
     await updateDoc(userRef, {
       'v1Migration.welcomeShown': true,
-      'v1Migration.welcomeShownAt': new Date()
+      'v1Migration.welcomeShownAt': serverTimestamp()
     });
 
     return { success: true };

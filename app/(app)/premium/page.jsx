@@ -1,22 +1,29 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Button, Typography, Row, Col, Space, Divider, Tag, Badge, Spin, message } from 'antd';
-import { CrownOutlined, CheckOutlined, StarFilled, HeartFilled, ShieldFilled, RocketFilled } from '@ant-design/icons';
+import { CrownOutlined, CheckOutlined, StarFilled, HeartFilled, CustomerServiceOutlined, RocketFilled } from '@ant-design/icons';
 import Iconify from '@/components/Iconify';
 import { useLanguage } from '@/lib/i18n';
 import { useUser } from '@/hooks/useFirebaseAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { PREMIUM_FEATURES_DESCRIPTIONS, isPremiumUser } from '@/utils/premiumHelpers';
 import PremiumBadge from '@/components/PremiumBadge';
+import { formatDate } from '@/utils/dateHelpers';
+import BottomNavbarPaddingWrapper from '@/components/BottomNavbarPaddingWrapper';
 
 const { Title, Text, Paragraph } = Typography;
 
 const PremiumPage = () => {
   const { t } = useLanguage();
   const { user } = useUser();
-  const { subscription, isPremium, startPremiumSubscription } = useSubscription();
+  const { subscription, isPremium, startPremiumSubscription, manageSubscription, isCreatingPortal } = useSubscription();
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleUpgrade = async () => {
     try {
@@ -47,7 +54,7 @@ const PremiumPage = () => {
       description: 'Profilul tău va fi evidențiat și va apărea mai sus în căutări și liste',
     },
     {
-      icon: <ShieldFilled style={{ fontSize: '24px', color: '#52c41a' }} />,
+      icon: <CustomerServiceOutlined style={{ fontSize: '24px', color: '#52c41a' }} />,
       title: 'Suport Prioritar',
       description: 'Acces la suport dedicat cu răspuns rapid la întrebările tale',
     },
@@ -65,224 +72,269 @@ const PremiumPage = () => {
 
   if (isPremium) {
     return (
-      <div style={{ 
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        padding: '2rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <Card
-          style={{
-            maxWidth: 600,
-            width: '100%',
-            borderRadius: '20px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-            border: 'none',
-            background: 'white'
-          }}
-        >
-          <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
-              <CrownOutlined style={{ color: '#FFD700' }} />
-            </div>
-            
-            <Title level={2} style={{ color: '#667eea', marginBottom: '0.5rem' }}>
-              Bine ai venit în Premium!
-            </Title>
-            
-            <PremiumBadge user={user} size="large" style={{ marginBottom: '1rem' }} />
-            
-            <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: '2rem' }}>
-              Abonamentul tău Premium este activ. Bucură-te de toate beneficiile!
-            </Paragraph>
-
-            <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
-              <Text strong style={{ fontSize: '18px', color: '#333', marginBottom: '1rem', display: 'block' }}>
-                Beneficiile tale Premium:
-              </Text>
+      <BottomNavbarPaddingWrapper useCSS>
+        <div style={{ 
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <Card
+            style={{
+              maxWidth: 600,
+              width: '100%',
+              borderRadius: '20px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+              border: 'none',
+              background: 'white',
+              margin: '0 auto'
+            }}
+          >
+            <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+              <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
+                <CrownOutlined style={{ color: '#FFD700' }} />
+              </div>
               
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                {premiumFeatures.map((feature, index) => (
-                  <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    {feature.icon}
-                    <div>
-                      <Text strong style={{ color: '#333' }}>{feature.title}</Text>
-                      <br />
-                      <Text type="secondary" style={{ fontSize: '14px' }}>
-                        {feature.description}
-                      </Text>
+              <Title level={2} style={{ color: '#667eea', marginBottom: '0.5rem', fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>
+                Bine ai venit în Premium!
+              </Title>
+              
+              <PremiumBadge user={user} size="large" style={{ marginBottom: '1rem' }} />
+              
+              <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: '2rem' }}>
+                Abonamentul tău Premium este activ. Bucură-te de toate beneficiile!
+              </Paragraph>
+
+              <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
+                <Text strong style={{ fontSize: '18px', color: '#333', marginBottom: '1rem', display: 'block' }}>
+                  Beneficiile tale Premium:
+                </Text>
+                
+                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                  {premiumFeatures.map((feature, index) => (
+                    <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      {feature.icon}
+                      <div>
+                        <Text strong style={{ color: '#333' }}>{feature.title}</Text>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: '14px' }}>
+                          {feature.description}
+                        </Text>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </Space>
-            </div>
+                  ))}
+                </Space>
+              </div>
 
-            <Divider />
+              <Divider />
 
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                          <Space direction="vertical" size="small" style={{ width: '100%' }}>
               <Text type="secondary">
                 Mulțumim că susții platforma noastră!
               </Text>
-              {subscription?.currentPeriodEnd && (
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Următoarea facturare: {new Date(subscription.currentPeriodEnd).toLocaleDateString('ro-RO')}
-                </Text>
-              )}
+              
+              <div style={{ marginTop: '1rem' }}>
+                <Button
+                  type="default"
+                  size="large"
+                  onClick={manageSubscription}
+                  loading={isCreatingPortal}
+                  style={{
+                    borderRadius: '8px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Gestionează Abonamentul
+                </Button>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Anulează, modifică sau vizualizează facturile
+                  </Text>
+                </div>
+              </div>
             </Space>
-          </div>
-        </Card>
-      </div>
+            </div>
+          </Card>
+        </div>
+      </BottomNavbarPaddingWrapper>
     );
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh',
-      background: '#f5f5f5',
-      padding: '2rem'
-    }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        {/* Hero Section */}
-        <Card
-          style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            border: 'none',
-            borderRadius: '20px',
-            marginBottom: '2rem',
-            color: 'white'
-          }}
-          bodyStyle={{ padding: '3rem' }}
-        >
-          <Row gutter={[32, 32]} align="middle">
-            <Col xs={24} md={12}>
-              <Space direction="vertical" size="large">
-                <div>
-                  <CrownOutlined style={{ fontSize: '48px', color: '#FFD700' }} />
-                </div>
-                <Title level={1} style={{ color: 'white', margin: 0 }}>
-                  Devino Premium
-                </Title>
-                <Paragraph style={{ fontSize: '18px', color: 'rgba(255,255,255,0.9)' }}>
-                  Pentru doar <strong>5€/lună</strong>, primești prioritate în compatibilități și multe alte beneficii exclusive!
-                </Paragraph>
-                <Button
-                  type="primary"
-                  size="large"
-                  icon={<CrownOutlined />}
-                  onClick={handleUpgrade}
-                  loading={loading}
-                  style={{
-                    background: '#FFD700',
-                    borderColor: '#FFD700',
-                    color: '#000',
-                    fontWeight: 'bold',
-                    height: '48px',
-                    fontSize: '16px',
-                    borderRadius: '24px',
-                    paddingLeft: '32px',
-                    paddingRight: '32px'
-                  }}
-                >
-                  Activează Premium
-                </Button>
-              </Space>
-            </Col>
-            <Col xs={24} md={12}>
-              <div style={{ textAlign: 'center' }}>
-                <img 
-                  src="/premium-hero.svg" 
-                  alt="Premium" 
-                  style={{ 
-                    maxWidth: '100%', 
-                    height: 'auto',
-                    filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.1))'
-                  }} 
-                />
-              </div>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* Features Grid */}
-        <Title level={2} style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          Ce primești cu Premium?
-        </Title>
-        
-        <Row gutter={[24, 24]}>
-          {premiumFeatures.map((feature, index) => (
-            <Col xs={24} sm={12} md={8} key={index}>
-              <Card
-                hoverable
-                style={{
-                  height: '100%',
-                  borderRadius: '16px',
-                  border: '1px solid #f0f0f0',
-                  transition: 'all 0.3s'
-                }}
-                bodyStyle={{ padding: '24px' }}
-              >
-                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <BottomNavbarPaddingWrapper useCSS>
+      <div style={{ 
+        minHeight: '100vh',
+        background: '#f5f5f5',
+        padding: 'clamp(1rem, 2vw, 2rem)'
+      }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          {/* Hero Section */}
+          <Card
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              border: 'none',
+              borderRadius: '20px',
+              marginBottom: '2rem',
+              color: 'white',
+              overflow: 'hidden'
+            }}
+            styles={{ body: { padding: 'clamp(1.5rem, 4vw, 3rem)' } }}
+          >
+            <Row gutter={[32, 32]} align="middle">
+              <Col xs={24} md={12}>
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
                   <div style={{ textAlign: 'center' }}>
-                    {feature.icon}
+                    <CrownOutlined style={{ fontSize: 'clamp(32px, 8vw, 48px)', color: '#FFD700' }} />
                   </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <Title level={4} style={{ marginBottom: '8px' }}>
-                      {feature.title}
-                    </Title>
-                    <Text type="secondary">
-                      {feature.description}
-                    </Text>
+                  <Title level={1} style={{ 
+                    color: 'white', 
+                    margin: 0, 
+                    fontSize: 'clamp(1.75rem, 5vw, 2.5rem)',
+                    textAlign: 'center'
+                  }}>
+                    Devino Premium
+                  </Title>
+                  <Paragraph style={{ 
+                    fontSize: 'clamp(14px, 3vw, 18px)', 
+                    color: 'rgba(255,255,255,0.9)',
+                    textAlign: 'center',
+                    margin: '1rem 0'
+                  }}>
+                    Pentru doar <strong>5€/lună</strong>, primești prioritate în compatibilități și multe alte beneficii exclusive!
+                  </Paragraph>
+                  <div style={{ textAlign: 'center', width: '100%' }}>
+                    <Button
+                      type="primary"
+                      size="large"
+                      icon={<CrownOutlined />}
+                      onClick={handleUpgrade}
+                      loading={loading}
+                      style={{
+                        background: '#FFD700',
+                        borderColor: '#FFD700',
+                        color: '#000',
+                        fontWeight: 'bold',
+                        height: 'clamp(40px, 8vw, 48px)',
+                        fontSize: 'clamp(14px, 3vw, 16px)',
+                        borderRadius: '24px',
+                        paddingLeft: 'clamp(16px, 4vw, 32px)',
+                        paddingRight: 'clamp(16px, 4vw, 32px)',
+                        minWidth: '200px'
+                      }}
+                    >
+                      Activează Premium
+                    </Button>
                   </div>
                 </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+              </Col>
+              <Col xs={24} md={12}>
+                <div style={{ textAlign: 'center' }}>
+                  <img 
+                    src="/images/comunity.jpg" 
+                    alt="Premium Community" 
+                    style={{ 
+                      maxWidth: '100%', 
+                      height: 'auto',
+                      borderRadius: '16px',
+                      maxHeight: '300px',
+                      objectFit: 'cover',
+                      filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.1))'
+                    }} 
+                  />
+                </div>
+              </Col>
+            </Row>
+          </Card>
 
-        {/* CTA Section */}
-        <Card
-          style={{
-            marginTop: '3rem',
-            textAlign: 'center',
-            borderRadius: '16px',
-            background: 'linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%)'
-          }}
-          bodyStyle={{ padding: '3rem' }}
-        >
-          <Space direction="vertical" size="large">
-            <Title level={3}>
-              Gata să primești mai multe compatibilități?
-            </Title>
-            <Paragraph style={{ fontSize: '16px' }}>
-              Alătură-te comunității noastre Premium și bucură-te de toate beneficiile!
-            </Paragraph>
-            <Button
-              type="primary"
-              size="large"
-              icon={<CrownOutlined />}
-              onClick={handleUpgrade}
-              loading={loading}
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                border: 'none',
-                height: '48px',
-                fontSize: '16px',
-                borderRadius: '24px',
-                paddingLeft: '32px',
-                paddingRight: '32px'
-              }}
-            >
-              Activează Premium Acum
-            </Button>
-            <Text type="secondary" style={{ fontSize: '14px' }}>
-              Anulează oricând • Fără taxe ascunse • Plată securizată
-            </Text>
-          </Space>
-        </Card>
+          {/* Features Grid */}
+          <Title level={2} style={{ 
+            textAlign: 'center', 
+            marginBottom: '2rem',
+            fontSize: 'clamp(1.5rem, 4vw, 2rem)'
+          }}>
+            Ce primești cu Premium?
+          </Title>
+          
+          <Row gutter={[24, 24]} justify="center">
+            {premiumFeatures.map((feature, index) => (
+              <Col xs={24} sm={12} lg={8} key={index}>
+                <Card
+                  hoverable
+                  style={{
+                    height: '100%',
+                    borderRadius: '16px',
+                    border: '1px solid #f0f0f0',
+                    transition: 'all 0.3s'
+                  }}
+                  styles={{ body: { padding: 'clamp(16px, 3vw, 24px)' } }}
+                >
+                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      {feature.icon}
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <Title level={4} style={{ 
+                        marginBottom: '8px',
+                        fontSize: 'clamp(1rem, 3vw, 1.25rem)'
+                      }}>
+                        {feature.title}
+                      </Title>
+                      <Text type="secondary" style={{ fontSize: 'clamp(12px, 2.5vw, 14px)' }}>
+                        {feature.description}
+                      </Text>
+                    </div>
+                  </Space>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+
+          {/* CTA Section */}
+          <Card
+            style={{
+              marginTop: '3rem',
+              textAlign: 'center',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%)'
+            }}
+            styles={{ body: { padding: 'clamp(2rem, 4vw, 3rem)' } }}
+          >
+            <Space direction="vertical" size="large" style={{ width: '100%' }}>
+              <Title level={3} style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)' }}>
+                Gata să primești mai multe compatibilități?
+              </Title>
+              <Paragraph style={{ fontSize: 'clamp(14px, 3vw, 16px)' }}>
+                Alătură-te comunității noastre Premium și bucură-te de toate beneficiile!
+              </Paragraph>
+              <Button
+                type="primary"
+                size="large"
+                icon={<CrownOutlined />}
+                onClick={handleUpgrade}
+                loading={loading}
+                style={{
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  height: 'clamp(40px, 8vw, 48px)',
+                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  borderRadius: '24px',
+                  paddingLeft: 'clamp(16px, 4vw, 32px)',
+                  paddingRight: 'clamp(16px, 4vw, 32px)',
+                  minWidth: '200px'
+                }}
+              >
+                Activează Premium Acum
+              </Button>
+              <Text type="secondary" style={{ fontSize: 'clamp(12px, 2.5vw, 14px)' }}>
+                Anulează oricând • Fără taxe ascunse • Plată securizată
+              </Text>
+            </Space>
+          </Card>
+        </div>
       </div>
-    </div>
+    </BottomNavbarPaddingWrapper>
   );
 };
 

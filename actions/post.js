@@ -22,6 +22,8 @@ import { db } from "@/lib/firebase";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getMyCompatibleUsers } from "./admin";
 import { getUser } from "./user";
+import { toSerializableDate } from "@/utils/dateHelpers";
+import { serializeFirebaseData } from "@/utils/firebaseHelpers";
 
 // Cache for user data to reduce repeated getUser calls
 const userCache = new Map();
@@ -95,10 +97,14 @@ const batchGetUsers = async (userIds) => {
     // Process all results
     snapshots.forEach(snapshot => {
       snapshot.docs.forEach(doc => {
+        // Serialize the Firebase data before storing/returning
+        const rawUserData = doc.data();
+        const serializedUserData = serializeFirebaseData(rawUserData);
+        
         const userData = {
           data: {
             id: doc.id,
-            ...doc.data()
+            ...serializedUserData
           }
         };
         
@@ -151,14 +157,34 @@ const batchGetUsers = async (userIds) => {
 // Create a new post
 export const createPost = async (post) => {
   const { postText, media, authorId } = post;
+  console.log("🔥 createPost called:", { 
+    postText: postText?.substring(0, 50) + "...", 
+    hasMedia: !!media, 
+    authorId 
+  });
+  
   try {
     if (!authorId) {
+      console.error("❌ Author ID is required");
       throw new Error("Author ID is required");
     }
 
+    if (!postText?.trim() && !media) {
+      console.error("❌ Post must have either text or media");
+      throw new Error("Post must have either text or media");
+    }
+
+    console.log("👤 Getting author data...");
     // Get author data with caching
     const authorData = await getCachedUser(authorId);
+    console.log("👤 Author data retrieved:", {
+      hasData: !!authorData?.data,
+      authorId: authorData?.data?.id,
+      authorName: `${authorData?.data?.firstName || ''} ${authorData?.data?.lastName || ''}`.trim()
+    });
+    
     if (!authorData?.data) {
+      console.error("❌ Author not found for ID:", authorId);
       throw new Error("Author not found");
     }
 
@@ -167,7 +193,7 @@ export const createPost = async (post) => {
 
     // Upload media if provided
     if (media) {
-      console.log("Uploading media for post...", { mediaType: typeof media, mediaLength: media?.length });
+      console.log("📷 Uploading media for post...", { mediaType: typeof media, mediaLength: media?.length });
       try {
         // Convert base64 to file if needed
         if (typeof media === 'string' && media.startsWith('data:')) {
@@ -175,7 +201,7 @@ export const createPost = async (post) => {
           const mimeType = media.split(',')[0].split(':')[1].split(';')[0];
           const fileExtension = mimeType.split('/')[1];
           
-          console.log("Media details:", { mimeType, fileExtension });
+          console.log("📊 Media details:", { mimeType, fileExtension });
           
           const buffer = Buffer.from(base64Data, 'base64');
           const blob = new Blob([buffer], { type: mimeType });
@@ -185,7 +211,7 @@ export const createPost = async (post) => {
           const fileName = `post_${timestamp}.${fileExtension}`;
           const filePath = `posts/${authorId}/${fileName}`;
           
-          console.log("Uploading to Firebase Storage:", { fileName, filePath });
+          console.log("☁️ Uploading to Firebase Storage:", { fileName, filePath });
           
           // Upload to Firebase Storage
           const storage = getStorage();
@@ -194,17 +220,19 @@ export const createPost = async (post) => {
           mediaUrl = await getDownloadURL(snapshot.ref);
           mediaFileName = fileName;
           
-          console.log("Media uploaded successfully:", { mediaUrl, mediaFileName });
+          console.log("✅ Media uploaded successfully:", { mediaUrl, mediaFileName });
         }
       } catch (uploadError) {
-        console.error("Error uploading media:", uploadError);
+        console.error("❌ Error uploading media:", uploadError);
+        console.log("⚠️ Continuing without media...");
         // Continue without media if upload fails
       }
     }
 
+    console.log("📝 Creating post document...");
     // Create post document
     const newPost = {
-      postText: postText || '',
+      postText: postText?.trim() || '',
       media: mediaUrl,
       mediaFileName,
       authorId,
@@ -217,18 +245,46 @@ export const createPost = async (post) => {
       isVisible: true
     };
 
+    console.log("💾 Saving post to Firestore...");
     const docRef = await addDoc(collection(db, "Posts"), newPost);
+    console.log("✅ Post document created with ID:", docRef.id);
+
+    // Return serialized data to avoid Firebase timestamp issues
+    const serializedPost = {
+      id: docRef.id,
+      postText: postText?.trim() || '',
+      media: mediaUrl,
+      mediaFileName,
+      authorId,
+      createdAt: toSerializableDate(new Date()), // Use current date as ISO string
+      updatedAt: toSerializableDate(new Date()), // Use current date as ISO string
+      edited: false,
+      likes: [],
+      likesCount: 0,
+      commentsCount: 0,
+      isVisible: true,
+      author: authorData.data // This is already serialized from getCachedUser
+    };
+
+    console.log("🎯 Returning serialized post:", {
+      id: serializedPost.id,
+      hasText: !!serializedPost.postText,
+      hasMedia: !!serializedPost.media,
+      authorId: serializedPost.authorId
+    });
 
     return {
       success: true,
-      post: {
-        id: docRef.id,
-        ...newPost
-      }
+      post: serializedPost
     };
   } catch (error) {
-    console.error("Error creating post:", error);
-    throw new Error("Failed to create post");
+    console.error("❌ Error creating post:", error);
+    console.error("❌ Error details:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    throw new Error(`Failed to create post: ${error.message}`);
   }
 };
 
@@ -314,8 +370,9 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
     // Batch collect all user IDs from posts and comments
     const allUserIds = new Set();
     const postCommentPromises = [];
+    const postLikePromises = [];
 
-    // Pre-process posts to collect user IDs and prepare comment queries
+    // Pre-process posts to collect user IDs and prepare comment + like queries
     relevantDocs.forEach(docSnap => {
       const postData = docSnap.data();
       allUserIds.add(postData.authorId);
@@ -331,14 +388,28 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
           comments: commentsSnapshot.docs
         }))
       );
+
+      // Prepare like query for this post - THIS WAS MISSING!
+      postLikePromises.push(
+        getDocs(collection(db, "Posts", docSnap.id, "Likes")).then(likesSnapshot => ({
+          postId: docSnap.id,
+          likes: likesSnapshot.docs
+        }))
+      );
     });
 
-    // Execute all comment queries in parallel
-    const [allCommentsResults] = await Promise.all([
-      Promise.all(postCommentPromises)
+    // Execute all comment AND like queries in parallel
+    const [allCommentsResults, allLikesResults] = await Promise.all([
+      Promise.all(postCommentPromises),
+      Promise.all(postLikePromises)
     ]);
 
-    // Collect author IDs from comments
+    console.log("👍 Likes data loaded:", {
+      postsWithLikes: allLikesResults.length,
+      totalLikes: allLikesResults.reduce((sum, result) => sum + result.likes.length, 0)
+    });
+
+    // Collect author IDs from comments and likes
     allCommentsResults.forEach(({ comments }) => {
       comments.forEach(commentDoc => {
         const commentData = commentDoc.data();
@@ -346,73 +417,90 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
       });
     });
 
+    allLikesResults.forEach(({ likes }) => {
+      likes.forEach(likeDoc => {
+        const likeData = likeDoc.data();
+        allUserIds.add(likeData.authorId);
+      });
+    });
+
     // Batch fetch all unique users
     console.log("👥 Fetching user data for", allUserIds.size, "unique users");
     const userMap = await batchGetUsers(Array.from(allUserIds));
 
-    // Build posts with all data
-    const posts = [];
-    
-    for (let i = 0; i < relevantDocs.length; i++) {
-      const docSnap = relevantDocs[i];
+    // Process each post with its comments and likes and return them
+    const postsWithDetails = allCommentsResults.map(({ postId, comments }) => {
+      const docSnap = relevantDocs.find(doc => doc.id === postId);
       const postData = docSnap.data();
       
-      // Skip invisible posts
-      if (postData.isVisible === false) continue;
+      const processedComments = comments.map(commentDoc => {
+        const commentData = commentDoc.data();
+        return {
+          id: commentDoc.id,
+          comment: commentData.comment,
+          authorId: commentData.authorId,
+          createdAt: toSerializableDate(commentData.createdAt),
+          updatedAt: toSerializableDate(commentData.updatedAt),
+          author: userMap[commentData.authorId] || { firstName: "Unknown", lastName: "User" }
+        };
+      });
 
-      // Get author data from cache
-      const authorData = userMap[postData.authorId];
-      
-      // Get likes (simplified - just count)
-      const likesSnapshot = await getDocs(collection(db, "Posts", docSnap.id, "Likes"));
-      const likes = likesSnapshot.docs.map(likeDoc => ({
-        id: likeDoc.id,
-        ...likeDoc.data()
-      }));
-
-      // Get comments from pre-fetched results
-      const commentsResult = allCommentsResults.find(result => result.postId === docSnap.id);
-      const comments = [];
-      
-      if (commentsResult) {
-        commentsResult.comments.forEach(commentDoc => {
-          const commentData = commentDoc.data();
-          const commentAuthorData = userMap[commentData.authorId];
-          
-          comments.push({
-            id: commentDoc.id,
-            ...commentData,
-            createdAt: commentData.createdAt?.toDate() || new Date(),
-            author: commentAuthorData?.data || { 
-              id: commentData.authorId, 
-              firstName: 'Unknown', 
-              lastName: 'User' 
-            }
+      // Get likes for this post
+      const likesResult = allLikesResults.find(result => result.postId === postId);
+      const processedLikes = [];
+      if (likesResult) {
+        likesResult.likes.forEach(likeDoc => {
+          const likeData = likeDoc.data();
+          processedLikes.push({
+            id: likeDoc.id,
+            authorId: likeData.authorId,
+            postId: likeData.postId,
+            createdAt: toSerializableDate(likeData.createdAt),
+            author: userMap[likeData.authorId] || { firstName: "Unknown", lastName: "User" }
           });
         });
       }
 
-      posts.push({
+      console.log("📝 Processing post:", {
         id: docSnap.id,
-        ...postData,
-        createdAt: postData.createdAt?.toDate() || new Date(),
-        updatedAt: postData.updatedAt?.toDate() || new Date(),
-        editedAt: postData.editedAt?.toDate() || null,
-        author: authorData?.data || { id: postData.authorId, firstName: 'Unknown', lastName: 'User' },
-        likes,
-        comments,
-        commentsCount: Math.max(comments.length, postData.commentsCount || 0)
+        authorId: postData.authorId,
+        hasText: !!postData.postText,
+        hasMedia: !!postData.media,
+        createdAtType: typeof postData.createdAt,
+        createdAtValue: postData.createdAt,
+        likesCount: processedLikes.length,
+        commentsCount: processedComments.length
       });
-    }
 
-    // Get the last document for next page cursor
-    const lastDoc = relevantDocs[relevantDocs.length - 1];
+      return {
+        id: docSnap.id,
+        postText: postData.postText || '',
+        media: postData.media,
+        mediaFileName: postData.mediaFileName,
+        authorId: postData.authorId,
+        createdAt: toSerializableDate(postData.createdAt),
+        updatedAt: toSerializableDate(postData.updatedAt),
+        edited: postData.edited || false,
+        likes: processedLikes, // NOW PROPERLY LOADED FROM SUBCOLLECTION!
+        likesCount: processedLikes.length, // REAL COUNT FROM SUBCOLLECTION!
+        commentsCount: processedComments.length,
+        isVisible: postData.isVisible !== false,
+        author: userMap[postData.authorId] || { firstName: "Unknown", lastName: "User" },
+        comments: processedComments
+      };
+    });
+
+    console.log("🎯 Returning posts with details:", {
+      count: postsWithDetails.length,
+      hasNextPage: relevantDocs.length === limitCount,
+      lastCursor: relevantDocs.length > 0 ? relevantDocs[relevantDocs.length - 1].id : null
+    });
 
     return {
-      data: posts,
+      data: postsWithDetails,
       metaData: {
-        hasNextPage: relevantDocs.length === limitCount && snapshot.docs.length >= limitCount,
-        lastCursor: lastDoc ? lastDoc.id : null
+        hasNextPage: relevantDocs.length === limitCount,
+        lastCursor: relevantDocs.length > 0 ? relevantDocs[relevantDocs.length - 1].id : null
       }
     };
   } catch (error) {
@@ -556,39 +644,41 @@ export const getPosts = async (lastCursor = null, userId, limitCount = 10) => {
       
       // Get likes from results
       const likeResult = likeResults.find(result => result.postId === docSnap.id);
-      const likes = likeResult ? likeResult.likes.map(likeDoc => ({
-        id: likeDoc.id,
-        ...likeDoc.data()
-      })) : [];
+      const likes = [];
+      
+      if (likeResult) {
+        likes.push(...likeResult.likes.map(likeDoc => ({
+          id: likeDoc.id,
+          ...serializeFirebaseData(likeDoc.data())
+        })));
+      }
 
       // Get comments from results
       const commentResult = commentResults.find(result => result.postId === docSnap.id);
       const comments = [];
       
       if (commentResult) {
-        commentResult.comments.forEach(commentDoc => {
+        comments.push(...commentResult.comments.map(commentDoc => {
           const commentData = commentDoc.data();
-          const commentAuthorData = userMap[commentData.authorId];
-          
-          comments.push({
+          return {
             id: commentDoc.id,
-            ...commentData,
-            createdAt: commentData.createdAt?.toDate() || new Date(),
-            author: commentAuthorData?.data || { 
+            ...serializeFirebaseData(commentData),
+            createdAt: toSerializableDate(commentData.createdAt),
+            author: authorData?.data || { 
               id: commentData.authorId, 
               firstName: 'Unknown', 
               lastName: 'User' 
             }
-          });
-        });
+          };
+        }));
       }
 
       posts.push({
         id: docSnap.id,
         ...postData,
-        createdAt: postData.createdAt?.toDate() || new Date(),
-        updatedAt: postData.updatedAt?.toDate() || new Date(),
-        editedAt: postData.editedAt?.toDate() || null,
+        createdAt: toSerializableDate(postData.createdAt),
+        updatedAt: toSerializableDate(postData.updatedAt),
+        editedAt: toSerializableDate(postData.editedAt),
         author: authorData?.data || { id: postData.authorId, firstName: 'Unknown', lastName: 'User' },
         likes,
         comments,
@@ -631,12 +721,17 @@ export const updatePostLike = async (postId, type, userId) => {
       console.log("👍 Adding like...");
       // Add like using batch
       const likeRef = doc(collection(db, "Posts", postId, "Likes"));
-      batch.set(likeRef, {
+      const likeData = {
         authorId: userId,
         postId: postId,
         createdAt: serverTimestamp()
+      };
+      batch.set(likeRef, likeData);
+      console.log("✅ Like queued for batch write:", {
+        likeId: likeRef.id,
+        likeData,
+        subcollectionPath: `Posts/${postId}/Likes`
       });
-      console.log("✅ Like queued for batch write");
     } else if (type === "unlike") {
       console.log("👎 Removing like...");
       // Find and remove like
@@ -644,23 +739,44 @@ export const updatePostLike = async (postId, type, userId) => {
         query(collection(db, "Posts", postId, "Likes"), where("authorId", "==", userId))
       );
       
-      console.log("🔍 Found likes to remove:", likesSnapshot.docs.length);
+      console.log("🔍 Found likes to remove:", {
+        count: likesSnapshot.docs.length,
+        likeIds: likesSnapshot.docs.map(doc => doc.id)
+      });
       
       likesSnapshot.docs.forEach((likeDoc) => {
         batch.delete(likeDoc.ref);
-        console.log("🗑️ Like queued for deletion:", likeDoc.id);
+        console.log("🗑️ Like queued for deletion:", {
+          likeId: likeDoc.id,
+          authorId: likeDoc.data().authorId
+        });
       });
     }
 
     // Get current likes count for batch update
+    console.log("📊 Counting current likes before update...");
     const likesSnapshot = await getDocs(collection(db, "Posts", postId, "Likes"));
     let newLikesCount = likesSnapshot.docs.length;
+    
+    console.log("📊 Current likes in DB:", {
+      count: newLikesCount,
+      likes: likesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        authorId: doc.data().authorId
+      }))
+    });
     
     // Adjust count based on operation
     if (type === "like") {
       newLikesCount += 1;
+      console.log("➕ Incrementing likes count:", newLikesCount);
     } else if (type === "unlike") {
-      newLikesCount = Math.max(0, newLikesCount - likesSnapshot.docs.filter(doc => doc.data().authorId === userId).length);
+      const userLikesToRemove = likesSnapshot.docs.filter(doc => doc.data().authorId === userId).length;
+      newLikesCount = Math.max(0, newLikesCount - userLikesToRemove);
+      console.log("➖ Decrementing likes count:", {
+        userLikesToRemove,
+        newCount: newLikesCount
+      });
     }
     
     // Update post likes count in batch
@@ -668,14 +784,34 @@ export const updatePostLike = async (postId, type, userId) => {
       likesCount: newLikesCount
     });
     
+    console.log("📝 Post likesCount update queued:", newLikesCount);
+    
     // Commit batch
+    console.log("💾 Committing batch operation...");
     await batch.commit();
-    console.log("✅ Batch operation completed. Likes count:", newLikesCount);
+    console.log("✅ Batch operation completed. Final likes count:", newLikesCount);
 
-    return { success: true };
+    // Verify the save by reading back the data
+    console.log("🔍 Verifying save - reading back likes...");
+    const verifySnapshot = await getDocs(collection(db, "Posts", postId, "Likes"));
+    console.log("✅ Verification complete:", {
+      likesInDB: verifySnapshot.docs.length,
+      likeDetails: verifySnapshot.docs.map(doc => ({
+        id: doc.id,
+        authorId: doc.data().authorId,
+        createdAt: doc.data().createdAt
+      }))
+    });
+
+    return { success: true, likesCount: verifySnapshot.docs.length };
   } catch (error) {
     console.error("❌ Error updating post like:", error);
-    throw new Error("Failed to update post like");
+    console.error("❌ Error details:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    throw new Error(`Failed to update post like: ${error.message}`);
   }
 };
 
@@ -715,7 +851,12 @@ export const addComment = async (postId, comment, userId) => {
     // Add comment to subcollection
     const commentRef = doc(collection(db, "Posts", postId, "Comments"));
     batch.set(commentRef, commentData);
-    console.log("✅ Comment queued for batch write:", commentRef.id);
+    console.log("✅ Comment queued for batch write with ID:", commentRef.id);
+    console.log("🔑 Generated comment ID details:", {
+      commentId: commentRef.id,
+      idLength: commentRef.id.length,
+      isFirestoreId: commentRef.id.length === 20 // Firestore auto-generated IDs are typically 20 chars
+    });
 
     // Update post's comments count
     console.log("📊 Updating post comments count...");
@@ -742,12 +883,14 @@ export const addComment = async (postId, comment, userId) => {
     await batch.commit();
     console.log("✅ Batch operation completed");
 
-    // Return comment with author data
+    // Return comment with author data - properly serialized
     const newComment = {
       id: commentRef.id,
-      ...commentData,
-      createdAt: new Date(), // For immediate use
-      author: userData.data
+      comment: comment.trim(),
+      authorId: userId,
+      postId: postId,
+      createdAt: toSerializableDate(new Date()), // Use current date as ISO string
+      author: userData.data // This is already serialized from getCachedUser
     };
 
     console.log("🎯 Returning new comment:", newComment);
@@ -761,56 +904,125 @@ export const addComment = async (postId, comment, userId) => {
 
 // Edit post (only by author)
 export const editPost = async (postId, newText, userId) => {
+  console.log("✏️ editPost called:", { postId, newText: newText?.substring(0, 50) + "...", userId });
+  
   try {
     if (!userId) {
+      console.error("❌ User ID is required");
       throw new Error("User ID is required");
     }
 
+    if (!postId) {
+      console.error("❌ Post ID is required");
+      throw new Error("Post ID is required");
+    }
+
+    if (!newText || newText.trim() === '') {
+      console.error("❌ New text is required");
+      throw new Error("New text is required");
+    }
+
+    console.log("📍 Getting post document reference...");
     const postRef = doc(db, "Posts", postId);
+    console.log("📄 Post reference created:", postRef.path);
+    
+    console.log("📥 Fetching post document...");
     const postDoc = await getDoc(postRef);
+    console.log("📄 Post document fetched:", { exists: postDoc.exists() });
 
     if (!postDoc.exists()) {
+      console.error("❌ Post not found:", postId);
       throw new Error("Post not found");
     }
 
     const postData = postDoc.data();
+    console.log("📊 Post data retrieved:", { 
+      authorId: postData.authorId, 
+      currentUserId: userId,
+      isVisible: postData.isVisible,
+      originalText: postData.postText?.substring(0, 50) + "...",
+      createdAt: postData.createdAt
+    });
+    
     if (postData.authorId !== userId) {
+      console.error("❌ Authorization failed:", { 
+        postAuthor: postData.authorId, 
+        currentUser: userId 
+      });
       throw new Error("You can only edit your own posts");
     }
 
+    console.log("✅ Authorization successful - User is the post author");
+    console.log("📝 Updating post document with new text...");
+
     await updateDoc(postRef, {
-      postText: newText,
+      postText: newText.trim(),
       edited: true,
       editedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
 
+    console.log("✅ Post successfully updated");
     return { success: true };
   } catch (error) {
-    console.error("Error editing post:", error);
-    throw new Error("Failed to edit post");
+    console.error("❌ Error editing post:", error);
+    console.error("❌ Error details:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    throw new Error(`Failed to edit post: ${error.message}`);
   }
 };
 
 // Delete post (only by author)
 export const deletePost = async (postId, userId) => {
+  console.log("🗑️ deletePost called:", { postId, userId });
+  
   try {
     if (!userId) {
+      console.error("❌ User ID is required");
       throw new Error("User ID is required");
     }
 
+    if (!postId) {
+      console.error("❌ Post ID is required");
+      throw new Error("Post ID is required");
+    }
+
+    console.log("📍 Getting post document reference...");
     const postRef = doc(db, "Posts", postId);
+    console.log("📄 Post reference created:", postRef.path);
+    
+    console.log("📥 Fetching post document...");
     const postDoc = await getDoc(postRef);
+    console.log("📄 Post document fetched:", { exists: postDoc.exists() });
 
     if (!postDoc.exists()) {
+      console.error("❌ Post not found:", postId);
       throw new Error("Post not found");
     }
 
     const postData = postDoc.data();
+    console.log("📊 Post data retrieved:", { 
+      authorId: postData.authorId, 
+      currentUserId: userId,
+      isVisible: postData.isVisible,
+      postText: postData.postText?.substring(0, 50) + "...",
+      createdAt: postData.createdAt
+    });
+    
     if (postData.authorId !== userId) {
+      console.error("❌ Authorization failed:", { 
+        postAuthor: postData.authorId, 
+        currentUser: userId 
+      });
       throw new Error("You can only delete your own posts");
     }
 
+    console.log("✅ Authorization successful - User is the post author");
+    console.log("📝 Updating post document to mark as deleted...");
+    
     // Soft delete - mark as invisible
     await updateDoc(postRef, {
       isVisible: false,
@@ -818,10 +1030,16 @@ export const deletePost = async (postId, userId) => {
       updatedAt: serverTimestamp()
     });
 
+    console.log("✅ Post successfully marked as deleted");
     return { success: true };
   } catch (error) {
-    console.error("Error deleting post:", error);
-    throw new Error("Failed to delete post");
+    console.error("❌ Error deleting post:", error);
+    console.error("❌ Error details:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    throw new Error(`Failed to delete post: ${error.message}`);
   }
 };
 
@@ -864,10 +1082,13 @@ export const getPostComments = async (postId) => {
       const commentData = commentDoc.data();
       const authorData = userMap[commentData.authorId];
       
+      // Serialize the comment data properly
+      const serializedCommentData = serializeFirebaseData(commentData);
+      
       return {
         id: commentDoc.id,
-        ...commentData,
-        createdAt: commentData.createdAt?.toDate() || new Date(),
+        ...serializedCommentData,
+        createdAt: toSerializableDate(commentData.createdAt),
         author: authorData?.data || { id: commentData.authorId, firstName: 'Unknown', lastName: 'User' }
       };
     });
@@ -1003,43 +1224,96 @@ export const editComment = async (postId, commentId, newComment, userId) => {
 
 // Optimized deleteComment with batch operations
 export const deleteComment = async (postId, commentId, userId) => {
-  console.log("🔥 deleteComment called:", { postId, commentId, userId });
+  console.log("🗑️ deleteComment called:", { postId, commentId, userId });
+  console.log("🔍 Comment ID analysis:", {
+    commentId,
+    isTemporary: commentId?.startsWith('temp-'),
+    idLength: commentId?.length,
+    idType: typeof commentId
+  });
   
   try {
     if (!postId || !commentId || !userId) {
-      console.error("❌ Missing required parameters");
+      console.error("❌ Missing required parameters:", {
+        hasPostId: !!postId,
+        hasCommentId: !!commentId,
+        hasUserId: !!userId
+      });
       throw new Error("Missing required parameters");
     }
 
-    // Get comment to verify ownership
+    console.log("📍 Getting comment document reference...");
     const commentRef = doc(db, "Posts", postId, "Comments", commentId);
+    console.log("📄 Comment reference created:", commentRef.path);
+    
+    console.log("📥 Fetching comment document...");
     const commentDoc = await getDoc(commentRef);
+    console.log("📄 Comment document fetched:", { 
+      exists: commentDoc.exists(),
+      docId: commentDoc.id,
+      refPath: commentRef.path
+    });
     
     if (!commentDoc.exists()) {
       console.error("❌ Comment not found:", commentId);
+      console.log("🔍 Searching for all comments in post to help debug...");
+      
+      try {
+        const allCommentsSnapshot = await getDocs(collection(db, "Posts", postId, "Comments"));
+        console.log("📋 All comments in post:", {
+          totalComments: allCommentsSnapshot.docs.length,
+          commentIds: allCommentsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            authorId: doc.data().authorId,
+            comment: doc.data().comment?.substring(0, 30) + "...",
+            createdAt: doc.data().createdAt
+          }))
+        });
+      } catch (debugError) {
+        console.error("❌ Error fetching comments for debug:", debugError);
+      }
+      
       throw new Error("Comment not found");
     }
 
     const commentData = commentDoc.data();
+    console.log("📊 Comment data retrieved:", {
+      authorId: commentData.authorId,
+      currentUserId: userId,
+      comment: commentData.comment?.substring(0, 50) + "...",
+      createdAt: commentData.createdAt
+    });
+    
     if (commentData.authorId !== userId) {
-      console.error("❌ User not authorized to delete comment");
+      console.error("❌ Authorization failed:", {
+        commentAuthor: commentData.authorId,
+        currentUser: userId
+      });
       throw new Error("You can only delete your own comments");
     }
+
+    console.log("✅ Authorization successful - User is the comment author");
 
     // Use batch for atomic operations
     const batch = writeBatch(db);
     
-    console.log("🗑️ Deleting comment...");
+    console.log("🗑️ Queuing comment deletion...");
     batch.delete(commentRef);
 
     // Update post's comments count
-    console.log("📊 Updating post comments count...");
+    console.log("📊 Getting post document to update comments count...");
     const postRef = doc(db, "Posts", postId);
     const postDoc = await getDoc(postRef);
     
     if (postDoc.exists()) {
       const currentData = postDoc.data();
-      const newCount = Math.max(0, (currentData.commentsCount || 1) - 1);
+      const currentCount = currentData.commentsCount || 0;
+      const newCount = Math.max(0, currentCount - 1);
+      
+      console.log("📊 Comments count update:", {
+        currentCount,
+        newCount
+      });
       
       batch.update(postRef, {
         commentsCount: newCount,
@@ -1047,15 +1321,23 @@ export const deleteComment = async (postId, commentId, userId) => {
       });
       
       console.log("✅ Post comments count update queued:", newCount);
+    } else {
+      console.error("❌ Post document not found:", postId);
     }
 
     // Commit batch
+    console.log("💾 Committing batch operation...");
     await batch.commit();
-    console.log("✅ Batch operation completed");
+    console.log("✅ Comment successfully deleted");
 
     return { success: true };
   } catch (error) {
     console.error("❌ Error deleting comment:", error);
+    console.error("❌ Error details:", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     throw new Error(`Failed to delete comment: ${error.message}`);
   }
 };

@@ -23,6 +23,10 @@ const FollowInfoBox = ({id}) => {
   if (isError)
     return <Alert message="Error while fetching data" type="error" />;
 
+  // TEMPORARILY COMMENTED OUT - FOLLOWERS/FOLLOWING INFO
+  return null;
+  
+  /*
   return (
     <Box className={css.container}>
       <Space direction="vertical" align="center">
@@ -36,6 +40,7 @@ const FollowInfoBox = ({id}) => {
       </Space>
     </Box>
   );
+  */
 };
 
 export default FollowInfoBox;

@@ -100,7 +100,7 @@ const ImageUpload = ({ conversation, currentUser, onImageSent }) => {
         onCancel={handleCloseModal}
         footer={null}
         width={400}
-        destroyOnHidden
+        destroyOnClose
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Image Preview */}

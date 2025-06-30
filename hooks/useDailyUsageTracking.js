@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@/hooks/useFirebaseAuth';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import dayjs from 'dayjs';
+import { now } from '@/utils/dateHelpers';
 
 const USAGE_STORAGE_KEY = 'daily_usage_tracking';
 
@@ -18,7 +19,7 @@ export const useDailyUsageTracking = () => {
     SUPER_LIKES: 0,
     REWINDS: 0,
     BOOSTS: 0,
-    lastReset: new Date().toISOString(),
+    lastReset: now(),
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -44,7 +45,7 @@ export const useDailyUsageTracking = () => {
             SUPER_LIKES: 0,
             REWINDS: 0,
             BOOSTS: 0,
-            lastReset: new Date().toISOString(),
+            lastReset: now(),
           };
           localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(resetData));
           return resetData;
@@ -64,7 +65,7 @@ export const useDailyUsageTracking = () => {
       SUPER_LIKES: 0,
       REWINDS: 0,
       BOOSTS: 0,
-      lastReset: new Date().toISOString(),
+      lastReset: now(),
     };
   }, []);
 
@@ -103,7 +104,7 @@ export const useDailyUsageTracking = () => {
             SUPER_LIKES: Math.max(dailyUsage.SUPER_LIKES, firestoreUsage.SUPER_LIKES || 0),
             REWINDS: Math.max(dailyUsage.REWINDS, firestoreUsage.REWINDS || 0),
             BOOSTS: Math.max(dailyUsage.BOOSTS, firestoreUsage.BOOSTS || 0),
-            lastReset: firestoreUsage.lastReset || new Date().toISOString(),
+            lastReset: firestoreUsage.lastReset || now(),
           };
           
           setDailyUsage(mergedUsage);
@@ -124,8 +125,8 @@ export const useDailyUsageTracking = () => {
       await updateDoc(userRef, {
         dailyUsage: {
           ...usage,
-          lastReset: new Date(),
-          updatedAt: new Date(),
+          lastReset: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         }
       });
     } catch (error) {
@@ -178,7 +179,7 @@ export const useDailyUsageTracking = () => {
       SUPER_LIKES: 0,
       REWINDS: 0,
       BOOSTS: 0,
-      lastReset: new Date().toISOString(),
+      lastReset: now(),
     };
     
     setDailyUsage(resetData);

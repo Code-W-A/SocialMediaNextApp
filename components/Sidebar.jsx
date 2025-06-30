@@ -43,7 +43,7 @@ const Sidebar = () => {
     if (isSidebarOpen) {
       handleDrawerClose();
     }
-  }, [pathname, handleDrawerClose, isSidebarOpen]);
+  }, [pathname, handleDrawerClose]);
 
   const handleSignOut = async () => {
     try {

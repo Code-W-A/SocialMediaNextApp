@@ -17,7 +17,7 @@
     
     /* Mobile: Add extra padding for bottom navbar */
     @media (max-width: 1023px) {
-        padding-bottom: 140px; /* Increased from 120px to 140px */
+        padding-bottom: 160px; /* GLOBAL MOBILE PADDING FOR BOTTOM NAVBAR */
         max-width: 100%;
         margin: 0;
     }

@@ -8,9 +8,10 @@ const ReadReceiptIndicator = ({ conversationId, messageId, senderId, currentUser
   
   // Only show read receipts for messages sent by current user
   const isCurrentUserMessage = senderId === currentUserId;
+  if (!isCurrentUserMessage) return null;
 
   useEffect(() => {
-    if (!isCurrentUserMessage || !conversationId || !messageId) return;
+    if (!conversationId || !messageId) return;
 
     const unsubscribe = subscribeToReadReceipts(
       conversationId,
@@ -21,9 +22,7 @@ const ReadReceiptIndicator = ({ conversationId, messageId, senderId, currentUser
     );
 
     return unsubscribe;
-  }, [conversationId, messageId, isCurrentUserMessage]);
-
-  if (!isCurrentUserMessage) return null;
+  }, [conversationId, messageId]);
 
   // Check if other user has read the message
   const isReadByOther = readReceipts.some(receipt => receipt.userId === otherUserId);

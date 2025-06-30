@@ -1,12 +1,12 @@
 /* Bottom Navbar Padding Utilities */
 
 .withBottomNavbarPadding {
-  padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  padding-bottom: calc(160px + env(safe-area-inset-bottom));
   transition: padding-bottom 0.3s ease;
 }
 
 .withBottomNavbarPaddingSmooth {
-  padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  padding-bottom: calc(160px + env(safe-area-inset-bottom));
   transition: padding-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -21,10 +21,10 @@
 /* Safe area support for devices with notch */
 @supports (padding: max(0px)) {
   .withBottomNavbarPadding {
-    padding-bottom: calc(150px + max(0px, env(safe-area-inset-bottom)));
+    padding-bottom: calc(160px + max(0px, env(safe-area-inset-bottom)));
   }
   
   .withBottomNavbarPaddingSmooth {
-    padding-bottom: calc(150px + max(0px, env(safe-area-inset-bottom)));
+    padding-bottom: calc(160px + max(0px, env(safe-area-inset-bottom)));
   }
 } 

@@ -1,8 +1,8 @@
 "use client";
-import React from "react";
+import React, { useCallback, useMemo } from "react";
 import Box from "./Box";
 import css from "@/styles/FollowSuggestions.module.css";
-import { Alert, Avatar, Flex, Skeleton, Typography, Badge, Button } from "antd";
+import { Alert, Avatar, Flex, Skeleton, Typography, Badge } from "antd";
 import { getOnlineCompatibleUsers } from "@/actions/admin";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -12,28 +12,31 @@ import Iconify from "./Iconify";
 import Link from "next/link";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { useLanguage } from "@/lib/i18n";
-import { useIsMobile } from "@/hooks/useIsMobile";
-import { useRouter } from "next/navigation";
 
 // Add the relativeTime plugin
 dayjs.extend(relativeTime);
 
 const OnlineCompatibleUsers = () => {
-  const { currentUser } = useUser();
-  const { t } = useLanguage();
-  const isMobile = useIsMobile();
-  const router = useRouter();
-
+  const { user: currentUser } = useUser();
+  
+  // Stable query key
+  const queryKey = useMemo(() => ["user", "onlineCompatibleUsers", currentUser?.id], [currentUser?.id]);
+  
+  // Stable query function
+  const queryFn = useCallback(() => getOnlineCompatibleUsers(currentUser?.id), [currentUser?.id]);
+  
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["user", "onlineCompatibleUsers", currentUser?.id],
-    queryFn: () => getOnlineCompatibleUsers(currentUser?.id),
+    queryKey,
+    queryFn,
     enabled: !!currentUser?.id,
-    staleTime: 1000 * 60 * 2, // 2 minutes stale time for online status
-    refetchInterval: 1000 * 60 * 3, // Refetch every 3 minutes to update online status
+    staleTime: 1000 * 60 * 5, // 5 minutes stale time
+    refetchInterval: 1000 * 60 * 10, // Refetch every 10 minutes (reduced from 3 minutes)
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnMount: false, // Don't refetch on mount if we have cached data
+    retry: 2, // Retry failed requests only 2 times
   });
 
-  const getStatusColor = (status) => {
+  const getStatusColor = useCallback((status) => {
     switch (status) {
       case 'online':
         return '#52c41a'; // Green
@@ -42,9 +45,9 @@ const OnlineCompatibleUsers = () => {
       default:
         return '#d9d9d9'; // Gray
     }
-  };
+  }, []);
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = useCallback((status) => {
     switch (status) {
       case 'online':
         return 'mdi:circle';
@@ -53,18 +56,45 @@ const OnlineCompatibleUsers = () => {
       default:
         return 'mdi:circle-outline';
     }
-  };
+  }, []);
 
-  const handleMessageClick = (e, userId, userName) => {
-    e.preventDefault();
-    e.stopPropagation();
-    router.push(`/messages?userId=${userId}&userName=${encodeURIComponent(userName)}`);
-  };
+  const handleRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  // Memoize skeleton items to prevent recreation
+  const skeletonItems = useMemo(() => (
+    Array(3)
+      .fill(0)
+      .map((_, i) => (
+        <Flex key={i} gap={"1rem"} align="center">
+          <Badge dot color="#52c41a">
+            <Avatar size={40} />
+          </Badge>
+          <Flex vertical flex={1}>
+            <Typography.Text className={"typoBody2"} strong>
+              <Skeleton.Input active size={"small"} />
+            </Typography.Text>
+            <Typography.Text
+              className={"typoCaption"}
+              strong
+              type="secondary"
+            >
+              <Skeleton.Input
+                active
+                size={"small"}
+                style={{ height: ".5rem", marginTop: ".4rem" }}
+              />
+            </Typography.Text>
+          </Flex>
+        </Flex>
+      ))
+  ), []);
 
   return (
-    <div className={`${css.wrapper} ${isMobile ? css.mobileWrapper : ''}`}>
+    <div className={css.wrapper}>
       <Box>
-        <div className={`${css.container} ${isMobile ? css.mobileContainer : ''}`}>
+        <div className={css.container}>
           <div className={css.title}>
             <Flex align="center" justify="space-between">
               <Typography className={"typoSubtitle1"}>
@@ -74,39 +104,14 @@ const OnlineCompatibleUsers = () => {
                 icon="material-symbols:refresh" 
                 width={18} 
                 style={{ cursor: 'pointer', opacity: 0.7 }}
-                onClick={() => refetch()}
+                onClick={handleRefresh}
               />
             </Flex>
           </div>
 
           {isLoading && (
-            // skeleton
-            <Flex vertical={!isMobile} horizontal={isMobile} gap={"1rem"} style={isMobile ? { overflowX: 'auto', paddingBottom: '8px' } : {}}>
-              {Array(3)
-                .fill(0)
-                .map((_, i) => (
-                  <Flex key={i} gap={"1rem"} align="center" vertical={isMobile} style={isMobile ? { minWidth: '120px', flexShrink: 0 } : {}}>
-                    <Badge dot color="#52c41a">
-                      <Avatar size={isMobile ? 60 : 40} />
-                    </Badge>
-                    <Flex vertical flex={1} align={isMobile ? "center" : "flex-start"}>
-                      <Typography.Text className={"typoBody2"} strong>
-                        <Skeleton.Input active size={"small"} />
-                      </Typography.Text>
-                      <Typography.Text
-                        className={"typoCaption"}
-                        strong
-                        type="secondary"
-                      >
-                        <Skeleton.Input
-                          active
-                          size={"small"}
-                          style={{ height: ".5rem", marginTop: ".4rem" }}
-                        />
-                      </Typography.Text>
-                    </Flex>
-                  </Flex>
-                ))}
+            <Flex vertical gap={"1rem"}>
+              {skeletonItems}
             </Flex>
           )}
 
@@ -121,152 +126,103 @@ const OnlineCompatibleUsers = () => {
 
           {/* online users */}
           {!isLoading && !isError && data?.length > 0 ? (
-            <Flex 
-              vertical={!isMobile} 
-              horizontal={isMobile} 
-              gap={"1rem"} 
-              style={isMobile ? { 
-                overflowX: 'auto', 
-                paddingBottom: '8px',
-                scrollBehavior: 'smooth'
-              } : {}}
-            >
+            <Flex vertical gap={"1rem"}>
               {data.map((user) => (
-                <div
+                <Link
                   key={user.id}
-                  style={isMobile ? { 
-                    minWidth: '140px', 
-                    flexShrink: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center'
-                  } : {}}
+                  href={`/profile/${user.id}?person=${getDisplayName(user)}`}
+                  style={{ textDecoration: 'none', color: 'inherit' }}
                 >
-                  <Link
-                    href={`/profile/${user.id}?person=${getDisplayName(user)}`}
-                    style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}
+                  <Flex 
+                    gap={"1rem"} 
+                    align="center" 
+                    style={{ 
+                      padding: '8px',
+                      borderRadius: '8px',
+                      transition: 'background-color 0.2s',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--hover-bg, #f5f5f5)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
                   >
-                    <Flex 
-                      gap={isMobile ? "8px" : "1rem"} 
-                      align="center" 
-                      vertical={isMobile}
-                      style={{ 
-                        padding: isMobile ? '12px 8px' : '8px',
-                        borderRadius: '8px',
-                        transition: 'background-color 0.2s',
-                        cursor: 'pointer',
-                        width: '100%'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--hover-bg, #f5f5f5)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      {/* Avatar with online status */}
-                      <div style={{ position: 'relative' }}>
-                        <Avatar 
-                          size={isMobile ? 60 : 40} 
-                          src={getMainProfileImage(user?.images)}
-                        >
-                          {user?.first_name?.[0] || user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
-                        </Avatar>
-                        {/* Online status indicator */}
-                        <div
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            right: 0,
-                            width: isMobile ? 16 : 12,
-                            height: isMobile ? 16 : 12,
-                            borderRadius: '50%',
-                            backgroundColor: getStatusColor(user.status),
-                            border: '2px solid white',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
+                    {/* Avatar with online status */}
+                    <div style={{ position: 'relative' }}>
+                      <Avatar 
+                        size={40} 
+                        src={getMainProfileImage(user?.images)}
+                      >
+                        {user?.first_name?.[0] || user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
+                      </Avatar>
+                      {/* Online status indicator */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 0,
+                          right: 0,
+                          width: 12,
+                          height: 12,
+                          borderRadius: '50%',
+                          backgroundColor: getStatusColor(user.status),
+                          border: '2px solid white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Iconify 
+                          icon={getStatusIcon(user.status)}
+                          width={8}
+                          color="white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* User info */}
+                    <Flex vertical flex={1}>
+                      <Typography.Text 
+                        className={"typoSubtitle2"} 
+                        ellipsis
+                        strong
+                      >
+                        {getDisplayName(user)}
+                      </Typography.Text>
+                      <Flex align="center" gap="4px">
+                        <Typography.Text 
+                          className={"typoCaption"} 
+                          type="secondary"
+                          style={{ 
+                            color: getStatusColor(user.status),
+                            textTransform: 'capitalize'
                           }}
                         >
-                          <Iconify 
-                            icon={getStatusIcon(user.status)}
-                            width={isMobile ? 10 : 8}
-                            color="white"
-                          />
-                        </div>
-                      </div>
-
-                      {/* User info */}
-                      <Flex vertical flex={1} align={isMobile ? "center" : "flex-start"}>
-                        <Typography.Text 
-                          className={isMobile ? "typoCaption" : "typoSubtitle2"} 
-                          ellipsis
-                          strong
-                          style={isMobile ? { textAlign: 'center', fontSize: '12px' } : {}}
-                        >
-                          {getDisplayName(user)}
+                          {user.status === 'online' ? 'Online' : 
+                           user.status === 'away' ? 'Away' : 
+                           `Last seen ${dayjs(user.lastSeen).fromNow()}`}
                         </Typography.Text>
-                        <Flex align="center" gap="4px">
-                          <Typography.Text 
-                            className={"typoCaption"} 
-                            type="secondary"
-                            style={{ 
-                              color: getStatusColor(user.status),
-                              textTransform: 'capitalize',
-                              fontSize: isMobile ? '10px' : '12px',
-                              textAlign: isMobile ? 'center' : 'left'
-                            }}
-                          >
-                            {user.status === 'online' ? 'Online' : 
-                             user.status === 'away' ? 'Away' : 
-                             `Last seen ${dayjs(user.lastSeen).fromNow()}`}
-                          </Typography.Text>
-                        </Flex>
                       </Flex>
                     </Flex>
-                  </Link>
-                  
-                  {/* Message button */}
-                  <Button
-                    type="primary"
-                    size={isMobile ? "small" : "middle"}
-                    style={isMobile ? { 
-                      marginTop: '8px', 
-                      fontSize: '11px',
-                      height: '28px',
-                      width: '100%'
-                    } : { 
-                      marginLeft: 'auto',
-                      marginTop: '4px'
-                    }}
-                    onClick={(e) => handleMessageClick(e, user.id, getDisplayName(user))}
-                  >
-                    {t('common.message')}
-                  </Button>
-                </div>
+
+                    {/* Message icon */}
+                    <div style={{ opacity: 0.6 }}>
+                      <Iconify 
+                        icon="material-symbols:chat-bubble-outline" 
+                        width={18}
+                        color="var(--primary)"
+                      />
+                    </div>
+                  </Flex>
+                </Link>
               ))}
             </Flex>
           ) : (
             !isLoading && !isError && (
-              <Flex 
-                vertical 
-                align="center" 
-                gap="1rem" 
-                style={{ padding: '2rem 1rem', textAlign: 'center' }}
-              >
-                <Iconify 
-                  icon="material-symbols:person-off-outline" 
-                  width={40}
-                  color="#d9d9d9"
-                />
-                <Typography.Text type="secondary">
-                  Nu sunt utilizatori compatibili online momentan
-                </Typography.Text>
-                <Typography.Text 
-                  type="secondary" 
-                  style={{ fontSize: '12px' }}
-                >
-                  Încearcă din nou mai târziu
+              <Flex vertical align="center" gap={"large"} style={{ padding: '1rem' }}>
+                <Typography.Text type="secondary" style={{ textAlign: 'center' }}>
+                  Nu sunt utilizatori compatibili online în acest moment.
                 </Typography.Text>
               </Flex>
             )

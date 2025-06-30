@@ -6,6 +6,8 @@ import { firstQuestions, getQuestionById, getNextQuestion } from '../mock/astroQ
 import { useAuth } from '../context/AuthContext';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useUser } from '@/hooks/useFirebaseAuth';
+import { useLanguage } from '@/lib/i18n';
 
 const Questionnaire = ({ onComplete }) => {
   const [currentQuestionId, setCurrentQuestionId] = useState(1);
@@ -17,6 +19,7 @@ const Questionnaire = ({ onComplete }) => {
   
   const { user } = useAuth();
   const router = useRouter();
+  const { t } = useLanguage();
 
   const currentQuestion = getQuestionById(currentQuestionId);
   const totalQuestions = firstQuestions.length;
@@ -63,7 +66,7 @@ const Questionnaire = ({ onComplete }) => {
     const answer = currentQuestion.type === 'multiple' ? currentMultipleAnswers : currentAnswer;
     
     if (!validateAnswer(currentQuestion, answer)) {
-      alert('Te rog să completezi corect răspunsul înainte de a continua.');
+      alert(t('questionnaire.pleaseCompleteAnswer'));
       return;
     }
 
@@ -117,7 +120,7 @@ const Questionnaire = ({ onComplete }) => {
       } catch (error) {
         console.error('Error saving questionnaire:', error);
         setIsLoading(false);
-        alert('A apărut o eroare la salvarea datelor. Te rog să încerci din nou.');
+        alert(t('questionnaire.saveError'));
       }
       return;
     }
@@ -185,8 +188,8 @@ const Questionnaire = ({ onComplete }) => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Chestionar completat!</h2>
-          <p>Îți mulțumim pentru răspunsuri. Te redirecționăm...</p>
+          <h2 className="text-2xl font-bold mb-4">{t('questionnaire.completed')}</h2>
+          <p>{t('questionnaire.thankYou')}</p>
         </div>
       </div>
     );
@@ -201,10 +204,10 @@ const Questionnaire = ({ onComplete }) => {
         <div className="mb-8">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-              Întrebarea {currentIndex + 1} din {totalQuestions}
+              {t('questionnaire.questionOf', { current: currentIndex + 1, total: totalQuestions })}
             </span>
             <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-              {Math.round(progress)}%
+              {t('questionnaire.progress', { percent: Math.round(progress) })}
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">

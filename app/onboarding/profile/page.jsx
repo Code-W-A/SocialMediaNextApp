@@ -8,7 +8,7 @@ import css from "@/styles/AuthPages.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
 import interestCss from "@/styles/InterestCards.module.css";
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -26,6 +26,12 @@ export default function ProfilePage() {
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
+      // Get form values if not provided (for onClick case)
+      if (!values) {
+        values = form.getFieldsValue();
+        console.log('Form values retrieved manually:', values);
+      }
+
       // Get GPS coordinates from localStorage if they exist
       let gpsCoordinates = null;
       try {
@@ -35,6 +41,14 @@ export default function ProfilePage() {
         }
       } catch (error) {
         console.error("Error parsing GPS coordinates:", error);
+      }
+
+      // Debug values for specific user
+      if (user?.id === 'D0TBplLwTgUXPMYINyk6rOoitV52') {
+        console.log('\n=== ONBOARDING SUBMIT DEBUG ===');
+        console.log('Form values:', values);
+        console.log('selectedInterests:', selectedInterests);
+        console.log('=== END SUBMIT DEBUG ===\n');
       }
 
       // Update user profile in Firestore
@@ -61,6 +75,32 @@ export default function ProfilePage() {
       message.error("Failed to update profile. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // TEST FUNCTION - să verific ce date sunt în Firestore
+  const testFirestoreData = async () => {
+    try {
+      console.log('\n=== TESTING FIRESTORE DATA ===');
+      const userDocRef = doc(db, 'Users', user.id);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        console.log('Current Firestore data:');
+        console.log('bio:', userData.bio);
+        console.log('location:', userData.location);
+        console.log('website:', userData.website);
+        console.log('relationshipStatus:', userData.relationshipStatus);
+        console.log('interests:', userData.interests);
+        console.log('questionnaire:', userData.questionnaire);
+        console.log('Full document:', userData);
+      } else {
+        console.log('Document does not exist!');
+      }
+      console.log('=== END FIRESTORE TEST ===\n');
+    } catch (error) {
+      console.error('Error testing Firestore:', error);
     }
   };
 
@@ -394,6 +434,20 @@ export default function ProfilePage() {
             icon={<Iconify icon="eva:arrow-back-fill" width="20px" />}
           >
             Back
+          </Button>
+          
+          {/* Debug button - temporary */}
+          <Button
+            onClick={testFirestoreData}
+            style={{
+              height: "48px",
+              borderRadius: "12px",
+              border: "1.5px solid #ff4d4f",
+              fontWeight: "500",
+              color: "#ff4d4f"
+            }}
+          >
+            🔍 Test DB
           </Button>
           
           <Button

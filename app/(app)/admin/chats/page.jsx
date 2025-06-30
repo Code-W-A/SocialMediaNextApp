@@ -1,3 +1,4 @@
+"use client";
 import React from 'react';
 import AdminChatDashboard from '@/components/AdminChatDashboard';
 import { Card, Typography } from 'antd';

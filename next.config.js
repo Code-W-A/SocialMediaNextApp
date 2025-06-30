@@ -5,6 +5,19 @@ const nextConfig = {
       bodySizeLimit: "6mb",
     },
   },
+  // Configure webpack to handle antd properly
+  webpack: (config, { isServer }) => {
+    // Prevent bundling issues with antd on server side
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      };
+    }
+    return config;
+  },
+  // Transpile antd for better compatibility
+  transpilePackages: ['antd'],
   images: {
     domains: ["res.cloudinary.com"],
   },

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Button, Typography, Space, Modal, Input, Form, message, Card } from 'antd';
 import { EyeOutlined, LockOutlined, StarOutlined, HeartOutlined, RocketOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
+import { useLanguage } from '@/lib/i18n';
 import Iconify from '@/components/Iconify';
 
 const { Title, Text, Paragraph } = Typography;
@@ -13,6 +14,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const router = useRouter();
+  const { t } = useLanguage();
 
   const handlePasswordSubmit = (values) => {
     setLoading(true);
@@ -20,12 +22,12 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
     // Simulated loading for better UX
     setTimeout(() => {
       if (values.password === '1234567890') {
-        message.success('Welcome! Access granted 🎉');
+        message.success(t('comingSoon.welcomeAccessGranted'));
         localStorage.setItem('ydestiny_preview_access', 'granted');
         setPasswordModalVisible(false);
         onPasswordSuccess();
       } else {
-        message.error('Incorrect password. Please try again.');
+        message.error(t('comingSoon.incorrectPasswordTryAgain'));
         form.resetFields();
       }
       setLoading(false);
@@ -95,7 +97,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
             fontSize: '48px',
             fontWeight: 'bold'
           }}>
-            YDestiny
+            {t('comingSoon.title')}
           </Title>
         </div>
 
@@ -103,7 +105,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
             <Title level={2} style={{ color: '#2c3e50', marginBottom: '16px' }}>
-              Something Magical is Coming Soon ✨
+              {t('comingSoon.subtitle')}
             </Title>
             <Paragraph style={{ 
               fontSize: '18px', 
@@ -111,8 +113,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
               lineHeight: 1.6,
               marginBottom: '32px'
             }}>
-                           We&apos;re putting the finishing touches on the most revolutionary astrological dating platform. 
-               Get ready to discover your cosmic connections like never before.
+              {t('comingSoon.description')}
             </Paragraph>
           </div>
 
@@ -124,24 +125,24 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
             marginBottom: '32px'
           }}>
             <Title level={4} style={{ color: '#667eea', marginBottom: '20px' }}>
-                             What&apos;s Coming:
+              {t('comingSoon.whatsComing')}
             </Title>
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <HeartOutlined style={{ fontSize: '20px', color: '#ff6b6b' }} />
-                <Text style={{ fontSize: '16px' }}>Advanced Astrological Compatibility</Text>
+                <Text style={{ fontSize: '16px' }}>{t('comingSoon.advancedCompatibility')}</Text>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <StarOutlined style={{ fontSize: '20px', color: '#ffd93d' }} />
-                <Text style={{ fontSize: '16px' }}>Personalized Cosmic Profiles</Text>
+                <Text style={{ fontSize: '16px' }}>{t('comingSoon.personalizedProfiles')}</Text>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <RocketOutlined style={{ fontSize: '20px', color: '#6c5ce7' }} />
-                <Text style={{ fontSize: '16px' }}>Spiritual Connection Matching</Text>
+                <Text style={{ fontSize: '16px' }}>{t('comingSoon.spiritualMatching')}</Text>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Iconify icon="eva:message-circle-fill" style={{ fontSize: '20px', color: '#00b894' }} />
-                <Text style={{ fontSize: '16px' }}>Meaningful Cosmic Conversations</Text>
+                <Text style={{ fontSize: '16px' }}>{t('comingSoon.cosmicConversations')}</Text>
               </div>
             </Space>
           </div>
@@ -163,16 +164,14 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
                 boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
               }}
             >
-              See Preview
+              {t('comingSoon.seePreview')}
             </Button>
-            
-      
           </Space>
 
           {/* Footer */}
           <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #eee' }}>
             <Text type="secondary" style={{ fontSize: '14px' }}>
-              Join thousands of souls finding their cosmic connections
+              {t('comingSoon.joinThousands')}
             </Text>
           </div>
         </Space>
@@ -184,7 +183,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
           <div style={{ textAlign: 'center' }}>
             <LockOutlined style={{ fontSize: '24px', color: '#667eea', marginBottom: '8px' }} />
             <Title level={4} style={{ margin: 0, color: '#667eea' }}>
-              Preview Access
+              {t('comingSoon.previewAccess')}
             </Title>
           </div>
         }
@@ -203,7 +202,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
             color: '#6c757d',
             marginBottom: '24px'
           }}>
-            Enter the preview password to access the full platform
+            {t('comingSoon.enterPasswordPrompt')}
           </Paragraph>
           
           <Form
@@ -214,12 +213,12 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
             <Form.Item
               name="password"
               rules={[
-                { required: true, message: 'Please enter the password' }
+                { required: true, message: t('comingSoon.pleaseEnterPassword') }
               ]}
             >
               <Input.Password
                 size="large"
-                placeholder="Enter preview password"
+                placeholder={t('comingSoon.enterPreviewPassword')}
                 prefix={<LockOutlined />}
                 style={{ borderRadius: '8px' }}
               />
@@ -239,7 +238,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
                   borderRadius: '8px'
                 }}
               >
-                {loading ? 'Verifying...' : 'Access Preview'}
+                {loading ? t('comingSoon.verifying') : t('comingSoon.accessPreview')}
               </Button>
             </Form.Item>
           </Form>
@@ -253,7 +252,7 @@ const ComingSoonPage = ({ onPasswordSuccess }) => {
           }}>
             <Text type="secondary" style={{ fontSize: '12px' }}>
               <Iconify icon="eva:info-fill" style={{ marginRight: '4px' }} />
-                             For preview access, contact the development team
+              {t('comingSoon.contactTeam')}
             </Text>
             
             {/* Development helper - will be hidden in production */}

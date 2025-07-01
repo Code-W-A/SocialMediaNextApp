@@ -1,9 +1,9 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { Button, Typography, Progress, Card } from "antd";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useFirebaseAuth";
-import { getOnboardingProgress } from "@/utils/onboardingHelpers";
+import { getOnboardingProgress, checkOnboardingStatus } from "@/utils/onboardingHelpers";
 import Iconify from "@/components/Iconify";
 import css from "@/styles/AuthPages.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
@@ -15,6 +15,16 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
+
+  // Check if onboarding is already complete and redirect to home
+  useEffect(() => {
+    if (user) {
+      const status = checkOnboardingStatus(user);
+      if (status.isComplete) {
+        router.push('/home');
+      }
+    }
+  }, [user, router]);
 
   // Get real onboarding progress
   const progress = user ? getOnboardingProgress(user) : { 

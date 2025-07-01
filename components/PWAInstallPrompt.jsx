@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { Modal, Button, Typography, Space, Row, Col, Card } from 'antd';
-import { DownloadOutlined, CloseOutlined, MobileOutlined, StarFilled } from '@ant-design/icons';
+import { DownloadOutlined, CloseOutlined, MessageOutlined, HeartOutlined, StarFilled } from '@ant-design/icons';
 import Image from 'next/image';
+import { useLanguage } from '@/lib/i18n';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -11,6 +12,7 @@ export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     // Check if already installed
@@ -33,7 +35,7 @@ export default function PWAInstallPrompt() {
       // Show prompt after a delay
       setTimeout(() => {
         setShowPrompt(true);
-      }, 3000);
+      }, 5000); // Increased delay for better UX
     };
 
     // Listen for app installed event
@@ -94,7 +96,7 @@ export default function PWAInstallPrompt() {
       open={showPrompt}
       onCancel={handleDismiss}
       footer={null}
-      width={800}
+      width={900}
       centered
       closable={false}
       maskStyle={{
@@ -102,281 +104,288 @@ export default function PWAInstallPrompt() {
         backdropFilter: 'blur(10px)'
       }}
       style={{
-        borderRadius: '25px',
+        borderRadius: '30px',
         overflow: 'hidden'
       }}
     >
       <div style={{
-        background: 'linear-gradient(135deg, #F8F6F0 0%, #E8E6E0 100%)',
+        background: 'linear-gradient(135deg, #fefcf3 0%, #f7f3e7 50%, #f0ebe0 100%)',
         margin: '-24px',
         padding: '0',
-        borderRadius: '25px',
-        overflow: 'hidden'
+        borderRadius: '30px',
+        overflow: 'hidden',
+        position: 'relative'
       }}>
-        {/* Header */}
+        {/* Close Button */}
+        <Button
+          type="text"
+          icon={<CloseOutlined />}
+          onClick={handleDismiss}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            zIndex: 10,
+            color: '#2c3e50',
+            border: 'none',
+            fontSize: '16px'
+          }}
+        />
+
+        {/* Header with Logo and Title */}
         <div style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          padding: '2rem 2rem 1rem',
-          color: 'white',
+          padding: '40px 40px 30px',
+          textAlign: 'center',
           position: 'relative'
         }}>
-          <Button
-            type="text"
-            icon={<CloseOutlined />}
-            onClick={handleDismiss}
-            style={{
-              position: 'absolute',
-              top: '1rem',
-              right: '1rem',
-              color: 'white',
-              border: 'none'
-            }}
-          />
-          
-          <Space direction="vertical" align="center" style={{ width: '100%' }}>
-            <Image
-              src="/images/destiny-logo.svg"
-              alt="Destiny Logo"
-              width={60}
-              height={60}
-              style={{ filter: 'brightness(0) invert(1)' }}
-            />
-            <Title level={2} style={{ 
-              color: 'white', 
-              margin: 0,
-              textAlign: 'center',
-              textShadow: '0 2px 10px rgba(0,0,0,0.3)'
-            }}>
-              Instalează Destiny
-            </Title>
-            <Paragraph style={{ 
-              color: 'rgba(255,255,255,0.9)', 
-              margin: 0,
-              textAlign: 'center',
-              fontSize: '16px'
-            }}>
-              Obține experiența completă cu aplicația noastră
-            </Paragraph>
-          </Space>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: '2rem' }}>
-          {/* Screenshots */}
-          <Row gutter={[16, 16]} style={{ marginBottom: '2rem' }}>
-            <Col xs={8} sm={8}>
-              <Card
-                hoverable
-                cover={
-                  <div style={{ 
-                    height: '200px', 
-                    position: 'relative',
-                    borderRadius: '12px',
-                    overflow: 'hidden'
-                  }}>
-                    <Image
-                      src="/images/auth.png"
-                      alt="Autentificare"
-                      fill
-                      style={{ objectFit: 'cover' }}
-                    />
-                  </div>
-                }
-                style={{ 
-                  borderRadius: '12px',
-                  border: 'none',
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
-                }}
-                styles={{ body: { padding: '12px' } }}
-              >
-                <Text strong style={{ fontSize: '12px', color: '#666' }}>
-                  Autentificare rapidă
-                </Text>
-              </Card>
-            </Col>
-            
-            <Col xs={8} sm={8}>
-              <Card
-                hoverable
-                cover={
-                  <div style={{ 
-                    height: '200px', 
-                    position: 'relative',
-                    borderRadius: '12px',
-                    overflow: 'hidden'
-                  }}>
-                    <Image
-                      src="/images/comunity.jpg"
-                      alt="Comunitate"
-                      fill
-                      style={{ objectFit: 'cover' }}
-                    />
-                  </div>
-                }
-                style={{ 
-                  borderRadius: '12px',
-                  border: 'none',
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
-                }}
-                styles={{ body: { padding: '12px' } }}
-              >
-                <Text strong style={{ fontSize: '12px', color: '#666' }}>
-                  Comunitatea ta
-                </Text>
-              </Card>
-            </Col>
-            
-            <Col xs={8} sm={8}>
-              <Card
-                hoverable
-                cover={
-                  <div style={{ 
-                    height: '200px', 
-                    position: 'relative',
-                    borderRadius: '12px',
-                    overflow: 'hidden'
-                  }}>
-                    <Image
-                      src="/images/landing-page.jpg"
-                      alt="Pagina principală"
-                      fill
-                      style={{ objectFit: 'cover' }}
-                    />
-                  </div>
-                }
-                style={{ 
-                  borderRadius: '12px',
-                  border: 'none',
-                  boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
-                }}
-                styles={{ body: { padding: '12px' } }}
-              >
-                <Text strong style={{ fontSize: '12px', color: '#666' }}>
-                  Experiență completă
-                </Text>
-              </Card>
-            </Col>
-          </Row>
-
-          {/* Benefits */}
+          {/* Logo */}
           <div style={{
-            background: 'white',
-            padding: '1.5rem',
-            borderRadius: '15px',
-            marginBottom: '2rem',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '15px',
+            marginBottom: '20px'
           }}>
-            <Title level={4} style={{ 
-              marginBottom: '1rem',
-              color: '#2C3E50',
-              textAlign: 'center'
+            <div style={{
+              width: '60px',
+              height: '60px',
+              background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px',
+              boxShadow: '0 8px 25px rgba(255, 215, 0, 0.3)'
             }}>
-              ✨ De ce să instalezi Destiny?
+              ✨
+            </div>
+            <Title level={2} style={{ 
+              color: '#2c3e50', 
+              margin: 0,
+              fontWeight: '800',
+              fontSize: '2rem'
+            }}>
+              YDestiny
             </Title>
-            
-            <Row gutter={[16, 16]}>
-              <Col xs={12} sm={6}>
-                <Space direction="vertical" align="center">
-                  <MobileOutlined style={{ fontSize: '2rem', color: '#667eea' }} />
-                  <Text strong style={{ textAlign: 'center', fontSize: '12px' }}>
-                    Acces rapid
-                  </Text>
-                </Space>
-              </Col>
-              
-              <Col xs={12} sm={6}>
-                <Space direction="vertical" align="center">
-                  <StarFilled style={{ fontSize: '2rem', color: '#FFD700' }} />
-                  <Text strong style={{ textAlign: 'center', fontSize: '12px' }}>
-                    Funcții exclusive
-                  </Text>
-                </Space>
-              </Col>
-              
-              <Col xs={12} sm={6}>
-                <Space direction="vertical" align="center">
-                  <div style={{ fontSize: '2rem' }}>🔔</div>
-                  <Text strong style={{ textAlign: 'center', fontSize: '12px' }}>
-                    Notificări instant
-                  </Text>
-                </Space>
-              </Col>
-              
-              <Col xs={12} sm={6}>
-                <Space direction="vertical" align="center">
-                  <div style={{ fontSize: '2rem' }}>⚡</div>
-                  <Text strong style={{ textAlign: 'center', fontSize: '12px' }}>
-                    Super rapid
-                  </Text>
-                </Space>
-              </Col>
-            </Row>
           </div>
 
-          {/* Action Buttons */}
-          <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <Button
-              type="primary"
-              size="large"
-              icon={<DownloadOutlined />}
-              onClick={handleInstall}
-              block
-              style={{
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                border: 'none',
-                borderRadius: '25px',
-                height: '55px',
-                fontSize: '16px',
-                fontWeight: '700',
-                boxShadow: '0 8px 25px rgba(102, 126, 234, 0.3)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}
-            >
-              Instalează acum - Gratuit
-            </Button>
-            
-            <Row gutter={8}>
-              <Col span={12}>
-                <Button
-                  onClick={handleRemindLater}
-                  block
-                  style={{
-                    borderRadius: '20px',
-                    height: '45px',
-                    border: '1px solid #d9d9d9'
-                  }}
-                >
-                  Amintește-mi mai târziu
-                </Button>
-              </Col>
-              <Col span={12}>
-                <Button
-                  onClick={handleDismiss}
-                  block
-                  style={{
-                    borderRadius: '20px',
-                    height: '45px',
-                    border: '1px solid #d9d9d9'
-                  }}
-                >
-                  Nu, mulțumesc
-                </Button>
-              </Col>
-            </Row>
-          </Space>
+          <Title level={3} style={{ 
+            color: '#2c3e50', 
+            margin: '0 0 10px 0',
+            fontWeight: '700'
+          }}>
+            {t('landing.pwaTitle')}
+          </Title>
+          
+          <Paragraph style={{ 
+            color: '#5d6d7e', 
+            fontSize: '16px',
+            margin: 0,
+            maxWidth: '400px',
+            marginLeft: 'auto',
+            marginRight: 'auto'
+          }}>
+            {t('landing.pwaSubtitle')}
+          </Paragraph>
+        </div>
+
+        {/* Main Content */}
+        <div style={{ padding: '0 40px 40px' }}>
+          <Row gutter={[20, 20]} align="middle">
+            {/* Left side - Image */}
+            <Col xs={24} md={12}>
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                height: '280px',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                boxShadow: '0 15px 35px rgba(0, 0, 0, 0.1)',
+                border: '3px solid rgba(255, 215, 0, 0.2)'
+              }}>
+                <Image
+                  src="/images/Minimalist digital illustration showing a group of people standing in a circle, holding hands, viewed from above, soft golden light casting long shadows, creamy white background with subtle texture, elegant line work, harmonious and inclusi.jpg"
+                  alt="YDestiny Community"
+                  fill
+                  style={{ objectFit: 'cover' }}
+                />
+                
+                {/* Overlay with floating elements */}
+                <div style={{
+                  position: 'absolute',
+                  top: '20px',
+                  right: '20px',
+                  width: '50px',
+                  height: '50px',
+                  background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                  animation: 'float 3s ease-in-out infinite',
+                  boxShadow: '0 8px 20px rgba(255, 215, 0, 0.4)'
+                }}>
+                  💫
+                </div>
+                
+                <div style={{
+                  position: 'absolute',
+                  bottom: '20px',
+                  left: '20px',
+                  width: '45px',
+                  height: '45px',
+                  background: 'linear-gradient(45deg, #FF69B4, #FFB6C1)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  animation: 'float 3s ease-in-out infinite 1.5s',
+                  boxShadow: '0 8px 20px rgba(255, 105, 180, 0.4)'
+                }}>
+                  ❤️
+                </div>
+              </div>
+            </Col>
+
+            {/* Right side - Content */}
+            <Col xs={24} md={12}>
+              <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                <div>
+                  <Paragraph style={{ 
+                    color: '#2c3e50', 
+                    fontSize: '16px',
+                    lineHeight: '1.6',
+                    marginBottom: '25px'
+                  }}>
+                    {t('landing.pwaDescription')}
+                  </Paragraph>
+                </div>
+
+                {/* Features */}
+                <div>
+                  <Row gutter={[10, 15]}>
+                    <Col span={12}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <MessageOutlined style={{ color: '#FFD700', fontSize: '18px' }} />
+                        <Text style={{ color: '#2c3e50', fontSize: '14px' }}>
+                          {t('landing.pwaFeature1')}
+                        </Text>
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <HeartOutlined style={{ color: '#FF69B4', fontSize: '18px' }} />
+                        <Text style={{ color: '#2c3e50', fontSize: '14px' }}>
+                          {t('landing.pwaFeature2')}
+                        </Text>
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <StarFilled style={{ color: '#4CAF50', fontSize: '18px' }} />
+                        <Text style={{ color: '#2c3e50', fontSize: '14px' }}>
+                          {t('landing.pwaFeature3')}
+                        </Text>
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <DownloadOutlined style={{ color: '#9C27B0', fontSize: '18px' }} />
+                        <Text style={{ color: '#2c3e50', fontSize: '14px' }}>
+                          {t('landing.pwaFeature4')}
+                        </Text>
+                      </div>
+                    </Col>
+                  </Row>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ marginTop: '30px' }}>
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <Button
+                      type="primary"
+                      size="large"
+                      icon={<DownloadOutlined />}
+                      onClick={handleInstall}
+                      block
+                      style={{
+                        background: 'linear-gradient(45deg, #FFD700, #FFA500)',
+                        border: 'none',
+                        borderRadius: '25px',
+                        height: '55px',
+                        fontSize: '16px',
+                        fontWeight: '700',
+                        color: '#000',
+                        boxShadow: '0 8px 25px rgba(255, 215, 0, 0.4)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}
+                    >
+                      {t('landing.pwaInstallButton')}
+                    </Button>
+                    
+                    <Row gutter={8}>
+                      <Col span={12}>
+                        <Button
+                          onClick={handleRemindLater}
+                          block
+                          style={{
+                            borderRadius: '20px',
+                            height: '45px',
+                            border: '2px solid #d9d9d9',
+                            color: '#666',
+                            fontWeight: '500'
+                          }}
+                        >
+                          {t('landing.pwaRemindLater')}
+                        </Button>
+                      </Col>
+                      <Col span={12}>
+                        <Button
+                          onClick={handleDismiss}
+                          block
+                          style={{
+                            borderRadius: '20px',
+                            height: '45px',
+                            border: '2px solid #d9d9d9',
+                            color: '#666',
+                            fontWeight: '500'
+                          }}
+                        >
+                          {t('landing.pwaNoThanks')}
+                        </Button>
+                      </Col>
+                    </Row>
+                  </Space>
+                </div>
+              </Space>
+            </Col>
+          </Row>
 
           {/* Footer note */}
           <div style={{ 
             textAlign: 'center', 
-            marginTop: '1rem',
-            opacity: 0.7
+            marginTop: '30px',
+            padding: '20px',
+            background: 'rgba(255, 215, 0, 0.1)',
+            borderRadius: '15px',
+            border: '1px solid rgba(255, 215, 0, 0.2)'
           }}>
-            <Text style={{ fontSize: '12px', color: '#666' }}>
-              💡 Instalarea nu ocupă spațiu suplimentar și poți dezinstala oricând
+            <Text style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>
+              {t('landing.pwaFooterNote')}
             </Text>
           </div>
         </div>
+
+        {/* Add CSS animations */}
+        <style jsx global>{`
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+          }
+        `}</style>
       </div>
     </Modal>
   );

@@ -5,6 +5,7 @@ import { Button, Image, Skeleton, Typography, Space, Modal, message, Avatar } fr
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createConversation } from "@/actions/chat";
 import { useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/i18n";
 import Iconify from "@/components/Iconify";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import OnlineStatusIndicator, { OnlineStatusAvatar } from "@/components/OnlineStatusIndicator";
@@ -22,19 +23,20 @@ const UserProfileHead = ({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [messageModalVisible, setMessageModalVisible] = useState(false);
+  const { t } = useLanguage();
 
   // Create conversation mutation
   const createConversationMutation = useMutation({
     mutationFn: ({ user1Id, user2Id }) => createConversation({ user1Id, user2Id }),
     onSuccess: (result) => {
       if (result.success) {
-        message.success("Conversation started successfully!");
+        message.success(t('userProfile.conversationStartedSuccess'));
         router.push(`/messages?conversation=${result.conversationId}`);
       }
     },
     onError: (error) => {
       console.error("Error starting conversation:", error);
-      message.error("Failed to start conversation. Please try again.");
+      message.error(t('userProfile.conversationStartFailed'));
     }
   });
 
@@ -47,7 +49,7 @@ const UserProfileHead = ({
 
   const handleStartConversation = () => {
     if (!currentUser?.id || !userId) {
-      message.error("Unable to start conversation. Please try again.");
+      message.error(t('userProfile.unableToStartConversation'));
       return;
     }
 
@@ -59,7 +61,7 @@ const UserProfileHead = ({
 
   const handleViewImages = () => {
     // Could implement image gallery modal here
-    message.info("Image gallery feature coming soon!");
+    message.info(t('userProfile.imageGalleryComingSoon'));
   };
 
   if (isLoading) {
@@ -98,7 +100,7 @@ const UserProfileHead = ({
 
   const displayName = getDisplayName ? getDisplayName(userData) : 
     (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : 
-     user.username || user.email?.split('@')[0] || 'Unknown User');
+     user.username || user.email?.split('@')[0] || t('userProfile.unknownUser'));
 
   const username = getUsername ? getUsername(userData) : 
     (user.username || user.email?.split('@')[0] || '');
@@ -111,7 +113,7 @@ const UserProfileHead = ({
           <div className={css.bannerImage}>
             <Image
               src={user.bannerUrl || "https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"}
-              alt="profile banner"
+              alt={t('userProfile.profileBanner')}
               preview={false}
               fallback="https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
               style={{
@@ -143,7 +145,7 @@ const UserProfileHead = ({
                   padding: '0 20px'
                 }}
               >
-                Message
+                {t('userProfile.messageButton')}
               </Button>
               
               {user.images && user.images.length > 1 && (
@@ -158,7 +160,7 @@ const UserProfileHead = ({
                     backdropFilter: 'blur(10px)'
                   }}
                 >
-                  Photos ({user.images.length})
+                  {t('userProfile.photos', { count: user.images.length })}
                 </Button>
               )}
             </Space>
@@ -229,7 +231,7 @@ const UserProfileHead = ({
                 {user.age && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Iconify icon="eva:calendar-fill" width="16px" style={{ color: '#999' }} />
-                    <Text type="secondary">{user.age} years old</Text>
+                    <Text type="secondary">{user.age} {t('userProfile.yearsOld')}</Text>
                   </div>
                 )}
                 

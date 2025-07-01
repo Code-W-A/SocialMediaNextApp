@@ -125,7 +125,7 @@ const PremiumGate = ({
           {/* Premium benefits grid */}
           <div style={{ marginBottom: '2rem' }}>
             <Title level={5} style={{ color: '#333', marginBottom: '1rem', textAlign: 'center' }}>
-              Toate beneficiile Premium:
+              {t('premiumGate.allPremiumBenefits')}
             </Title>
             
             <Row gutter={[12, 12]}>
@@ -151,9 +151,8 @@ const PremiumGate = ({
           <div style={{ textAlign: 'center' }}>
             <div style={{ marginBottom: '1rem' }}>
               <span style={{ fontSize: '2rem', fontWeight: 'bold', color: '#667eea' }}>
-                5€
+                {t('premiumGate.pricePerMonth')}
               </span>
-              <span style={{ fontSize: '1rem', color: '#666' }}>/lună</span>
             </div>
             
             <Space size="middle">
@@ -173,7 +172,7 @@ const PremiumGate = ({
                   color: '#000'
                 }}
               >
-                Upgrade la Premium
+                {t('premiumGate.upgradeToPremium')}
               </Button>
               
               <Button
@@ -185,7 +184,7 @@ const PremiumGate = ({
                   padding: '0 1.5rem'
                 }}
               >
-                Poate mai târziu
+                {t('premiumGate.maybeLater')}
               </Button>
             </Space>
           </div>
@@ -194,10 +193,10 @@ const PremiumGate = ({
           <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
             <Space size="middle">
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                <CheckOutlined style={{ color: '#52c41a' }} /> Securizat cu Stripe
+                <CheckOutlined style={{ color: '#52c41a' }} /> {t('premiumGate.securedWithStripe')}
               </Text>
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                <CheckOutlined style={{ color: '#52c41a' }} /> Anulezi oricând
+                <CheckOutlined style={{ color: '#52c41a' }} /> {t('premiumGate.cancelAnytime')}
               </Text>
             </Space>
           </div>

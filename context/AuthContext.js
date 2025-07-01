@@ -186,25 +186,13 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, user: firebaseUser };
     } catch (error) {
-      let errorMessage = 'Failed to sign in';
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Incorrect password';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Invalid email address';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many failed attempts. Please try again later';
-          break;
-        default:
-          errorMessage = error.message || 'Sign in failed';
-      }
+      console.error('Sign in error:', error);
       
-      return { success: false, error: errorMessage };
+      return { 
+        success: false, 
+        error: error.message,
+        code: error.code // Return the error code so frontend can translate
+      };
     }
   }, [fetchUserData]);
 

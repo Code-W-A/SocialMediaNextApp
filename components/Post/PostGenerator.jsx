@@ -18,18 +18,6 @@ import { useSettingsContext } from "@/context/settings/settings-context";
 import { getUserLimits } from "@/utils/premiumHelpers";
 import { now } from "@/utils/dateHelpers";
 
-const YDestinyPrompts = [
-  "Ce emoție te domină azi?",
-  "La ce te gândești chiar acum?",
-  "Ce te-ar bucura cel mai mult astăzi?",
-  "Dacă ai putea schimba ceva azi, ce ar fi?",
-  "Ce ți-ar plăcea să afle ceilalți despre tine?",
-  "Ce moment ți-a adus un zâmbet astăzi?",
-  "Împărtășește o mică bucurie sau un mic triumf!",
-  "Cum e partenerul perfect pentru tine acum? – 3 calități",
-  "Ce este cel mai important într-o relație pentru tine?"
-];
-
 const PostGenerator = () => {
   const { t } = useLanguage();
   const imgInputRef = useRef(null);
@@ -45,6 +33,19 @@ const PostGenerator = () => {
   const { dailyUsage, incrementUsage } = useDailyUsageTracking();
 
   const canPost = canPerformAction('DAILY_POSTS', dailyUsage, subscription);
+
+  // Get YDestiny prompts from translations
+  const YDestinyPrompts = [
+    t('posts.prompts.emotion'),
+    t('posts.prompts.thinking'),
+    t('posts.prompts.joy'),
+    t('posts.prompts.change'),
+    t('posts.prompts.share'),
+    t('posts.prompts.smile'),
+    t('posts.prompts.triumph'),
+    t('posts.prompts.partner'),
+    t('posts.prompts.relationship')
+  ];
 
   const { mutate: execute, isPending } = useMutation({
     mutationFn: (data) => {
@@ -167,7 +168,7 @@ const PostGenerator = () => {
     setFileType(null);
     setPostText("");
     setSelectedPrompt(null);
-    toast.success("Postarea ta a fost partajată pe Calea Destinului! ✨");
+    toast.success(t('posts.postSharedSuccess'));
     console.log("✅ PostGenerator: Form cleaned up and success message shown");
   };
 
@@ -225,7 +226,7 @@ const PostGenerator = () => {
     
     if ((postText === "" || !postText) && !selectedFile) {
       console.error("❌ Empty post attempted");
-      showError("Nu poți face o postare goală");
+      showError(t('posts.emptyPostError'));
       return;
     }
 
@@ -291,7 +292,7 @@ const PostGenerator = () => {
 
                 <Input.TextArea
                   // maxLength={100}
-                  placeholder={selectedPrompt || "Împărtășește ce simți în această clipă..."}
+                  placeholder={selectedPrompt || t('posts.placeholder')}
                   style={{ height: 80, resize: "none", flex: 1 }}
                   value={postText}
                   onChange={(e) => setPostText(e.target.value)}
@@ -315,7 +316,7 @@ const PostGenerator = () => {
                   <Flex align="center" gap={".5rem"}>
                     <Iconify icon="eva:bulb-fill" width="16px" style={{ color: '#667eea' }} />
                     <Typography.Text style={{ color: '#667eea' }}>
-                      {showPrompts ? 'Ascunde inspirația' : 'Inspirație pentru postare'}
+                      {showPrompts ? t('posts.hideInspiration') : t('posts.postInspiration')}
                     </Typography.Text>
                     <Iconify 
                       icon={showPrompts ? "eva:chevron-up-fill" : "eva:chevron-down-fill"} 
@@ -388,7 +389,7 @@ const PostGenerator = () => {
                       className="typoCaption"
                       onClick={handleRemoveFile}
                     >
-                      Remove
+                      {t('posts.remove')}
                     </Typography>
                   </Button>
 
@@ -427,7 +428,7 @@ const PostGenerator = () => {
                       width="1.2rem"
                       color="#667eea"
                     />
-                    <Typography className="typoSubtitle2" style={{ color: "#667eea" }}>Fotografie</Typography>
+                    <Typography className="typoSubtitle2" style={{ color: "#667eea" }}>{t('posts.photography')}</Typography>
                   </Flex>
                 </Button>
 
@@ -442,7 +443,7 @@ const PostGenerator = () => {
                       className="typoSubtitle2"
                       style={{ color: "white" }}
                     >
-                      Împărtășește
+                      {t('posts.share')}
                     </Typography>
                   </Flex>
                 </Button>
@@ -467,12 +468,11 @@ const PostGenerator = () => {
           </div>
           
           <Typography.Title level={3} style={{ marginBottom: '16px' }}>
-            Ai atins limita zilnică
+            {t('posts.dailyLimitReached')}
           </Typography.Title>
           
           <Typography.Paragraph style={{ fontSize: '16px', marginBottom: '24px' }}>
-            Utilizatorii free pot posta doar <strong>{canPost.limit} postări pe zi</strong>.
-            Ai folosit toate postările disponibile pentru astăzi.
+            {t('posts.dailyLimitDescription', { limit: canPost.limit })}
           </Typography.Paragraph>
           
           <div style={{ 
@@ -482,13 +482,13 @@ const PostGenerator = () => {
             marginBottom: '24px'
           }}>
             <Typography.Text strong style={{ fontSize: '16px' }}>
-              Upgrade la Premium pentru:
+              {t('posts.upgradeToPremiumFor')}
             </Typography.Text>
             <ul style={{ textAlign: 'left', marginTop: '8px', marginBottom: 0 }}>
-              <li>Postări nelimitate</li>
-              <li>Vizualizări feed nelimitate</li>
-              <li>Match-uri nelimitate</li>
-              <li>Și multe alte beneficii!</li>
+              <li>{t('posts.unlimitedPosts')}</li>
+              <li>{t('posts.unlimitedFeedViews')}</li>
+              <li>{t('posts.unlimitedMatches')}</li>
+              <li>{t('posts.andManyOtherBenefits')}</li>
             </ul>
           </div>
           
@@ -509,7 +509,7 @@ const PostGenerator = () => {
               color: '#000'
             }}
           >
-            <CrownOutlined /> Upgrade la Premium
+            <CrownOutlined /> {t('posts.upgradeToPremium')}
           </Button>
           
           <Button 
@@ -518,7 +518,7 @@ const PostGenerator = () => {
             onClick={() => setShowLimitModal(false)}
             style={{ marginTop: '12px' }}
           >
-            Mai târziu
+            {t('posts.laterButton')}
           </Button>
         </div>
       </Modal>

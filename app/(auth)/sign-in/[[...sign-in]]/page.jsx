@@ -1,10 +1,11 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, Input, Typography, Form, message } from "antd";
 import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import css from "@/styles/AuthPages.module.css";
-import { signIn } from "@/lib/firebaseAuth";
+import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/lib/i18n";
 
 const { Title, Text, Link } = Typography;
 
@@ -12,21 +13,55 @@ export default function SignInPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+  const { signIn, isSignedIn, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
+
+  // Redirect when user becomes authenticated
+  useEffect(() => {
+    if (isSignedIn && !authLoading) {
+      router.push("/home");
+    }
+  }, [isSignedIn, authLoading, router]);
 
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
-      // Firebase authentication
-      const result = await signIn(values.email, values.password);
+      // Use authentication from context
+      const result = await signIn({
+        email: values.email,
+        password: values.password
+      });
       
       if (result.success) {
-        message.success("Welcome back! 🎉");
-        router.push("/home");
+        message.success(t('auth.welcomeBack'));
+        // Don't manually redirect here - let useEffect handle it
+        // after auth state updates
       } else {
-        message.error(result.error || "Invalid credentials");
+        // Translate Firebase error codes
+        let errorMessage = t('auth.signInFailed');
+        
+        switch (result.code) {
+          case 'auth/user-not-found':
+            errorMessage = t('auth.userNotFound');
+            break;
+          case 'auth/wrong-password':
+            errorMessage = t('auth.wrongPassword');
+            break;
+          case 'auth/invalid-email':
+            errorMessage = t('auth.invalidEmail');
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = t('auth.tooManyRequests');
+            break;
+          default:
+            errorMessage = result.error || t('auth.signInFailed');
+        }
+        
+        message.error(errorMessage);
       }
     } catch (error) {
-      message.error("Something went wrong. Please try again.");
+      console.error('Sign in error:', error);
+      message.error(t('auth.signInFailed'));
     } finally {
       setLoading(false);
     }
@@ -36,10 +71,10 @@ export default function SignInPage() {
     <div className={css.authContainer}>
       <div className={css.authHeader}>
         <Title level={2} className={css.authTitle}>
-          Welcome Back! 👋
+          {t('auth.welcomeBack')}
         </Title>
         <Text type="secondary" className={css.authSubtitle}>
-          Sign in to your account to continue
+          {t('auth.signInToAccount')}
         </Text>
       </div>
 
@@ -52,32 +87,32 @@ export default function SignInPage() {
       >
         <Form.Item
           name="email"
-          label="Email Address"
+          label={t('auth.emailAddress')}
           rules={[
-            { required: true, message: "Please enter your email" },
-            { type: "email", message: "Please enter a valid email" }
+            { required: true, message: t('auth.pleaseEnterEmail') },
+            { type: "email", message: t('auth.pleaseEnterValidEmail') }
           ]}
         >
           <Input
             size="large"
             prefix={<Iconify icon="eva:email-fill" width="20px" />}
-            placeholder="Enter your email"
+            placeholder={t('auth.enterEmail')}
             className={css.authInput}
           />
         </Form.Item>
 
         <Form.Item
           name="password"
-          label="Password"
+          label={t('auth.password')}
           rules={[
-            { required: true, message: "Please enter your password" },
-            { min: 6, message: "Password must be at least 6 characters" }
+            { required: true, message: t('auth.pleaseEnterPassword') },
+            { min: 6, message: t('auth.passwordMinLengthSignIn') }
           ]}
         >
           <Input.Password
             size="large"
             prefix={<Iconify icon="eva:lock-fill" width="20px" />}
-            placeholder="Enter your password"
+            placeholder={t('auth.pleaseEnterPassword')}
             className={css.authInput}
           />
         </Form.Item>
@@ -85,7 +120,7 @@ export default function SignInPage() {
         <div className={css.authOptions}>
           <Text>
             <Link href="/forgot-password" className={css.forgotLink}>
-              Forgot password?
+              {t('auth.forgotPassword')}?
             </Link>
           </Text>
         </div>
@@ -99,16 +134,16 @@ export default function SignInPage() {
             className={css.authButton}
             block
           >
-            {loading ? "Signing In..." : "Sign In"}
+            {loading ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
         </Form.Item>
       </Form>
 
       <div className={css.authFooter}>
         <Text type="secondary">
-          Don&apos;t have an account?{" "}
+          {t('auth.dontHaveAccount')}{" "}
           <Link href="/sign-up" className={css.authLink}>
-            Sign up here
+            {t('auth.signUpHere')}
           </Link>
         </Text>
       </div>

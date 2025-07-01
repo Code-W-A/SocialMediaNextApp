@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { Button, Typography, Space, Card } from 'antd';
 import { WifiOutlined, ReloadOutlined, HeartOutlined } from '@ant-design/icons';
 import Image from 'next/image';
+import { useLanguage } from '@/lib/i18n';
 
 const { Title, Paragraph } = Typography;
 
 export default function OfflinePage() {
   const [isOnline, setIsOnline] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -76,7 +78,7 @@ export default function OfflinePage() {
             marginBottom: '0.5rem',
             fontSize: '1.5rem'
           }}>
-            {isOnline ? 'Ești online din nou!' : 'Fără conexiune'}
+            {isOnline ? t('offline.onlineAgain') : t('offline.noConnection')}
           </Title>
 
           {/* Description */}
@@ -87,8 +89,8 @@ export default function OfflinePage() {
             marginBottom: '2rem'
           }}>
             {isOnline 
-              ? 'Conexiunea a fost restabilită. Poți continua să folosești Destiny!'
-              : 'Se pare că nu ai conexiune la internet. Verifică conexiunea și încearcă din nou.'
+              ? t('offline.connectionRestored')
+              : t('offline.noInternetConnection')
             }
           </Paragraph>
 
@@ -113,7 +115,7 @@ export default function OfflinePage() {
                 : '0 8px 25px rgba(255, 107, 107, 0.3)'
             }}
           >
-            {isOnline ? 'Înapoi la Destiny' : 'Încearcă din nou'}
+            {isOnline ? t('offline.backToDestiny') : t('offline.tryAgain')}
           </Button>
 
           {/* Additional Info */}
@@ -128,8 +130,7 @@ export default function OfflinePage() {
               fontSize: '14px',
               color: '#666'
             }}>
-              💡 <strong>Știai că:</strong> Destiny funcționează și offline! 
-              Poți vedea conversațiile și profilurile salvate chiar și fără internet.
+              💡 <strong>{t('offline.didYouKnow')}</strong> {t('offline.offlineFunctionality')}
             </Paragraph>
           </div>
         </Space>

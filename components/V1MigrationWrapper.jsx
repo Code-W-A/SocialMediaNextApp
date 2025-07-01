@@ -20,10 +20,9 @@ export default function V1MigrationWrapper({ children }) {
       
       {/* V1 Welcome Dialog */}
       <V1WelcomeDialog
-        visible={showWelcomeDialog}
-        onClose={handleWelcomeShown}
-        loading={isMarkingWelcomeShown}
-        userName={user?.firstName || user?.name || "prietene"}
+        open={true}
+        onClose={() => {}} // Empty function for backdrop click
+        onConfirm={handleWelcomeShown}
       />
     </>
   );

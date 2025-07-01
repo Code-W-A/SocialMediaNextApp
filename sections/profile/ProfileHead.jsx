@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { useRouter } from "next/navigation";
 import PremiumBadge from "@/components/PremiumBadge";
+import { hasCompletedQuestionnaire, debugUserData } from '@/utils/onboardingHelpers';
 
 const { Text } = Typography;
 
@@ -82,18 +83,13 @@ const ProfileHead = ({
     setBannerPreview(false);
   }, [userId]);
 
-  // Check if user has completed questionnaire
-  const hasCompletedQuestionnaire = () => {
+  // Check if user has completed questionnaire using centralized function
+  const checkQuestionnaireCompletion = () => {
     const userData = data?.data || currentUser;
+    console.log("🔍 [ProfileHead] Checking questionnaire completion");
     
-    // Check multiple conditions for questionnaire completion
-    const hasQuestionnaireObject = userData?.questionnaire && typeof userData.questionnaire === 'object';
-    const hasRequiredFields = userData?.questionnaire?.zodiacSign && 
-                             userData?.questionnaire?.birthDate && 
-                             userData?.questionnaire?.relationshipType;
-    const hasEnoughKeys = userData?.questionnaire && Object.keys(userData.questionnaire).length >= 3;
-    
-    return hasQuestionnaireObject && (hasRequiredFields || hasEnoughKeys);
+    // Use centralized function with consistent logic
+    return hasCompletedQuestionnaire(userData);
   };
 
   // Handle questionnaire restart
@@ -286,7 +282,7 @@ const ProfileHead = ({
                               />
                             </Tooltip>
                           )}
-                          {hasCompletedQuestionnaire() && (
+                          {checkQuestionnaireCompletion() && (
                             <Tooltip title="Retake Questionnaire">
                               <Button
                                 type="text"

@@ -128,20 +128,38 @@ export const sendAdminChatMessage = async (chatId, messageText, isAdmin = false,
 };
 
 // Get user's admin chats
-export const getUserAdminChats = async () => {
+export const getUserAdminChats = async (userId = null) => {
   try {
-    const user = await currentUser();
-    if (!user) {
-      throw new Error('User must be authenticated');
+    console.log('🔍 [getUserAdminChats] Starting with userId:', userId);
+    
+    // If userId is provided, use it; otherwise try currentUser
+    let userIdToUse = userId;
+    
+    if (!userIdToUse) {
+      console.log('⚡ [getUserAdminChats] No userId provided, trying currentUser()');
+      const user = await currentUser();
+      console.log('👤 [getUserAdminChats] currentUser() result:', user ? 'Found user' : 'No user');
+      
+      if (!user) {
+        console.error('❌ [getUserAdminChats] User authentication failed');
+        throw new Error('User must be authenticated');
+      }
+      userIdToUse = user.id;
+      console.log('✅ [getUserAdminChats] Using currentUser ID:', userIdToUse);
+    } else {
+      console.log('✅ [getUserAdminChats] Using provided userId:', userIdToUse);
     }
 
+    console.log('📊 [getUserAdminChats] Querying chats for userId:', userIdToUse);
     const q = query(
       collection(db, 'adminChats'),
-      where('userId', '==', user.id),
+      where('userId', '==', userIdToUse),
       orderBy('updatedAt', 'desc')
     );
 
     const snapshot = await getDocs(q);
+    console.log('📋 [getUserAdminChats] Query completed, found docs:', snapshot.docs.length);
+    
     const chats = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
@@ -153,6 +171,7 @@ export const getUserAdminChats = async () => {
       }
     }));
 
+    console.log('✅ [getUserAdminChats] Returning chats:', chats.length);
     return chats;
   } catch (error) {
     console.error('Error getting user admin chats:', error);

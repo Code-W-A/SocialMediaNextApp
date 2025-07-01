@@ -26,6 +26,7 @@ import { storage, db } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
+import { hasCompletedQuestionnaire, debugUserData } from '@/utils/onboardingHelpers';
 import { v4 as uuidv4 } from 'uuid';
 import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
@@ -73,32 +74,13 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
     { name: "History", icon: "eva:archive-fill" }
   ];
 
-  // Check if user has completed questionnaire
-  const hasCompletedQuestionnaire = () => {
+  // Check if user has completed questionnaire using centralized function
+  const checkQuestionnaireCompletion = () => {
     const user = userData?.data || currentUser;
+    console.log("🔍 [ProfileEditSection] Checking questionnaire completion");
     
-    // Debug logging
-    console.log("=== Questionnaire Debug ===");
-    console.log("userData:", userData);
-    console.log("currentUser:", currentUser);
-    console.log("combined user:", user);
-    console.log("user.questionnaire:", user?.questionnaire);
-    console.log("questionnaire keys:", user?.questionnaire ? Object.keys(user.questionnaire) : "no questionnaire");
-    
-    // Check multiple conditions for questionnaire completion
-    const hasQuestionnaireObject = user?.questionnaire && typeof user.questionnaire === 'object';
-    const hasRequiredFields = user?.questionnaire?.zodiacSign && 
-                             user?.questionnaire?.birthDate && 
-                             user?.questionnaire?.relationshipType;
-    const hasEnoughKeys = user?.questionnaire && Object.keys(user.questionnaire).length >= 3;
-    
-    console.log("hasQuestionnaireObject:", hasQuestionnaireObject);
-    console.log("hasRequiredFields:", hasRequiredFields);
-    console.log("hasEnoughKeys:", hasEnoughKeys);
-    console.log("Final result:", hasQuestionnaireObject && (hasRequiredFields || hasEnoughKeys));
-    console.log("=== End Debug ===");
-    
-    return hasQuestionnaireObject && (hasRequiredFields || hasEnoughKeys);
+    // Use centralized function with consistent logic
+    return hasCompletedQuestionnaire(user);
   };
 
   // Handle questionnaire restart
@@ -121,6 +103,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
       console.log("user.relationshipStatus:", user?.relationshipStatus);
       console.log("user.interests:", user?.interests);
       console.log("user.images:", user?.images);
+      
+      // Debug questionnaire data specifically
+      debugUserData(user, 'ProfileEditSection');
       
       // Extra debug for specific user
       if (user?.id === 'D0TBplLwTgUXPMYINyk6rOoitV52') {
@@ -421,9 +406,14 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
+      console.log('🚀 [ProfileEditSection] Starting profile update...');
+      console.log('📝 Form values:', values);
+      console.log('👤 Current user:', currentUser?.id);
+      
       let imageObjects = [];
 
       // Process images if any exist
+      console.log('📸 Processing images... Count:', uploadedImages.length);
       if (uploadedImages.length > 0) {
         for (let i = 0; i < uploadedImages.length; i++) {
           const file = uploadedImages[i];
@@ -439,6 +429,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
             }
           } else {
             // Upload new image
+            console.log('📤 Uploading new image...');
             const fileName = uuidv4();
             const storageRef = ref(storage, `images/${fileName}`);
             
@@ -475,16 +466,27 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
         updateData.images = imageObjects;
       }
 
+      console.log('💾 Update data to be saved:', updateData);
+      console.log('📍 GPS coordinates:', gpsCoordinates);
+      console.log('🏷️ Selected interests:', selectedInterests);
+
       await updateDoc(doc(db, 'Users', currentUser.id), updateData);
 
+      console.log('✅ Profile updated successfully in Firestore');
       message.success("Profile updated successfully! 🎉");
       
       if (onUpdateSuccess) {
+        console.log('🔄 Calling onUpdateSuccess callback...');
         onUpdateSuccess();
       }
     } catch (error) {
-      console.error("Error updating profile:", error);
-      message.error("Failed to update profile. Please try again.");
+      console.error("❌ Error updating profile:", error);
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      message.error(`Failed to update profile: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -778,8 +780,23 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
             </Text>
           </Card>
 
-          {/* Questionnaire Section - Show for all current users for testing */}
-          {(hasCompletedQuestionnaire() || isCurrentUserProfile) && (
+       
+
+          {/* Submit Button */}
+          <div style={{ textAlign: 'center', marginTop: '2rem', marginBottom: '2rem' }}>
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              size="large"
+              loading={loading}
+              style={{ minWidth: '200px' }}
+            >
+              {forceEdit ? 'Complete Profile' : 'Save Changes'}
+            </Button>
+          </div>
+
+             {/* Questionnaire Section - Show for all current users for testing */}
+             {(checkQuestionnaireCompletion() || isCurrentUserProfile) && (
             <Card 
               title={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -792,7 +809,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ marginBottom: '1rem' }}>
                   <Text type="secondary" style={{ fontSize: '14px' }}>
-                    {hasCompletedQuestionnaire() 
+                    {checkQuestionnaireCompletion() 
                       ? "Want to update your astrological preferences or questionnaire answers?"
                       : "Complete your astrological profile to enhance YDestiny compatibility!"
                     }
@@ -811,7 +828,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                     fontWeight: '500'
                   }}
                 >
-                  {hasCompletedQuestionnaire() ? "Retake Questionnaire" : "Start Questionnaire"}
+                  {checkQuestionnaireCompletion() ? "Retake Questionnaire" : "Start Questionnaire"}
                 </Button>
                 
                 <div style={{ marginTop: '0.5rem' }}>
@@ -822,19 +839,6 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
               </div>
             </Card>
           )}
-
-          {/* Submit Button */}
-          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              size="large"
-              loading={loading}
-              style={{ minWidth: '200px' }}
-            >
-              {forceEdit ? 'Complete Profile' : 'Save Changes'}
-            </Button>
-          </div>
         </Form>
 
         {/* Location Permission Dialog */}

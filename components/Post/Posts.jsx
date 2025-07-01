@@ -56,7 +56,31 @@ const Posts = ({ id = "all" }) => {
   // Get all posts from all pages for real-time interactions - memoized
   const allPosts = useMemo(() => {
     if (!data?.pages) return [];
-    return data.pages.flatMap(page => page?.data || []);
+    const posts = data.pages.flatMap(page => page?.data || []);
+    
+    // Debug logging for posts with comments
+    posts.forEach(post => {
+      if (post.comments && post.comments.length > 0) {
+        console.log("📝 Posts.jsx - Post with comments:", {
+          postId: post.id,
+          commentsCount: post.comments.length,
+          comments: post.comments.map(comment => ({
+            id: comment.id,
+            comment: comment.comment?.substring(0, 30) + "...",
+            authorId: comment.authorId,
+            authorData: comment.author,
+            authorName: (() => {
+              const firstName = comment.author?.first_name || comment.author?.firstName || "";
+              const lastName = comment.author?.last_name || comment.author?.lastName || "";
+              const fullName = `${firstName} ${lastName}`.trim();
+              return fullName || comment.author?.username || "NO_NAME";
+            })()
+          }))
+        });
+      }
+    });
+    
+    return posts;
   }, [data?.pages]);
 
   const [parent] = useAutoAnimate();

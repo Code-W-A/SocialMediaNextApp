@@ -8,6 +8,7 @@ import ProfileBody from "../ProfileBody";
 // TEMPORARILY COMMENTED OUT - FOLLOWERS/FOLLOWING FUNCTIONALITY
 // import FollowPersonsBody from "../FollowPersonsBody";
 import ProfileEditSection from "../ProfileEditSection";
+import AccountSettings from "../AccountSettings";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { Button, Typography, Alert, Tabs } from "antd";
 import { useRouter } from "next/navigation";
@@ -18,6 +19,7 @@ import {
   getUsername,
   shouldForceProfileCompletion 
 } from "@/utils/profileHelpers";
+import { useLanguage } from "@/lib/i18n";
 
 const { Title, Text } = Typography;
 
@@ -25,6 +27,7 @@ const ProfileView = ({ userId }) => {
   console.log('🔍 [ProfileView] Component rendered with userId:', userId);
   
   const { user: currentUser } = useUser();
+  const { t } = useLanguage();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState("1");
@@ -93,17 +96,24 @@ const ProfileView = ({ userId }) => {
 
   // Prevent tab changes if profile completion is forced
   const handleTabChange = (key) => {
-    if (isProfileCompletionForced && key !== "edit") {
-      return; // Don't allow tab change
+    if (isProfileCompletionForced && key !== "edit" && key !== "settings") {
+      return; // Don't allow tab change except to edit or settings
     }
     setSelectedTab(key);
   };
 
   const handleEditSuccess = () => {
+    console.log('🎉 [ProfileView] handleEditSuccess called');
+    console.log('📱 Current tab before reset:', selectedTab);
+    console.log('🔄 Refreshing user data for userId:', userId);
+    
     setShowEditSection(false);
     setSelectedTab("1");
+    
     // Refresh user data
     queryClient.invalidateQueries(['user', userId]);
+    
+    console.log('✅ [ProfileView] Profile refresh completed');
   };
 
   const handleEditProfile = () => {
@@ -199,7 +209,7 @@ const ProfileView = ({ userId }) => {
       label: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Iconify icon="eva:edit-fill" width="20px" />
-          Edit Profile
+          {t('userProfile.editProfile')}
           {needsProfileCompletion() && (
             <span style={{ 
               background: '#ff4d4f', 
@@ -220,6 +230,18 @@ const ProfileView = ({ userId }) => {
         />
       )
     });
+
+    // Add account settings tab
+    tabItems.push({
+      key: "settings",
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Iconify icon="eva:settings-fill" width="20px" />
+          {t('accountSettings.title')}
+        </span>
+      ),
+      children: <AccountSettings />
+    });
   }
 
   return (
@@ -228,11 +250,10 @@ const ProfileView = ({ userId }) => {
         {/* Forced Profile Completion Alert */}
         {isProfileCompletionForced && selectedTab !== "edit" && (
           <Alert
-            message="🚨 Profile Completion Required"
+            message={t('userProfile.completionRequired')}
             description={
               <div>
-                You must complete your profile before accessing other parts of the application.
-                Please add all required information below.
+                {t('userProfile.completionRequiredDesc')}
               </div>
             }
             type="error"
@@ -244,7 +265,7 @@ const ProfileView = ({ userId }) => {
                 type="primary"
                 onClick={() => setSelectedTab("edit")}
               >
-                Complete Profile Now
+                {t('userProfile.completeProfileNow')}
               </Button>
             }
           />
@@ -253,16 +274,16 @@ const ProfileView = ({ userId }) => {
         {/* Regular Profile Completion Alert */}
         {needsProfileCompletion() && !isProfileCompletionForced && selectedTab !== "edit" && (
           <Alert
-            message="Complete Your Profile"
+            message={t('userProfile.completeProfile')}
             description={
               <div>
-                Your profile is missing some information. 
+                {t('userProfile.completeProfileDesc')}
                 <Button 
                   type="link" 
                   style={{ padding: 0, marginLeft: '8px' }}
                   onClick={() => setSelectedTab("edit")}
                 >
-                  Complete it now →
+                  {t('userProfile.completeItNow')} →
                 </Button>
               </div>
             }
@@ -275,7 +296,7 @@ const ProfileView = ({ userId }) => {
                 type="primary"
                 onClick={() => setSelectedTab("edit")}
               >
-                Edit Profile
+                {t('userProfile.editProfile')}
               </Button>
             }
           />
@@ -302,7 +323,7 @@ const ProfileView = ({ userId }) => {
             onChange={handleTabChange}
             items={tabItems.map(item => ({
               ...item,
-              disabled: isProfileCompletionForced && item.key !== "edit"
+              disabled: isProfileCompletionForced && item.key !== "edit" && item.key !== "settings"
             }))}
             size="large"
             tabBarStyle={{ 

@@ -436,19 +436,7 @@ export default function ProfilePage() {
             Back
           </Button>
           
-          {/* Debug button - temporary */}
-          <Button
-            onClick={testFirestoreData}
-            style={{
-              height: "48px",
-              borderRadius: "12px",
-              border: "1.5px solid #ff4d4f",
-              fontWeight: "500",
-              color: "#ff4d4f"
-            }}
-          >
-            🔍 Test DB
-          </Button>
+     
           
           <Button
             type="primary"

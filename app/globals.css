@@ -64,3 +64,45 @@ body {
 .ydestiny-reaction-button:active {
   transform: translateY(0);
 }
+
+/* Mobile Keyboard Avoiding Styles */
+@media (max-width: 768px) {
+  html {
+    /* Prevent zoom on input focus on iOS */
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  body {
+    /* Enable smooth scrolling on mobile */
+    scroll-behavior: smooth;
+  }
+  
+  /* Ensure inputs don't zoom on focus on iOS */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+    transform: translateZ(0);
+    -webkit-appearance: none;
+    border-radius: 0;
+  }
+  
+  /* Ant Design TextArea specific styles for mobile */
+  .ant-input {
+    font-size: 16px !important;
+  }
+  
+  /* Smooth focus transitions */
+  .ant-input:focus,
+  .ant-input-focused {
+    transition: all 0.3s ease;
+  }
+  
+  /* Prevent layout shift when virtual keyboard appears */
+  .ant-layout-content {
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height */
+  }
+}

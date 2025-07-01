@@ -121,6 +121,18 @@ export default function QuestionnairePage() {
     try {
       const calculatedAge = calculateAge(answers.birthDate);
       
+      console.log("🚀 [Questionnaire] Saving data:", {
+        userId: user.id,
+        answers,
+        calculatedAge,
+        questionnaireData: {
+          zodiacSign: answers.zodiacSign,
+          birthDate: answers.birthDate,
+          relationshipType: answers.relationshipType,
+          completedAt: new Date().toISOString()
+        }
+      });
+      
       await updateDoc(doc(db, 'Users', user.id), {
         questionnaire: {
           zodiacSign: answers.zodiacSign,
@@ -132,6 +144,8 @@ export default function QuestionnairePage() {
         onboardingCompleted: true,
         updatedAt: serverTimestamp()
       });
+      
+      console.log("✅ [Questionnaire] Data saved successfully");
 
       // Check if user is editing (has previous questionnaire data)
       const isEditing = user?.questionnaire && Object.keys(user.questionnaire).length > 0;

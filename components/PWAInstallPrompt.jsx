@@ -326,38 +326,7 @@ export default function PWAInstallPrompt() {
                       {t('landing.pwaInstallButton')}
                     </Button>
                     
-                    <Row gutter={8}>
-                      <Col span={12}>
-                        <Button
-                          onClick={handleRemindLater}
-                          block
-                          style={{
-                            borderRadius: '20px',
-                            height: '45px',
-                            border: '2px solid #d9d9d9',
-                            color: '#666',
-                            fontWeight: '500'
-                          }}
-                        >
-                          {t('landing.pwaRemindLater')}
-                        </Button>
-                      </Col>
-                      <Col span={12}>
-                        <Button
-                          onClick={handleDismiss}
-                          block
-                          style={{
-                            borderRadius: '20px',
-                            height: '45px',
-                            border: '2px solid #d9d9d9',
-                            color: '#666',
-                            fontWeight: '500'
-                          }}
-                        >
-                          {t('landing.pwaNoThanks')}
-                        </Button>
-                      </Col>
-                    </Row>
+                   
                   </Space>
                 </div>
               </Space>

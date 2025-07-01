@@ -368,7 +368,7 @@ const Post = ({ data, queryId }) => {
               )}
 
               {/* Share button */}
-              <Button
+              {/* <Button
                 size="small"
                 style={{
                   background: "transparent",
@@ -376,7 +376,6 @@ const Post = ({ data, queryId }) => {
                   borderRadius: "6px"
                 }}
                 onClick={() => {
-                  // TODO: Implement share to social media functionality
                   navigator.share?.({
                     title: `${getDisplayName(data?.author)} pe YDestiny`,
                     text: data?.postText,
@@ -390,7 +389,7 @@ const Post = ({ data, queryId }) => {
                     Distribuie
                   </Typography.Text>
                 </Flex>
-              </Button>
+              </Button> */}
             </Flex>
           </Flex>
 

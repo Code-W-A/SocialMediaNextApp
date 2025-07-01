@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useCallback } from "react";
 import css from "@/styles/PostGenerator.module.css";
 import Box from "../Box";
 import { Avatar, Button, Flex, Image, Input, Spin, Typography, Divider, Card, Modal } from "antd";
@@ -21,6 +21,7 @@ import { now } from "@/utils/dateHelpers";
 const PostGenerator = () => {
   const { t } = useLanguage();
   const imgInputRef = useRef(null);
+  const textAreaRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileType, setFileType] = useState(null); // [image, video]
   const [postText, setPostText] = useState(null);
@@ -172,6 +173,30 @@ const PostGenerator = () => {
     console.log("✅ PostGenerator: Form cleaned up and success message shown");
   };
 
+  // Mobile keyboard avoiding functionality for post creation
+  const scrollToTextArea = useCallback(() => {
+    if (textAreaRef.current && window.innerWidth <= 768) {
+      // Delay to allow keyboard to fully open
+      setTimeout(() => {
+        textAreaRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+        
+        // Additional scroll to ensure textarea is visible above keyboard
+        setTimeout(() => {
+          window.scrollBy(0, -80); // Scroll up a bit more to account for keyboard
+        }, 300);
+      }, 300);
+    }
+  }, []);
+
+  // Handle focus event for keyboard avoiding
+  const handleTextAreaFocus = useCallback(() => {
+    scrollToTextArea();
+  }, [scrollToTextArea]);
+
   const handlePromptSelect = (prompt) => {
     setPostText(prompt + " ");
     setSelectedPrompt(prompt);
@@ -291,11 +316,13 @@ const PostGenerator = () => {
                 </Avatar>
 
                 <Input.TextArea
+                  ref={textAreaRef}
                   // maxLength={100}
                   placeholder={selectedPrompt || t('posts.placeholder')}
                   style={{ height: 80, resize: "none", flex: 1 }}
                   value={postText}
                   onChange={(e) => setPostText(e.target.value)}
+                  onFocus={handleTextAreaFocus}
                   disabled={!canPost.canPerform}
                 />
               </Flex>
@@ -384,14 +411,11 @@ const PostGenerator = () => {
                     type="default"
                     className={css.remove}
                     style={{ position: "absolute" }}
-                  >
-                    <Typography
-                      className="typoCaption"
-                      onClick={handleRemoveFile}
-                    >
-                      {t('posts.remove')}
-                    </Typography>
-                  </Button>
+                    onClick={handleRemoveFile}
+                    icon={<Iconify icon="eva:close-fill" width="18px" style={{ color: 'white' }} />}
+                    size="small"
+                    shape="circle"
+                  />
 
                   {/* media preview */}
                   {fileType === "image" && (

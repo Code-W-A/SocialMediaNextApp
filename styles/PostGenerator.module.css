@@ -19,7 +19,23 @@
   z-index: 2;
   right: 1rem;
   top: 1rem;
-  background: #000;
+  background: rgba(0, 0, 0, 0.7) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.2s ease !important;
+}
+
+.remove:hover{
+  background: rgba(220, 38, 38, 0.9) !important;
+  transform: scale(1.05) !important;
 }
 
 .preview{

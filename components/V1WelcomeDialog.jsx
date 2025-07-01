@@ -1,143 +1,182 @@
 "use client";
 
-import { Modal, Button, Typography, Space, Card } from 'antd';
-import { CrownOutlined, HeartOutlined, GiftOutlined, StarOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Modal, Button, Typography, Card, Divider, Space } from 'antd';
+import { HeartFilled, CrownOutlined, RocketFilled, CustomerServiceOutlined, StarFilled } from '@ant-design/icons';
+import Iconify from './Iconify';
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
+import { updateUserProfile } from '@/actions/user';
 import { useLanguage } from '@/lib/i18n';
+import styles from '@/styles/V1WelcomeDialog.module.css';
 
 const { Title, Text, Paragraph } = Typography;
 
-export default function V1WelcomeDialog({ 
-  visible, 
-  onClose, 
-  loading = false,
-  userName = "prietene" 
-}) {
+const V1WelcomeDialog = ({ open, visible, onClose, onConfirm, user }) => {
+  const [isActivating, setIsActivating] = useState(false);
+  const queryClient = useQueryClient();
   const { t } = useLanguage();
+
+  // Premium features - SYNCHRONIZED WITH /premium PAGE - LOCALIZED
+  const premiumFeatures = [
+    {
+      icon: <HeartFilled style={{ fontSize: '20px', color: '#ff4d4f' }} />,
+      title: t('premium.priorityCompatibility'),
+      description: t('premium.priorityCompatibilityDesc'),
+    },
+    {
+      icon: <CrownOutlined style={{ fontSize: '20px', color: '#FFD700' }} />,
+      title: t('premium.premiumBadgeFeature'),
+      description: t('premium.premiumBadgeDesc'),
+    },
+    {
+      icon: <RocketFilled style={{ fontSize: '20px', color: '#722ed1' }} />,
+      title: t('premium.increasedVisibility'),
+      description: t('premium.increasedVisibilityDesc'),
+    },
+    {
+      icon: <CustomerServiceOutlined style={{ fontSize: '20px', color: '#52c41a' }} />,
+      title: t('premium.prioritySupport'),
+      description: t('premium.prioritySupportDesc'),
+    },
+    {
+      icon: <StarFilled style={{ fontSize: '20px', color: '#faad14' }} />,
+      title: t('premium.exclusiveFeatures'),
+      description: t('premium.exclusiveFeaturesDesc'),
+    },
+    {
+      icon: <Iconify icon="eva:heart-fill" width="20px" style={{ color: '#eb2f96' }} />,
+      title: t('premium.moreMatches'),
+      description: t('premium.moreMatchesDesc'),
+    },
+  ];
+
+  const handleClose = () => {
+    if (onConfirm) {
+      onConfirm();
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
+  const activatePremiumMutation = useMutation({
+    mutationFn: () => updateUserProfile({ 
+      id: user.id,
+      v1WelcomeShown: true,
+      freePremiumGranted: true 
+    }),
+    onSuccess: () => {
+      toast.success('🎉 Premium activat cu succes!');
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
+      handleClose();
+    },
+    onError: (error) => {
+      console.error('Error activating V1 premium:', error);
+      toast.error('Eroare la activarea Premium. Încearcă din nou.');
+    },
+    onSettled: () => {
+      setIsActivating(false);
+    }
+  });
+
+  const handleActivatePremium = () => {
+    setIsActivating(true);
+    activatePremiumMutation.mutate();
+  };
 
   return (
     <Modal
-      open={visible}
-      onCancel={onClose}
+      open={open || visible}
+      onCancel={handleClose}
       footer={null}
-      width={600}
+      width={500}
       centered
-      className="v1-welcome-modal"
-      style={{
-        borderRadius: '16px',
-      }}
+      style={{ padding: 0 }}
+      className={styles.v1Dialog}
+      closeIcon={false}
+      maskClosable={false}
     >
-      <div className="text-center py-6">
-        {/* Header with crown icon */}
-        <div className="mb-6">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full mb-4">
-            <CrownOutlined className="text-4xl text-white" />
+      <div className={styles.dialogContent}>
+        <div className={styles.header}>
+          <div className={styles.iconContainer}>
+            <CrownOutlined className={styles.crownIcon} />
           </div>
           
-          <Title level={2} className="mb-2 bg-gradient-to-r from-yellow-500 to-orange-500 bg-clip-text text-transparent">
-            🎉 {t('v1.congratulations', { name: userName })}
+          <Title level={2} className={styles.title}>
+            {t('v1.congratulations')}
           </Title>
-        </div>
+          
+                     <Title level={3} className={styles.subtitle}>
+             {t('v1.freePremiumAccount')}
+           </Title>
+         </div>
 
-        {/* Main message */}
-        <Card className="mb-6 border-2 border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50">
-          <Space direction="vertical" size="middle" className="w-full">
-            <div className="flex items-center justify-center gap-2 text-lg font-semibold text-orange-700">
-              <GiftOutlined />
-              <span>{t('v1.freePremiumAccount')}</span>
-              <GiftOutlined />
-            </div>
-            
-            <Paragraph className="text-gray-700 mb-0">
-              {t('v1.v1Message')}
-            </Paragraph>
-          </Space>
+        <Card className={styles.messageCard}>
+          <Text className={styles.messageText}>
+            {t('v1.v1Message')}
+          </Text>
         </Card>
 
-        {/* Premium features */}
-        <div className="mb-6">
-          <Title level={4} className="mb-4 text-gray-800">
-            🌟 {t('v1.whatYouGetWithPremium')}
+        <Divider className={styles.divider} />
+
+        {/* Premium Features */}
+        <div className={styles.featuresSection}>
+          <Title level={4} className={styles.featuresTitle}>
+            {t('v1.whatYouGetWithPremium')}
           </Title>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-              <div className="text-purple-600 mb-2">
-                <HeartOutlined className="text-xl" />
-              </div>
-              <Text strong className="block text-sm">{t('v1.unlimitedMatches')}</Text>
-              <Text className="text-xs text-gray-600">{t('v1.connectWithAnyone')}</Text>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-              <div className="text-blue-600 mb-2">
-                <StarOutlined className="text-xl" />
-              </div>
-              <Text strong className="block text-sm">{t('v1.superLikes')}</Text>
-              <Text className="text-xs text-gray-600">{t('v1.fivePerDay')}</Text>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-              <div className="text-green-600 mb-2">
-                <CrownOutlined className="text-xl" />
-              </div>
-              <Text strong className="block text-sm">{t('v1.premiumBadge')}</Text>
-              <Text className="text-xs text-gray-600">{t('v1.profileStandsOut')}</Text>
-            </div>
-            
-            <div className="bg-white rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
-              <div className="text-pink-600 mb-2">
-                <GiftOutlined className="text-xl" />
-              </div>
-              <Text strong className="block text-sm">{t('v1.andMuchMore')}</Text>
-              <Text className="text-xs text-gray-600">{t('v1.allPremiumFeatures')}</Text>
-            </div>
+
+                     <div className={styles.featuresList}>
+             {premiumFeatures.map((feature, index) => (
+               <div
+                 key={index}
+                 className={styles.featureItem}
+               >
+                <div className={styles.featureIcon}>
+                  {feature.icon}
+                </div>
+                <div className={styles.featureContent}>
+                  <Text strong className={styles.featureTitle}>
+                    {feature.title}
+                  </Text>
+                  <Text className={styles.featureDescription}>
+                    {feature.description}
+                  </Text>
+                                 </div>
+               </div>
+             ))}
           </div>
         </div>
 
-        {/* Thank you message */}
-        <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg p-4 mb-6 border border-pink-200">
-          <Paragraph className="mb-2 text-gray-700">
-            <strong>{t('v1.thankYou')}</strong>
-          </Paragraph>
-          <Text className="text-sm text-gray-600">
+        <Divider className={styles.divider} />
+
+        <div className={styles.footerSection}>
+          <Text className={styles.thankYouText}>
+            {t('v1.thankYou')}
+          </Text>
+          
+          <Text className={styles.continueText}>
             {t('v1.continueFinding')}
           </Text>
-        </div>
 
-        {/* Support message */}
-        <div className="bg-blue-50 rounded-lg p-3 mb-6 border border-blue-200">
-          <Text className="text-xs text-blue-700">
-            <strong>Notă:</strong> {t('v1.supportNote')}
+          <Button
+            type="primary"
+            size="large"
+            loading={isActivating}
+            onClick={handleActivatePremium}
+            className={styles.activateButton}
+          >
+            {t('v1.activatePremium')}
+          </Button>
+
+          <Text className={styles.supportNote}>
+            {t('v1.supportNote', { email: 'support@ydestiny.ro' })}
           </Text>
         </div>
-
-        {/* Action button */}
-        <Button 
-          type="primary" 
-          size="large" 
-          onClick={onClose}
-          loading={loading}
-          className="bg-gradient-to-r from-yellow-500 to-orange-500 border-none hover:from-yellow-600 hover:to-orange-600 h-12 px-8 rounded-lg font-semibold"
-        >
-          {t('v1.startExploring')}
-        </Button>
       </div>
-
-      <style jsx global>{`
-        .v1-welcome-modal .ant-modal-content {
-          border-radius: 16px;
-          overflow: hidden;
-        }
-        
-        .v1-welcome-modal .ant-modal-header {
-          border-bottom: none;
-          padding: 0;
-        }
-        
-        .v1-welcome-modal .ant-modal-body {
-          padding: 0;
-        }
-      `}</style>
     </Modal>
   );
-} 
+};
+
+export default V1WelcomeDialog; 

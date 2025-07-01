@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import css from "@/styles/Header.module.css";
 import { Flex, Dropdown, message, Button } from "antd";
 import Image from "next/image";
@@ -21,8 +21,25 @@ const Header = () => {
   const { user } = useUser();
   const { signOut } = useAuth();
   const router = useRouter();
-  const { isPremium } = useSubscription();
+  const { isPremium, subscription } = useSubscription();
   const { t } = useLanguage();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Hook for mobile detection
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    // Check initially
+    checkIsMobile();
+
+    // Add event listener
+    window.addEventListener('resize', checkIsMobile);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkIsMobile);
+  }, []);
 
   const handleLogout = async () => {
     const result = await signOut();
@@ -101,25 +118,28 @@ const Header = () => {
           </div>
 
           {/* logo */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '12px',
-            padding: '8px 16px',
-            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
-          }}>
+          <div 
+            className={css.logo}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: isMobile ? '6px' : '8px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: isMobile ? '8px' : '12px',
+              padding: isMobile ? '6px 12px' : '8px 16px',
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.2)'
+            }}
+          >
             <Iconify 
               icon="eva:star-fill" 
-              width="24px" 
+              width={isMobile ? "18px" : "24px"} 
               style={{ color: '#FFD700' }} 
             />
             <span style={{
               background: 'linear-gradient(135deg, #FFD700, #FFA500)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              fontSize: '18px',
+              fontSize: isMobile ? '14px' : '18px',
               fontWeight: '700',
               letterSpacing: '0.5px'
             }}>
@@ -128,7 +148,7 @@ const Header = () => {
           </div>
           
           {/* actions */}
-          <Flex gap={15} align="center"> 
+          <Flex gap={isMobile ? 8 : 15} align="center"> 
             {/* Premium Button */}
             {!isPremium && (
               <Button
@@ -143,14 +163,24 @@ const Header = () => {
                   color: '#000',
                   fontWeight: '600',
                   borderRadius: '8px',
-                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)'
+                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
+                  minWidth: isMobile ? '32px' : 'auto',
+                  width: isMobile ? '32px' : 'auto',
+                  height: isMobile ? '32px' : 'auto',
+                  padding: isMobile ? '6px' : '4px 15px'
                 }}
               >
-                <span className={css.premiumText}>{t('common.premium')}</span>
+                {!isMobile && <span className={css.premiumText}>{t('common.premium')}</span>}
               </Button>
             )}
               
-            <LanguageSwitcher size="small" />
+            <LanguageSwitcher 
+              size="small" 
+              mobileMode={isMobile}
+              style={{
+                minWidth: isMobile ? '45px' : '120px'
+              }}
+            />
             <Dropdown
               menu={{ items: userMenuItems }}
               placement="bottomRight"
@@ -159,7 +189,7 @@ const Header = () => {
             >
               <Avatar 
                 src={getMainProfileImage(user?.images)} 
-                size={40} 
+                size={isMobile ? 32 : 40} 
                 style={{ cursor: 'pointer' }}
               />
             </Dropdown>

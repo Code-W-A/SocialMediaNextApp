@@ -25,14 +25,8 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
   const [expanded, setExpanded] = useState(false);
   const [parent] = useAutoAnimate();
   
-  // Local state for comments - optimistic updates
-  const [comments, setComments] = useState(initialComments || []);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Update local state when initial comments change (from server)
-  useEffect(() => {
-    setComments(initialComments || []);
-  }, [initialComments]);
+  // Use only the comments from props (query cache) - no local state
+  const comments = initialComments || [];
 
   // Stabilize scroll effect dependencies
   useEffect(() => {
@@ -45,34 +39,6 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
       });
     }
   }, [expanded, comments?.length]);
-
-  const checkIsPostingComment = useCallback((index) => {
-    return index === comments?.length - 1 && isLoading;
-  }, [comments?.length, isLoading]);
-
-  // Function to add comment optimistically
-  const addCommentOptimistically = useCallback((newComment) => {
-    setComments(prevComments => [...(prevComments || []), newComment]);
-    setExpanded(true); // Auto-expand when adding comment
-  }, []);
-
-  // Function to update comment optimistically
-  const updateCommentOptimistically = useCallback((commentId, newText) => {
-    setComments(prevComments => 
-      prevComments.map(comment => 
-        comment.id === commentId 
-          ? { ...comment, comment: newText, edited: true, editedAt: new Date() }
-          : comment
-      )
-    );
-  }, []);
-
-  // Function to remove comment optimistically
-  const removeCommentOptimistically = useCallback((commentId) => {
-    setComments(prevComments => 
-      prevComments.filter(comment => comment.id !== commentId)
-    );
-  }, []);
 
   // Memoize has comments to prevent unnecessary re-renders
   const hasComments = useMemo(() => comments && comments.length > 0, [comments]);
@@ -100,37 +66,25 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
             {!expanded ? (
               <Comment
                 data={comments[comments?.length - 1]}
-                postingComment={() => checkIsPostingComment(0)}
                 postId={postId}
                 queryId={queryId}
-                onCommentUpdated={updateCommentOptimistically}
-                onCommentDeleted={removeCommentOptimistically}
               />
             ) : (
               comments?.map((comment, index) => (
                 <Comment
                   key={comment.id || index}
                   data={comment}
-                  postingComment={() => checkIsPostingComment(index)}
                   postId={postId}
                   queryId={queryId}
-                  onCommentUpdated={updateCommentOptimistically}
-                  onCommentDeleted={removeCommentOptimistically}
                 />
               ))
             )}
           </Flex>
         )}
         
-        {comments?.length === 0 && !isLoading && (
+        {comments?.length === 0 && (
           <div style={{ textAlign: 'center', padding: '1rem', color: '#999' }}>
             No comments yet. Be the first to comment!
-          </div>
-        )}
-        
-        {isLoading && (
-          <div style={{ textAlign: 'center', padding: '1rem', color: '#999' }}>
-            Adding comment...
           </div>
         )}
       </>
@@ -139,8 +93,6 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
         queryId={queryId}
         postId={postId}
         setExpanded={setExpanded}
-        onCommentAdded={addCommentOptimistically}
-        setIsLoading={setIsLoading}
       />
     </Flex>
   );
@@ -148,7 +100,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
 
 export default CommentSection;
 
-const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUpdated, onCommentDeleted }) {
+const Comment = React.memo(function Comment({ data, postId, queryId }) {
   const {
     settings: { theme },
   } = useContext(SettingsContext);
@@ -157,21 +109,19 @@ const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUp
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(data?.comment || "");
+  
+  // Create the correct query key that matches Posts.jsx
+  const queryKey = useMemo(() => ["posts", queryId, currentUser?.id], [queryId, currentUser?.id]);
 
   // Edit comment mutation
   const { mutate: editMutate, isPending: isEditPending } = useMutation({
     mutationFn: ({ commentId, newText }) => editComment(postId, commentId, newText, currentUser?.id),
     onMutate: async ({ commentId, newText }) => {
-      // Update local state optimistically
-      if (onCommentUpdated) {
-        onCommentUpdated(commentId, newText);
-      }
-      
-      // Update query cache
-      await queryClient.cancelQueries({ queryKey: ["posts", queryId] });
-      const previousPosts = queryClient.getQueryData(["posts", queryId]);
+      // Update query cache optimistically
+      await queryClient.cancelQueries({ queryKey });
+      const previousPosts = queryClient.getQueryData(queryKey);
 
-      queryClient.setQueryData(["posts", queryId], (old) => {
+      queryClient.setQueryData(queryKey, (old) => {
         if (!old) return old;
         return {
           ...old,
@@ -202,7 +152,7 @@ const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUp
     },
     onError: (err, variables, context) => {
       if (context?.previousPosts) {
-        queryClient.setQueryData(["posts", queryId], context.previousPosts);
+        queryClient.setQueryData(queryKey, context.previousPosts);
       }
       toast.error("Failed to update comment");
     },
@@ -225,16 +175,11 @@ const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUp
         postId
       });
       
-      // Update local state optimistically
-      if (onCommentDeleted) {
-        onCommentDeleted(commentId);
-      }
-      
-      // Update query cache
-      await queryClient.cancelQueries({ queryKey: ["posts", queryId] });
-      const previousPosts = queryClient.getQueryData(["posts", queryId]);
+      // Update query cache optimistically
+      await queryClient.cancelQueries({ queryKey });
+      const previousPosts = queryClient.getQueryData(queryKey);
 
-      queryClient.setQueryData(["posts", queryId], (old) => {
+      queryClient.setQueryData(queryKey, (old) => {
         if (!old) return old;
         return {
           ...old,
@@ -268,7 +213,7 @@ const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUp
         variables
       });
       if (context?.previousPosts) {
-        queryClient.setQueryData(["posts", queryId], context.previousPosts);
+        queryClient.setQueryData(queryKey, context.previousPosts);
       }
       toast.error("Failed to delete comment");
     },
@@ -352,9 +297,31 @@ const Comment = React.memo(function Comment({ data, postId, queryId, onCommentUp
           <Flex justify="space-between" align="flex-start">
             <Flex vertical>
               <Typography.Text strong className="typoCaption">
-                {`${data?.author?.first_name || data?.author?.firstName || ""} ${
-                  data?.author?.last_name || data?.author?.lastName || ""
-                }`.trim() || data?.author?.username || "Anonymous"}
+                {(() => {
+                  const firstName = data?.author?.first_name || data?.author?.firstName || "";
+                  const lastName = data?.author?.last_name || data?.author?.lastName || "";
+                  const fullName = `${firstName} ${lastName}`.trim();
+                  const username = data?.author?.username;
+                  
+                  // Debug logging
+                  console.log("🏷️ Comment author display:", {
+                    commentId: data?.id,
+                    authorId: data?.authorId,
+                    firstName,
+                    lastName, 
+                    fullName,
+                    username,
+                    authorData: data?.author
+                  });
+                  
+                  if (fullName && fullName !== "Unknown User") {
+                    return fullName;
+                  }
+                  if (username && username !== "unknown") {
+                    return username;
+                  }
+                  return "Anonymous";
+                })()}
                 {data?.edited && (
                   <Typography.Text className="typoCaption" style={{ color: "#999", marginLeft: "8px" }}>
                     (edited)

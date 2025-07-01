@@ -91,6 +91,20 @@ export const getUser = async (id) => {
     if (userDoc.exists()) {
       const userData = userDoc.data();
       console.log('Firestore user data retrieved:', userData);
+      
+      // Enhanced debug for specific user (temporarily disabled)
+      // if (id === 'KsJr3zTOwIUTIPDwWuJylTSVaa43') {
+      //   console.log('\n🚨 DEBUG FOR PROBLEM USER:', id);
+      //   console.log('Raw Firestore data:');
+      //   console.log('- bio:', userData.bio);
+      //   console.log('- location:', userData.location);
+      //   console.log('- relationshipStatus:', userData.relationshipStatus);
+      //   console.log('- questionnaire:', userData.questionnaire);
+      //   console.log('- age:', userData.age);
+      //   console.log('- interests:', userData.interests);
+      //   console.log('- gender:', userData.gender);
+      //   console.log('🚨 END DEBUG FOR PROBLEM USER\n');
+      // }
 
       
       const userDataResult = {
@@ -116,6 +130,12 @@ export const getUser = async (id) => {
         updatedAt: userData.updatedAt,
         lastTimeActive: userData.lastTimeActive,
         
+        // MISSING CRITICAL FIELDS - NOW ADDED:
+        questionnaire: userData.questionnaire || null, // Zodiac, birth date, relationship type
+        age: userData.age || null, // Calculated age from questionnaire
+        onboardingCompleted: userData.onboardingCompleted || false, // Onboarding status
+        gender: userData.gender || null, // User gender from sign-up
+        
         // Legacy field mappings for backward compatibility
         first_name: userData.firstName || userData.first_name,
         last_name: userData.lastName || userData.last_name,
@@ -124,6 +144,18 @@ export const getUser = async (id) => {
         
         isIncomplete: false,
       };
+
+      // Final debug for problem user (temporarily disabled)
+      // if (id === 'KsJr3zTOwIUTIPDwWuJylTSVaa43') {
+      //   console.log('\n✅ FINAL RESULT FOR PROBLEM USER:');
+      //   console.log('- bio in result:', userDataResult.bio);
+      //   console.log('- location in result:', userDataResult.location);
+      //   console.log('- relationshipStatus in result:', userDataResult.relationshipStatus);
+      //   console.log('- questionnaire in result:', userDataResult.questionnaire);
+      //   console.log('- age in result:', userDataResult.age);
+      //   console.log('- interests in result:', userDataResult.interests);
+      //   console.log('✅ END FINAL RESULT DEBUG\n');
+      // }
 
       return { 
         data: serializeFirebaseData(userDataResult)
@@ -151,6 +183,14 @@ export const getUser = async (id) => {
           gpsCoordinates: null,
           banner_url: null,
           banner_id: null,
+          // Add missing fields for consistency
+          questionnaire: null,
+          age: null,
+          onboardingCompleted: false,
+          gender: null,
+          verified: false,
+          followers: [],
+          following: [],
           isIncomplete: true,
         }
       };
@@ -178,6 +218,14 @@ export const getUser = async (id) => {
         gpsCoordinates: null,
         banner_url: null,
         banner_id: null,
+        // Add missing fields for consistency
+        questionnaire: null,
+        age: null,
+        onboardingCompleted: false,
+        gender: null,
+        verified: false,
+        followers: [],
+        following: [],
         isIncomplete: true,
         error: true,
       }

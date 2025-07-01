@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
   '/offline',
   '/images/destiny-logo.svg',
   '/images/logo.png',
+  '/images/sigla-512.png',
   '/images/auth.png',
   '/images/comunity.jpg',
   '/images/landing-page.jpg',

@@ -39,14 +39,25 @@ const getCachedUser = async (userId) => {
   }
   
   try {
+    console.log(`🔍 getCachedUser: Fetching user ${userId} from getUser...`);
     const userData = await getUser(userId);
+    console.log(`✅ getCachedUser: Successfully got user ${userId}:`, {
+      hasData: !!userData?.data,
+      userId: userData?.data?.id,
+      firstName: userData?.data?.firstName,
+      lastName: userData?.data?.lastName,
+      first_name: userData?.data?.first_name,
+      last_name: userData?.data?.last_name,
+      username: userData?.data?.username,
+      isIncomplete: userData?.data?.isIncomplete
+    });
     userCache.set(userId, {
       data: userData,
       timestamp: now
     });
     return userData;
   } catch (error) {
-    console.error("Error fetching user:", error);
+    console.error(`❌ getCachedUser: Error fetching user ${userId}:`, error);
     return { data: { id: userId, firstName: 'Unknown', lastName: 'User' } };
   }
 };
@@ -75,7 +86,10 @@ const batchGetUsers = async (userIds) => {
     return userMap;
   }
   
-  console.log(`Fetching ${uncachedUserIds.length} users from Firestore`);
+  console.log(`Fetching ${uncachedUserIds.length} users from Firestore`, {
+    requestedUserIds: uncachedUserIds,
+    cachedUserIds: uniqueUserIds.filter(id => userMap[id])
+  });
   
   try {
     // Firestore 'in' query has a limit of 10 items
@@ -118,37 +132,86 @@ const batchGetUsers = async (userIds) => {
       });
     });
     
-    // For any users not found, create placeholder data
-    uncachedUserIds.forEach(userId => {
+    // For any users not found, try individual fetch then create placeholder
+    for (const userId of uncachedUserIds) {
       if (!userMap[userId]) {
-        const placeholderData = {
-          data: {
-            id: userId,
-            firstName: 'Unknown',
-            lastName: 'User',
-            username: 'unknown'
+        console.log(`⚠️ User ${userId} not found in batch query, trying individual fetch...`);
+        try {
+          // Try individual fetch as fallback
+          const individualUserData = await getCachedUser(userId);
+          if (individualUserData?.data) {
+            userMap[userId] = individualUserData;
+            console.log(`✅ User ${userId} found via individual fetch`);
+          } else {
+            console.log(`❌ User ${userId} not found even with individual fetch, using placeholder`);
+            const placeholderData = {
+              data: {
+                id: userId,
+                firstName: 'Unknown',
+                lastName: 'User',
+                first_name: 'Unknown',
+                last_name: 'User', 
+                username: 'unknown'
+              }
+            };
+            userMap[userId] = placeholderData;
           }
-        };
-        userMap[userId] = placeholderData;
+        } catch (error) {
+          console.error(`❌ Error fetching user ${userId} individually:`, error);
+          const placeholderData = {
+            data: {
+              id: userId,
+              firstName: 'Unknown',
+              lastName: 'User',
+              first_name: 'Unknown',
+              last_name: 'User',
+              username: 'unknown'
+            }
+          };
+          userMap[userId] = placeholderData;
+        }
       }
-    });
+    }
     
   } catch (error) {
     console.error("Error batch fetching users:", error);
     
-    // Return placeholder data for all uncached users on error
-    uncachedUserIds.forEach(userId => {
+    // Try individual fetches for all uncached users on batch error
+    for (const userId of uncachedUserIds) {
       if (!userMap[userId]) {
-        userMap[userId] = {
-          data: {
-            id: userId,
-            firstName: 'Unknown',
-            lastName: 'User',
-            username: 'unknown'
+        try {
+          console.log(`🔄 Batch failed, trying individual fetch for user ${userId}...`);
+          const individualUserData = await getCachedUser(userId);
+          if (individualUserData?.data) {
+            userMap[userId] = individualUserData;
+            console.log(`✅ User ${userId} recovered via individual fetch after batch error`);
+          } else {
+            userMap[userId] = {
+              data: {
+                id: userId,
+                firstName: 'Unknown',
+                lastName: 'User',
+                first_name: 'Unknown',
+                last_name: 'User',
+                username: 'unknown'
+              }
+            };
           }
-        };
+        } catch (individualError) {
+          console.error(`❌ Individual fetch also failed for user ${userId}:`, individualError);
+          userMap[userId] = {
+            data: {
+              id: userId,
+              firstName: 'Unknown',
+              lastName: 'User',
+              first_name: 'Unknown',
+              last_name: 'User',
+              username: 'unknown'
+            }
+          };
+        }
       }
-    });
+    }
   }
   
   return userMap;
@@ -435,13 +498,37 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
       
       const processedComments = comments.map(commentDoc => {
         const commentData = commentDoc.data();
+        const authorData = userMap[commentData.authorId];
+        
+        console.log("📝 getMyPostsFeed - Processing comment:", {
+          commentId: commentDoc.id,
+          postId: docSnap.id,
+          authorId: commentData.authorId,
+          hasAuthorData: !!authorData?.data,
+          authorFields: authorData?.data ? {
+            firstName: authorData.data.firstName,
+            lastName: authorData.data.lastName,
+            first_name: authorData.data.first_name,
+            last_name: authorData.data.last_name,
+            username: authorData.data.username
+          } : 'NO_AUTHOR_DATA',
+          fallbackAuthor: !authorData?.data ? { firstName: "Unknown", lastName: "User" } : null
+        });
+        
         return {
           id: commentDoc.id,
           comment: commentData.comment,
           authorId: commentData.authorId,
           createdAt: toSerializableDate(commentData.createdAt),
           updatedAt: toSerializableDate(commentData.updatedAt),
-          author: userMap[commentData.authorId] || { firstName: "Unknown", lastName: "User" }
+          author: authorData?.data || { 
+            id: commentData.authorId,
+            firstName: "Unknown", 
+            lastName: "User",
+            first_name: "Unknown",
+            last_name: "User",
+            username: "unknown"
+          }
         };
       });
 
@@ -660,14 +747,34 @@ export const getPosts = async (lastCursor = null, userId, limitCount = 10) => {
       if (commentResult) {
         comments.push(...commentResult.comments.map(commentDoc => {
           const commentData = commentDoc.data();
+          const commentAuthorData = userMap[commentData.authorId];
+          
+          console.log("📝 getPosts - Processing comment:", {
+            commentId: commentDoc.id,
+            postId: docSnap.id,
+            authorId: commentData.authorId,
+            hasAuthorData: !!commentAuthorData?.data,
+            authorFields: commentAuthorData?.data ? {
+              firstName: commentAuthorData.data.firstName,
+              lastName: commentAuthorData.data.lastName,
+              first_name: commentAuthorData.data.first_name,
+              last_name: commentAuthorData.data.last_name,
+              username: commentAuthorData.data.username
+            } : 'NO_AUTHOR_DATA',
+            fallbackAuthor: !commentAuthorData?.data ? { id: commentData.authorId, firstName: 'Unknown', lastName: 'User' } : null
+          });
+          
           return {
             id: commentDoc.id,
             ...serializeFirebaseData(commentData),
             createdAt: toSerializableDate(commentData.createdAt),
-            author: authorData?.data || { 
+            author: commentAuthorData?.data || { 
               id: commentData.authorId, 
               firstName: 'Unknown', 
-              lastName: 'User' 
+              lastName: 'User',
+              first_name: 'Unknown',
+              last_name: 'User',
+              username: 'unknown'
             }
           };
         }));
@@ -1085,11 +1192,31 @@ export const getPostComments = async (postId) => {
       // Serialize the comment data properly
       const serializedCommentData = serializeFirebaseData(commentData);
       
+      console.log("📝 Processing comment:", {
+        commentId: commentDoc.id,
+        authorId: commentData.authorId,
+        hasAuthorData: !!authorData?.data,
+        authorFields: authorData?.data ? {
+          firstName: authorData.data.firstName,
+          lastName: authorData.data.lastName,
+          first_name: authorData.data.first_name,
+          last_name: authorData.data.last_name,
+          username: authorData.data.username
+        } : 'NO_AUTHOR_DATA'
+      });
+      
       return {
         id: commentDoc.id,
         ...serializedCommentData,
         createdAt: toSerializableDate(commentData.createdAt),
-        author: authorData?.data || { id: commentData.authorId, firstName: 'Unknown', lastName: 'User' }
+        author: authorData?.data || { 
+          id: commentData.authorId, 
+          firstName: 'Unknown', 
+          lastName: 'User',
+          first_name: 'Unknown',
+          last_name: 'User',
+          username: 'unknown'
+        }
       };
     });
 

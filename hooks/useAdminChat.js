@@ -24,6 +24,14 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
   const [isTyping, setIsTyping] = useState(false);
   const [realTimeMessages, setRealTimeMessages] = useState([]);
 
+  // Debug logging
+  console.log('🔧 [useAdminChat] Hook called with:', {
+    chatId,
+    enableUserChats,
+    userId: user?.id,
+    userExists: !!user
+  });
+
   // Get user's admin chats - only enabled when explicitly requested
   const {
     data: userChats,
@@ -31,10 +39,21 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
     error: userChatsError,
   } = useQuery({
     queryKey: ['adminChats', 'user', user?.id],
-    queryFn: getUserAdminChats,
+    queryFn: () => {
+      console.log('🔄 [useAdminChat] Executing getUserAdminChats with userId:', user?.id);
+      return getUserAdminChats(user?.id);
+    },
     enabled: !!user?.id && enableUserChats,
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: enableUserChats ? 60 * 1000 : false, // Only refetch if enabled
+    onError: (error) => {
+      console.error('🚨 [useAdminChat] getUserAdminChats error:', error);
+      console.error('📊 [useAdminChat] Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+    }
   });
 
   // Get all admin chats (for admin dashboard)

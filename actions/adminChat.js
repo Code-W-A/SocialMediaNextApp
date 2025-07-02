@@ -18,19 +18,25 @@ import {
 import { db } from '@/lib/firebase';
 import { currentUser } from '@/lib/firebaseAuth';
 
+// Helper to convert Firestore Timestamp or millis number to JS Date
+const convertTimestamp = (ts) => {
+  if (!ts) return null;
+  return ts.toDate ? ts.toDate() : new Date(ts);
+};
+
 // Create new admin chat support ticket
 export const createAdminChat = async (chatData) => {
   try {
-    const user = await currentUser();
-    if (!user) {
-      throw new Error('User must be authenticated');
+    // Use userId from chatData instead of currentUser()
+    if (!chatData.userId) {
+      throw new Error('User ID must be provided');
     }
 
     const chatDoc = {
-      userId: user.id,
+      userId: chatData.userId,
       userEmail: chatData.email,
-      userName: chatData.name || `${user.firstName} ${user.lastName}` || user.email,
-      userImage: user.images?.[0]?.fileUri || null,
+      userName: chatData.name,
+      userImage: null, // Will be set by client if needed
       subject: chatData.subject,
       initialMessage: chatData.message,
       language: chatData.language || 'ro',
@@ -43,7 +49,7 @@ export const createAdminChat = async (chatData) => {
       updatedAt: serverTimestamp(),
       lastMessage: {
         text: chatData.message,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
         from: 'user',
         read: false
       },
@@ -52,7 +58,7 @@ export const createAdminChat = async (chatData) => {
         {
           id: `msg_${Date.now()}`,
           text: chatData.message,
-          timestamp: serverTimestamp(),
+          timestamp: Date.now(),
           from: 'user',
           read: false
         }
@@ -73,11 +79,12 @@ export const createAdminChat = async (chatData) => {
 };
 
 // Send message in admin chat
-export const sendAdminChatMessage = async (chatId, messageText, isAdmin = false, adminName = null) => {
+export const sendAdminChatMessage = async (chatId, messageText, isAdmin = false, adminName = null, userId = null) => {
   try {
-    const user = await currentUser();
-    if (!user && !isAdmin) {
-      throw new Error('User must be authenticated');
+    // For admin messages, we don't need user authentication
+    // For user messages, userId should be provided
+    if (!isAdmin && !userId) {
+      throw new Error('User ID must be provided for user messages');
     }
 
     const chatRef = doc(db, 'adminChats', chatId);
@@ -90,7 +97,7 @@ export const sendAdminChatMessage = async (chatId, messageText, isAdmin = false,
     const newMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       text: messageText,
-      timestamp: serverTimestamp(),
+      timestamp: Date.now(),
       from: isAdmin ? 'admin' : 'user',
       adminName: isAdmin ? adminName : null,
       read: false
@@ -100,7 +107,7 @@ export const sendAdminChatMessage = async (chatId, messageText, isAdmin = false,
       updatedAt: serverTimestamp(),
       lastMessage: {
         text: messageText,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
         from: isAdmin ? 'admin' : 'user'
       },
       messages: arrayUnion(newMessage)
@@ -163,12 +170,16 @@ export const getUserAdminChats = async (userId = null) => {
     const chats = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      updatedAt: doc.data().updatedAt?.toDate(),
+      createdAt: convertTimestamp(doc.data().createdAt),
+      updatedAt: convertTimestamp(doc.data().updatedAt),
       lastMessage: {
         ...doc.data().lastMessage,
-        timestamp: doc.data().lastMessage?.timestamp?.toDate()
-      }
+        timestamp: convertTimestamp(doc.data().lastMessage?.timestamp)
+      },
+      messages: (doc.data().messages || []).map(msg => ({
+        ...msg,
+        timestamp: convertTimestamp(msg.timestamp)
+      }))
     }));
 
     console.log('✅ [getUserAdminChats] Returning chats:', chats.length);
@@ -199,12 +210,16 @@ export const getAllAdminChats = async (status = null) => {
     const chats = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate(),
-      updatedAt: doc.data().updatedAt?.toDate(),
+      createdAt: convertTimestamp(doc.data().createdAt),
+      updatedAt: convertTimestamp(doc.data().updatedAt),
       lastMessage: {
         ...doc.data().lastMessage,
-        timestamp: doc.data().lastMessage?.timestamp?.toDate()
-      }
+        timestamp: convertTimestamp(doc.data().lastMessage?.timestamp)
+      },
+      messages: (doc.data().messages || []).map(msg => ({
+        ...msg,
+        timestamp: convertTimestamp(msg.timestamp)
+      }))
     }));
 
     return chats;
@@ -227,11 +242,11 @@ export const getAdminChat = async (chatId) => {
     return {
       id: chatDoc.id,
       ...chatData,
-      createdAt: chatData.createdAt?.toDate(),
-      updatedAt: chatData.updatedAt?.toDate(),
+      createdAt: convertTimestamp(chatData.createdAt),
+      updatedAt: convertTimestamp(chatData.updatedAt),
       messages: chatData.messages?.map(msg => ({
         ...msg,
-        timestamp: msg.timestamp?.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp)
+        timestamp: convertTimestamp(msg.timestamp)
       })) || []
     };
   } catch (error) {

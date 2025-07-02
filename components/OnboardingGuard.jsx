@@ -66,14 +66,14 @@ const OnboardingGuard = ({ children }) => {
         }, 3000); // Recheck every 3 seconds for the first minute
         
         // Clear after 1 minute
-        const clearTimeout = setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           clearInterval(recheckInterval);
           console.log('⏹️ [OnboardingGuard] Periodic recheck stopped');
         }, 60000);
         
         return () => {
           clearInterval(recheckInterval);
-          clearTimeout(clearTimeout);
+          clearTimeout(timeoutId);
         };
       }
     }

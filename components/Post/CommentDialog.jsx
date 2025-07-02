@@ -316,7 +316,7 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
       }
       width={isMobile ? '95vw' : 500}
       centered
-      destroyOnClose
+      destroyOnHidden
       maskClosable={!isSubmitting && !isPending}
       closable={!isSubmitting && !isPending}
               styles={{

@@ -65,16 +65,13 @@ const AdminChatDashboard = () => {
     updatePriority,
     isUpdatingPriority,
     markAsRead,
-    enableAdminQueries,
     refreshAllChats,
     refreshStats,
-    getAdminUnreadCount
+    getAdminUnreadCount,
+    sendMessageToChat,
+    updateChatStatusById,
+    updateChatPriority
   } = useAdminChat(selectedChat?.id);
-
-  // Enable admin queries on mount
-  useEffect(() => {
-    enableAdminQueries();
-  }, [enableAdminQueries]);
 
   // Auto scroll to bottom when new messages arrive
   useEffect(() => {
@@ -103,16 +100,16 @@ const AdminChatDashboard = () => {
   const handleSendMessage = () => {
     if (!messageText.trim() || !selectedChat?.id) return;
 
-    sendMessage(messageText.trim(), true, 'Admin');
+    sendMessageToChat(selectedChat.id, messageText.trim(), true, 'Admin');
     setMessageText('');
   };
 
   const handleUpdateStatus = (chatId, newStatus) => {
-    updateStatus(newStatus, 'Admin');
+    updateChatStatusById(chatId, newStatus, 'Admin');
   };
 
   const handleUpdatePriority = (chatId, newPriority) => {
-    updatePriority(newPriority);
+    updateChatPriority(chatId, newPriority);
   };
 
   const handleCloseModal = () => {
@@ -389,7 +386,7 @@ const AdminChatDashboard = () => {
         footer={null}
         width={700}
         styles={{ body: { padding: '0' } }}
-        destroyOnClose
+        destroyOnHidden
       >
         {selectedChat && (
           <div style={{ height: '500px', display: 'flex', flexDirection: 'column' }}>

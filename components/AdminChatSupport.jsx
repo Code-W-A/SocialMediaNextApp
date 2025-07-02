@@ -142,6 +142,7 @@ const AdminChatSupport = ({
     console.log('🚀 [AdminChatSupport] Starting new chat with values:', values);
     try {
       const chatData = {
+        userId: user?.id,
         email: values.email,
         subject: values.subject,
         message: values.message,
@@ -379,7 +380,7 @@ const AdminChatSupport = ({
         footer={null}
         width={isChatMode ? 600 : 500}
         styles={{ body: { padding: isChatMode ? '0' : '24px' } }}
-        destroyOnClose
+        destroyOnHidden
       >
         {!isChatMode ? (
           // Initial contact form or existing chats

@@ -64,7 +64,7 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
   } = useQuery({
     queryKey: ['adminChats', 'all'],
     queryFn: () => getAllAdminChats(),
-    enabled: false, // Only enable when admin needs it
+    enabled: true,
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000, // More frequent for admin
   });
@@ -88,7 +88,7 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
   } = useQuery({
     queryKey: ['adminChats', 'stats'],
     queryFn: getChatStatistics,
-    enabled: false, // Only enable when admin needs it
+    enabled: true,
     staleTime: 60 * 1000,
     refetchInterval: 2 * 60 * 1000, // Every 2 minutes
   });
@@ -142,10 +142,12 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: ({ chatId, messageText, isAdmin, adminName }) => 
-      sendAdminChatMessage(chatId, messageText, isAdmin, adminName),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['adminChat', chatId]);
-      queryClient.invalidateQueries(['adminChats']);
+      sendAdminChatMessage(chatId, messageText, isAdmin, adminName, user?.id),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries(['adminChat', variables.chatId]);
+      queryClient.invalidateQueries(['adminChats', 'all']);
+      queryClient.invalidateQueries(['adminChats', 'user']);
+      queryClient.invalidateQueries(['adminChats', 'stats']);
     },
     onError: (error) => {
       console.error('Error sending message:', error);
@@ -157,10 +159,12 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
   const updateStatusMutation = useMutation({
     mutationFn: ({ chatId, status, adminName }) => 
       updateChatStatus(chatId, status, adminName),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       message.success(data.message);
-      queryClient.invalidateQueries(['adminChat', chatId]);
-      queryClient.invalidateQueries(['adminChats']);
+      queryClient.invalidateQueries(['adminChat', variables.chatId]);
+      queryClient.invalidateQueries(['adminChats', 'all']);
+      queryClient.invalidateQueries(['adminChats', 'user']);
+      queryClient.invalidateQueries(['adminChats', 'stats']);
     },
     onError: (error) => {
       console.error('Error updating chat status:', error);
@@ -183,10 +187,12 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
   // Update priority mutation
   const updatePriorityMutation = useMutation({
     mutationFn: ({ chatId, priority }) => updateChatPriority(chatId, priority),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       message.success(data.message);
-      queryClient.invalidateQueries(['adminChat', chatId]);
-      queryClient.invalidateQueries(['adminChats']);
+      queryClient.invalidateQueries(['adminChat', variables.chatId]);
+      queryClient.invalidateQueries(['adminChats', 'all']);
+      queryClient.invalidateQueries(['adminChats', 'user']);
+      queryClient.invalidateQueries(['adminChats', 'stats']);
     },
     onError: (error) => {
       console.error('Error updating priority:', error);
@@ -218,6 +224,24 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
       return;
     }
     return updateStatusMutation.mutate({ chatId, status, adminName });
+  };
+
+  // Standalone functions that accept chatId explicitly
+  const sendMessageToChat = (targetChatId, messageText, isAdmin = false, adminName = null) => {
+    return sendMessageMutation.mutate({ 
+      chatId: targetChatId, 
+      messageText, 
+      isAdmin, 
+      adminName 
+    });
+  };
+
+  const updateChatStatusById = (targetChatId, status, adminName = null) => {
+    return updateStatusMutation.mutate({ chatId: targetChatId, status, adminName });
+  };
+
+  const updateChatPriority = (targetChatId, priority) => {
+    return updatePriorityMutation.mutate({ chatId: targetChatId, priority });
   };
 
   const markAsRead = (isAdmin = false) => {
@@ -286,6 +310,11 @@ export const useAdminChat = (chatId = null, enableUserChats = false) => {
     markAsRead,
     updatePriority,
     enableAdminQueries,
+    
+    // Standalone actions with explicit chatId
+    sendMessageToChat,
+    updateChatStatusById,
+    updateChatPriority,
     
     // Utilities
     getUnreadCount,

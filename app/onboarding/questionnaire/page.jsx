@@ -8,14 +8,14 @@ import css from "@/styles/AuthPages.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
 import zodiacCss from "@/styles/zodiacCardsResponsive.module.css";
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { firstQuestions } from "@/mock/astroQuestions";
 
 const { Title, Text } = Typography;
 
 export default function QuestionnairePage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -23,14 +23,30 @@ export default function QuestionnairePage() {
   // Load existing questionnaire data from Firestore on component mount
   useEffect(() => {
     const loadExistingQuestionnaire = () => {
-      if (user?.questionnaire) {
-        setAnswers({
-          zodiacSign: user.questionnaire.zodiacSign || '',
-          birthDate: user.questionnaire.birthDate || '',
-          relationshipType: user.questionnaire.relationshipType || ''
-        });
+      if (user) {
+        // First try to load from localStorage (temporary values during onboarding)
+        const tempQuestionnaireData = localStorage.getItem(`onboarding_questionnaire_${user.id}`);
+        let savedAnswers = {};
+        
+        if (tempQuestionnaireData) {
+          try {
+            savedAnswers = JSON.parse(tempQuestionnaireData);
+            console.log('Loaded temporary questionnaire data from localStorage:', savedAnswers);
+          } catch (error) {
+            console.error('Error parsing temporary questionnaire data:', error);
+          }
+        }
 
-        console.log('Loaded existing questionnaire data');
+        // Fallback to Firestore data if no temp data exists
+        const finalAnswers = {
+          zodiacSign: savedAnswers.zodiacSign || user.questionnaire?.zodiacSign || '',
+          birthDate: savedAnswers.birthDate || user.questionnaire?.birthDate || '',
+          relationshipType: savedAnswers.relationshipType || user.questionnaire?.relationshipType || ''
+        };
+
+        setAnswers(finalAnswers);
+
+        console.log('Loaded existing questionnaire data with localStorage fallback:', finalAnswers);
       }
     };
 
@@ -38,6 +54,14 @@ export default function QuestionnairePage() {
       loadExistingQuestionnaire();
     }
   }, [user]);
+
+  // Auto-save answers to localStorage whenever they change
+  const saveToLocalStorage = (newAnswers) => {
+    if (user) {
+      localStorage.setItem(`onboarding_questionnaire_${user.id}`, JSON.stringify(newAnswers));
+      console.log('Auto-saved questionnaire data to localStorage:', newAnswers);
+    }
+  };
 
   const zodiacCards = [
     { sign: "Berbec", icon: "♈", dates: "21 Mar - 19 Apr" },
@@ -133,20 +157,57 @@ export default function QuestionnairePage() {
         }
       });
       
-      await updateDoc(doc(db, 'Users', user.id), {
+      // Final onboarding completion - preserve ALL existing data
+      const updateData = {
+        // Questionnaire data
         questionnaire: {
           zodiacSign: answers.zodiacSign,
           birthDate: answers.birthDate,
           relationshipType: answers.relationshipType,
           completedAt: new Date().toISOString()
         },
+        // Calculated age from birth date
         age: calculatedAge,
+        // Mark onboarding as complete
         onboardingCompleted: true,
+        // Update presence and activity
+        lastTimeActive: serverTimestamp(),
+        presence: {
+          status: 'online',
+          lastActivity: serverTimestamp()
+        },
+        // Update timestamp
         updatedAt: serverTimestamp()
-      });
+      };
+
+      console.log('📝 [Questionnaire Step] Final update data:', updateData);
+      
+      await updateDoc(doc(db, 'Users', user.id), updateData);
+      
+      // Clear temporary localStorage data since we saved to Firestore
+      localStorage.removeItem(`onboarding_questionnaire_${user.id}`);
       
       console.log("✅ [Questionnaire] Data saved successfully");
 
+      // Validate and fix final data structure
+      try {
+        const { validateFinalDataStructure } = await import('@/utils/onboardingHelpers');
+        
+        const userDocRef = doc(db, 'Users', user.id);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          await validateFinalDataStructure(user.id, userDoc, db, serverTimestamp);
+          console.log("✅ [Questionnaire] Final data structure validated and fixed");
+        }
+      } catch (validationError) {
+        console.error("⚠️ [Questionnaire] Validation error (non-critical):", validationError);
+        // Continue even if validation fails
+      }
+
+      // Refresh user data in auth context to ensure it has the latest onboardingCompleted status
+      await refreshUser();
+      
       // Check if user is editing (has previous questionnaire data)
       const isEditing = user?.questionnaire && Object.keys(user.questionnaire).length > 0;
       
@@ -157,6 +218,9 @@ export default function QuestionnairePage() {
         message.success("Questionnaire completed! Welcome to YDestiny! 🎉");
         router.push("/onboarding/complete"); // Continue with onboarding
       }
+
+      // Refresh user after successful submission
+      await refreshUser();
     } catch (error) {
       console.error("Error saving questionnaire:", error);
       message.error("Failed to save answers. Please try again.");
@@ -171,10 +235,12 @@ export default function QuestionnairePage() {
   };
 
   const handleAnswerChange = (value) => {
-    setAnswers(prev => ({
-      ...prev,
-      [getFieldName(currentStep)]: value
-    }));
+    const fieldName = getFieldName(currentStep);
+    const newAnswers = { ...answers, [fieldName]: value };
+    setAnswers(newAnswers);
+    
+    // Auto-save to localStorage
+    saveToLocalStorage(newAnswers);
   };
 
   const formatDateInput = (value) => {

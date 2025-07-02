@@ -378,7 +378,7 @@ const AdminChatSupport = ({
         onCancel={handleCloseModal}
         footer={null}
         width={isChatMode ? 600 : 500}
-        bodyStyle={{ padding: isChatMode ? '0' : '24px' }}
+        styles={{ body: { padding: isChatMode ? '0' : '24px' } }}
         destroyOnClose
       >
         {!isChatMode ? (

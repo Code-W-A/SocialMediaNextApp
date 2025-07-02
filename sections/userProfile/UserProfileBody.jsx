@@ -16,6 +16,30 @@ const UserProfileBody = ({
   isLoading,
   showCompatibility = false 
 }) => {
+  // Calculate age from birth date
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    try {
+      // Parse DD/MM/YYYY format
+      const [day, month, year] = birthDate.split('/').map(num => parseInt(num));
+      const birthDateObj = new Date(year, month - 1, day); // month is 0-indexed
+      const today = new Date();
+      
+      let age = today.getFullYear() - birthDateObj.getFullYear();
+      const monthDiff = today.getMonth() - birthDateObj.getMonth();
+      
+      // Adjust if birthday hasn't occurred this year yet
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDateObj.getDate())) {
+        age--;
+      }
+      
+      return age;
+    } catch (error) {
+      console.error("Error calculating age:", error);
+      return null;
+    }
+  };
+
   if (isLoading || !userData?.data) {
     return <div>Loading...</div>;
   }
@@ -469,7 +493,7 @@ const UserProfileBody = ({
           </Card>
 
           {/* Astrological Info */}
-          {(user.questionnaire?.zodiacSign || user.questionnaire?.numerologyNumber) && (
+          {(user.questionnaire?.zodiacSign || user.questionnaire?.numerologyNumber || user.questionnaire?.birthDate || user.age) && (
             <Card
               title={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -480,6 +504,29 @@ const UserProfileBody = ({
               style={{ marginBottom: '24px' }}
             >
               <Space direction="vertical" style={{ width: '100%' }}>
+                {/* Age Display */}
+                {(user.questionnaire?.birthDate || user.age) && (
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, #52c41a, #73d13d)',
+                    borderRadius: '8px',
+                    color: 'white'
+                  }}>
+                    <div>
+                      <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px', display: 'block' }}>
+                        Age
+                      </Text>
+                      <Text strong style={{ color: 'white', fontSize: '16px' }}>
+                        {user.age || calculateAge(user.questionnaire?.birthDate) || 'N/A'} years
+                      </Text>
+                    </div>
+                    <Iconify icon="eva:calendar-fill" width="24px" style={{ color: 'rgba(255,255,255,0.8)' }} />
+                  </div>
+                )}
+
                 {user.questionnaire?.zodiacSign && (
                   <div style={{ 
                     display: 'flex', 

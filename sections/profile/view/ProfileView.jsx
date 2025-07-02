@@ -11,7 +11,7 @@ import ProfileEditSection from "../ProfileEditSection";
 import AccountSettings from "../AccountSettings";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { Button, Typography, Alert, Tabs } from "antd";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import { 
   checkProfileCompletion, 
@@ -19,6 +19,7 @@ import {
   getUsername,
   shouldForceProfileCompletion 
 } from "@/utils/profileHelpers";
+import { checkProfileCompleteness } from "@/utils/onboardingHelpers";
 import { useLanguage } from "@/lib/i18n";
 
 const { Title, Text } = Typography;
@@ -29,9 +30,14 @@ const ProfileView = ({ userId }) => {
   const { user: currentUser } = useUser();
   const { t } = useLanguage();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState("1");
   const [showEditSection, setShowEditSection] = useState(false);
+  
+  // Check if redirected from OnboardingGuard for profile completion
+  const forceComplete = searchParams.get('complete') === 'true';
+  console.log('🔄 [ProfileView] Force complete parameter:', forceComplete);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["user", userId],
@@ -66,7 +72,15 @@ const ProfileView = ({ userId }) => {
     const userData = data?.data || currentUser;
     if (!userData) return true;
 
-    return shouldForceProfileCompletion({ data: userData }, currentUser);
+    // Only force profile completion if explicitly redirected from onboarding
+    if (forceComplete) {
+      console.log('🚨 [ProfileView] Forced profile completion due to complete=true parameter');
+      return true;
+    }
+
+    // No longer forcing profile completion based on missing bio/location
+    console.log('✅ [ProfileView] Profile completion not forced - user can access app freely');
+    return false;
   };
 
   // Check if user is forced to complete profile (can't navigate away)
@@ -89,10 +103,11 @@ const ProfileView = ({ userId }) => {
     // Auto-show edit section if profile needs completion
     if (needsProfileCompletion() && !showEditSection) {
       console.log('📝 [ProfileView] Profile needs completion, showing edit section');
+      console.log('📝 [ProfileView] Force complete parameter:', forceComplete);
       setShowEditSection(true);
       setSelectedTab("edit");
     }
-  }, [data, isCurrentUserProfile]);
+  }, [data, isCurrentUserProfile, forceComplete]);
 
   // Prevent tab changes if profile completion is forced
   const handleTabChange = (key) => {
@@ -102,7 +117,7 @@ const ProfileView = ({ userId }) => {
     setSelectedTab(key);
   };
 
-  const handleEditSuccess = () => {
+  const handleEditSuccess = async () => {
     console.log('🎉 [ProfileView] handleEditSuccess called');
     console.log('📱 Current tab before reset:', selectedTab);
     console.log('🔄 Refreshing user data for userId:', userId);
@@ -110,8 +125,25 @@ const ProfileView = ({ userId }) => {
     setShowEditSection(false);
     setSelectedTab("1");
     
-    // Refresh user data
+    // Refresh user data from React Query cache
     queryClient.invalidateQueries(['user', userId]);
+    
+    // Small delay to ensure data propagation, then check if redirect needed
+    setTimeout(() => {
+      console.log('🔄 [ProfileView] Checking if still needs redirect...');
+      
+      // Force a navigation to home to trigger OnboardingGuard re-check
+      if (fromOnboardingRedirect) {
+        console.log('🏠 [ProfileView] Redirecting to home after profile completion');
+        
+        // Clear any potential route cache by forcing a hard navigation
+        if (typeof window !== 'undefined') {
+          window.location.href = '/home';
+        } else {
+          router.push('/home');
+        }
+      }
+    }, 2000); // Increased delay to 2 seconds
     
     console.log('✅ [ProfileView] Profile refresh completed');
   };
@@ -227,6 +259,7 @@ const ProfileView = ({ userId }) => {
           userData={enrichedData}
           onUpdateSuccess={handleEditSuccess}
           forceEdit={needsProfileCompletion()}
+          fromOnboardingRedirect={forceComplete}
         />
       )
     });
@@ -250,10 +283,25 @@ const ProfileView = ({ userId }) => {
         {/* Forced Profile Completion Alert */}
         {isProfileCompletionForced && selectedTab !== "edit" && (
           <Alert
-            message={t('userProfile.completionRequired')}
+            message={forceComplete ? "Complete Your Profile to Continue" : t('userProfile.completionRequired')}
             description={
               <div>
-                {t('userProfile.completionRequiredDesc')}
+                {forceComplete ? (
+                  <>
+                    To use the app, please complete your profile by adding the missing information below.
+                    {(() => {
+                      const userData = data?.data || currentUser;
+                      const profileStatus = userData ? checkProfileCompleteness(userData) : null;
+                      return profileStatus && profileStatus.missingFields.length > 0 ? (
+                        <div style={{ marginTop: '8px' }}>
+                          <strong>Missing:</strong> {profileStatus.missingFields.join(', ')}
+                        </div>
+                      ) : null;
+                    })()}
+                  </>
+                ) : (
+                  t('userProfile.completionRequiredDesc')
+                )}
               </div>
             }
             type="error"
@@ -265,7 +313,7 @@ const ProfileView = ({ userId }) => {
                 type="primary"
                 onClick={() => setSelectedTab("edit")}
               >
-                {t('userProfile.completeProfileNow')}
+                {forceComplete ? "Complete Profile" : t('userProfile.completeProfileNow')}
               </Button>
             }
           />

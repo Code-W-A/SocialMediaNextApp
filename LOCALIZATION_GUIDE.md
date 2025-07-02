@@ -104,7 +104,7 @@ welcome: "Bun venit, {name}!"
 - ✅ **Sidebar** - navigare principală
 - ✅ **Messages** - pagina de mesaje
 - ✅ **Matches** - pagina de match-uri
-- ✅ **V1WelcomeDialog** - dialogul de bun venit
+
 - ✅ **PostGenerator** - generator de postări
 - ✅ **Onboarding** - procesul de configurare
 

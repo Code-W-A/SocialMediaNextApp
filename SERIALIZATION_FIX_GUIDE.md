@@ -210,7 +210,7 @@ useEffect(() => {
 - ✅ `actions/post.js` - Updated to return ISO strings, use toSerializableDate()
 - ✅ `actions/user.js` - Fixed presence functions, user serialization, added serverTimestamp()
 - ✅ `actions/subscription.js` - Fixed subscription updates to use serverTimestamp()
-- ✅ `actions/v1Migration.js` - Fixed migration functions to use serverTimestamp()
+
 
 **Components & UI**
 - ✅ `components/Post/PostGenerator.jsx` - Fixed optimistic updates

@@ -19,13 +19,17 @@ import {
   Slider,
   Badge,
   Tooltip,
-  Tabs
+  Tabs,
+  Form,
+  DatePicker,
+  Radio,
+  Popconfirm
 } from "antd";
 import { UserOutlined, HeartOutlined, SearchOutlined, FilterOutlined, CrownOutlined, MessageOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities } from "@/actions/admin";
+import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser } from "@/actions/admin";
 import { getMainProfileImage } from "@/utils/imageHelpers";
-import { getAllV1UsersForMigration } from "@/actions/v1Migration";
+
 import AdminChatDashboard from "@/components/AdminChatDashboard";
 
 const { Title, Text } = Typography;
@@ -36,6 +40,9 @@ const AdminDashboard = () => {
   const [compatibilityModalVisible, setCompatibilityModalVisible] = useState(false);
   const [profileModalVisible, setProfileModalVisible] = useState(false);
   const [viewingUser, setViewingUser] = useState(null);
+  const [premiumModalVisible, setPremiumModalVisible] = useState(false);
+  const [selectedUserForPremium, setSelectedUserForPremium] = useState(null);
+  const [premiumForm] = Form.useForm();
   const [searchText, setSearchText] = useState("");
   const [genderFilter, setGenderFilter] = useState(null);
   const [ageRange, setAgeRange] = useState([18, 65]);
@@ -52,11 +59,7 @@ const AdminDashboard = () => {
     queryFn: getAllUsers,
   });
 
-  // Fetch V1 migration data
-  const { data: v1MigrationData, isLoading: v1MigrationLoading } = useQuery({
-    queryKey: ["admin-v1-migration"],
-    queryFn: getAllV1UsersForMigration,
-  });
+  // Removed V1 migration data fetch
 
   // Fetch compatibilities for selected user
   const { data: compatibilities, isLoading: compatibilitiesLoading } = useQuery({
@@ -117,6 +120,34 @@ const AdminDashboard = () => {
     },
   });
 
+  // Grant premium mutation
+  const grantPremiumMutation = useMutation({
+    mutationFn: ({ userId, premiumType, endDate }) => grantPremiumToUser(userId, premiumType, endDate),
+    onSuccess: (data) => {
+      message.success(data.message);
+      queryClient.invalidateQueries(["admin-users"]);
+      setPremiumModalVisible(false);
+      premiumForm.resetFields();
+    },
+    onError: (error) => {
+      message.error("Failed to grant premium!");
+      console.error(error);
+    },
+  });
+
+  // Remove premium mutation
+  const removePremiumMutation = useMutation({
+    mutationFn: removePremiumFromUser,
+    onSuccess: (data) => {
+      message.success(data.message);
+      queryClient.invalidateQueries(["admin-users"]);
+    },
+    onError: (error) => {
+      message.error("Failed to remove premium!");
+      console.error(error);
+    },
+  });
+
   const openCompatibilityModal = (user) => {
     setSelectedUser(user);
     setCompatibilityModalVisible(true);
@@ -126,6 +157,12 @@ const AdminDashboard = () => {
   const openProfileModal = (user) => {
     setViewingUser(user);
     setProfileModalVisible(true);
+  };
+
+  const openPremiumModal = (user) => {
+    setSelectedUserForPremium(user);
+    setPremiumModalVisible(true);
+    premiumForm.resetFields();
   };
 
   const getProfileImage = (user) => {
@@ -138,10 +175,7 @@ const AdminDashboard = () => {
   };
 
   // Check if user is V1 migrated
-  const isV1User = (userId) => {
-    if (!v1MigrationData) return false;
-    return v1MigrationData.alreadyMigrated?.some(user => user.id === userId) || false;
-  };
+  // Removed V1 user check
 
   // Check if user is premium
   const isPremiumUser = (user) => {
@@ -210,9 +244,7 @@ const AdminDashboard = () => {
               {record?.age && (
                 <Tag color="green" size="small">{record.age} years</Tag>
               )}
-              {isV1User(record?.id) && (
-                <Tag color="gold" size="small">V1 User</Tag>
-              )}
+
               {isPremiumUser(record) && (
                 <Tag color="purple" size="small" icon={<CrownOutlined />}>Premium</Tag>
               )}
@@ -397,14 +429,48 @@ const AdminDashboard = () => {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
-        <Button 
-          type="primary" 
-          icon={<HeartOutlined />}
-          onClick={() => openCompatibilityModal(record)}
-        >
-          Manage Compatibilities
-        </Button>
+        <Space direction="vertical" size="small">
+          <Button 
+            type="primary" 
+            icon={<HeartOutlined />}
+            onClick={() => openCompatibilityModal(record)}
+            size="small"
+          >
+            Manage Compatibilities
+          </Button>
+          <Space>
+            {!isPremiumUser(record) ? (
+              <Button 
+                type="default" 
+                icon={<CrownOutlined />}
+                onClick={() => openPremiumModal(record)}
+                size="small"
+                style={{ color: '#FFD700', borderColor: '#FFD700' }}
+              >
+                Grant Premium
+              </Button>
+            ) : (
+              <Popconfirm
+                title="Remove Premium"
+                description="Are you sure you want to remove premium from this user?"
+                onConfirm={() => removePremiumMutation.mutate(record.id)}
+                okText="Yes"
+                cancelText="No"
+              >
+                <Button 
+                  danger
+                  icon={<CrownOutlined />}
+                  size="small"
+                  loading={removePremiumMutation.isPending}
+                >
+                  Remove Premium
+                </Button>
+              </Popconfirm>
+            )}
+          </Space>
+        </Space>
       ),
+      width: 200,
     },
   ];
 
@@ -592,56 +658,7 @@ const AdminDashboard = () => {
             
             <Divider />
 
-        {/* V1 Migration Statistics */}
-        {v1MigrationData && (
-          <Card 
-            title="📊 V1 Migration Statistics" 
-            size="small" 
-            style={{ marginBottom: 16, background: '#fff7e6', border: '1px solid #ffd591' }}
-          >
-            <Row gutter={[16, 8]}>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fa8c16' }}>
-                    {v1MigrationData.totalV1Users}
-                  </div>
-                  <Text type="secondary">Total V1 Users</Text>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
-                    {v1MigrationData.alreadyMigrated?.length || 0}
-                  </div>
-                  <Text type="secondary">Migrated to Premium</Text>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#faad14' }}>
-                    {v1MigrationData.needsMigration || 0}
-                  </div>
-                  <Text type="secondary">Pending Migration</Text>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1' }}>
-                    {v1MigrationData.totalV1Users > 0 
-                      ? Math.round((v1MigrationData.alreadyMigrated?.length || 0) / v1MigrationData.totalV1Users * 100)
-                      : 0}%
-                  </div>
-                  <Text type="secondary">Migration Rate</Text>
-                </div>
-              </Col>
-            </Row>
-            <div style={{ textAlign: 'center', marginTop: 12 }}>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                V1 users are automatically migrated to Premium when they log in. They receive a welcome dialog and lifetime Premium access.
-              </Text>
-            </div>
-          </Card>
-        )}
+
         
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col span={8}>
@@ -1177,14 +1194,11 @@ const AdminDashboard = () => {
                         ) : (
                           <div><Text type="secondary">Last Active:</Text> Never</div>
                         )}
-                        {isV1User(viewingUser.id) && (
-                          <div>
-                            <Text type="secondary">V1 Status:</Text> 
-                            <Tag color="gold" style={{ marginLeft: '8px' }}>V1 Migrated User</Tag>
-                          </div>
+                        {viewingUser.subscription?.type === 'admin_granted' && (
+                          <div><Text type="secondary">Premium Type:</Text> Admin Granted</div>
                         )}
-                        {viewingUser.subscription?.type === 'v1_migration' && (
-                          <div><Text type="secondary">Premium Type:</Text> Lifetime (V1 Migration)</div>
+                        {viewingUser.subscription?.type === 'lifetime' && (
+                          <div><Text type="secondary">Premium Type:</Text> Lifetime</div>
                         )}
                         {viewingUser.gpsCoordinates && (
                           <div><Text type="secondary">GPS Coordinates:</Text> {viewingUser.gpsCoordinates.latitude}, {viewingUser.gpsCoordinates.longitude}</div>
@@ -1196,6 +1210,132 @@ const AdminDashboard = () => {
               </Col>
             </Row>
           </div>
+        )}
+      </Modal>
+
+      {/* Premium Management Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <CrownOutlined style={{ color: '#FFD700', fontSize: '24px' }} />
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: 600 }}>
+                Grant Premium Access
+              </div>
+              <Text type="secondary">
+                {selectedUserForPremium && (selectedUserForPremium.firstName && selectedUserForPremium.lastName) 
+                  ? `${selectedUserForPremium.firstName} ${selectedUserForPremium.lastName}` 
+                  : selectedUserForPremium?.displayName || selectedUserForPremium?.name || "Unknown User"}
+              </Text>
+            </div>
+          </div>
+        }
+        open={premiumModalVisible}
+        onCancel={() => setPremiumModalVisible(false)}
+        footer={null}
+        width={500}
+      >
+        {selectedUserForPremium && (
+          <Form
+            form={premiumForm}
+            layout="vertical"
+            onFinish={(values) => {
+              grantPremiumMutation.mutate({
+                userId: selectedUserForPremium.id,
+                premiumType: values.premiumType,
+                endDate: values.endDate
+              });
+            }}
+          >
+            <Form.Item
+              name="premiumType"
+              label="Premium Type"
+              rules={[{ required: true, message: 'Please select premium type' }]}
+              initialValue="lifetime"
+            >
+              <Radio.Group>
+                <Space direction="vertical">
+                  <Radio value="lifetime">
+                    <div>
+                      <Text strong>Lifetime Premium</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Premium access until 2099 (effectively permanent)
+                      </Text>
+                    </div>
+                  </Radio>
+                  <Radio value="temporary">
+                    <div>
+                      <Text strong>Temporary Premium</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Premium access until a specific date
+                      </Text>
+                    </div>
+                  </Radio>
+                  <Radio value="admin_granted">
+                    <div>
+                      <Text strong>Admin Granted</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Default admin-granted premium (lifetime)
+                      </Text>
+                    </div>
+                  </Radio>
+                </Space>
+              </Radio.Group>
+            </Form.Item>
+
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) =>
+                prevValues.premiumType !== currentValues.premiumType
+              }
+            >
+              {({ getFieldValue }) =>
+                getFieldValue('premiumType') === 'temporary' ? (
+                  <Form.Item
+                    name="endDate"
+                    label="End Date"
+                    rules={[
+                      { required: true, message: 'Please select end date for temporary premium' },
+                      {
+                        validator: (_, value) => {
+                          if (!value || value.isAfter(new Date())) {
+                            return Promise.resolve();
+                          }
+                          return Promise.reject(new Error('End date must be in the future'));
+                        },
+                      },
+                    ]}
+                  >
+                    <DatePicker
+                      style={{ width: '100%' }}
+                      placeholder="Select end date"
+                      disabledDate={(current) => current && current < new Date()}
+                    />
+                  </Form.Item>
+                ) : null
+              }
+            </Form.Item>
+
+            <div style={{ marginTop: '24px', textAlign: 'center' }}>
+              <Space>
+                <Button onClick={() => setPremiumModalVisible(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={grantPremiumMutation.isPending}
+                  icon={<CrownOutlined />}
+                  style={{ background: '#FFD700', borderColor: '#FFD700', color: '#000' }}
+                >
+                  Grant Premium
+                </Button>
+              </Space>
+            </div>
+          </Form>
         )}
       </Modal>
     </div>

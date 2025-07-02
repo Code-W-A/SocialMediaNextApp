@@ -102,8 +102,8 @@ NEXT_PUBLIC_APP_URL=https://yourdomain.com
 2. User will automatically get premium badge on next login
 3. Or use Stripe checkout to subscribe properly
 
-## Notes
-- V1 migration users automatically get lifetime premium
+## Notes  
 - All premium features are now just visual/priority benefits
 - The €5/month subscription supports the platform but doesn't gate features
-- Compatible users are still managed manually by admin 
+- Compatible users are still managed manually by admin
+- Premium can be granted manually by admin through the dashboard 

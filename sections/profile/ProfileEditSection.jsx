@@ -30,15 +30,41 @@ import { hasCompletedQuestionnaire, debugUserData } from '@/utils/onboardingHelp
 import { v4 as uuidv4 } from 'uuid';
 import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
+import { useLanguage } from "@/lib/i18n";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 const { Dragger } = Upload;
 
-const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) => {
-  const { user: currentUser } = useAuth();
+const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, fromOnboardingRedirect = false }) => {
+  const { user: currentUser, refreshUser, refreshUserData } = useAuth();
+
+  // Calculate age from birth date
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    try {
+      // Parse DD/MM/YYYY format
+      const [day, month, year] = birthDate.split('/').map(num => parseInt(num));
+      const birthDateObj = new Date(year, month - 1, day); // month is 0-indexed
+      const today = new Date();
+      
+      let age = today.getFullYear() - birthDateObj.getFullYear();
+      const monthDiff = today.getMonth() - birthDateObj.getMonth();
+      
+      // Adjust if birthday hasn't occurred this year yet
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDateObj.getDate())) {
+        age--;
+      }
+      
+      return age;
+    } catch (error) {
+      console.error("Error calculating age:", error);
+      return null;
+    }
+  };
   const router = useRouter();
+  const { t } = useLanguage();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState([]);
@@ -166,16 +192,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
       
       console.log("=== END DEBUG ===");
       
-      // Populate form fields with all possible data sources
-      // Using exact property names as saved in onboarding and sign-up
+      // Populate form fields with consistent fallbacks for compatibility
       form.setFieldsValue({
-        first_name: user?.first_name || user?.firstName || '',
-        last_name: user?.last_name || user?.lastName || '',
+        first_name: user?.firstName || user?.first_name || '',
+        last_name: user?.lastName || user?.last_name || '',
         username: user?.username || '',
-        bio: user?.bio || '', // Exact property from onboarding
-        location: user?.location || '', // Exact property from onboarding
-        website: user?.website || '', // Exact property from onboarding
-        relationshipStatus: user?.relationshipStatus || '' // Exact property from onboarding
+        bio: user?.bio || '',
+        location: user?.location || '',
+        website: user?.website || '',
+        relationshipStatus: user?.relationshipStatus || ''
       });
 
       // Set interests if they exist (exact property from onboarding)
@@ -219,7 +244,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
         return prev.filter(item => item !== interestName);
       } else {
         if (prev.length >= 8) {
-          message.warning("You can select maximum 8 interests");
+          message.warning(t('profileEdit.maxInterestsWarning'));
           return prev;
         }
         return [...prev, interestName];
@@ -236,12 +261,12 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
     beforeUpload: (file) => {
       const isImage = file.type.startsWith('image/');
       if (!isImage) {
-        message.error('You can only upload image files!');
+        message.error(t('profileEdit.onlyImageFiles'));
         return false;
       }
       const isLt5M = file.size / 1024 / 1024 < 5;
       if (!isLt5M) {
-        message.error('Image must be smaller than 5MB!');
+        message.error(t('profileEdit.imageTooLarge'));
         return false;
       }
       return false;
@@ -289,7 +314,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
     
     // Check total count
     if (uploadedImages.length + files.length > 6) {
-      message.warning(`You can only upload ${6 - uploadedImages.length} more photos`);
+      message.warning(t('profileEdit.canUploadMorePhotos', { count: 6 - uploadedImages.length }));
       return;
     }
     
@@ -299,11 +324,11 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
       const isLt5M = file.size / 1024 / 1024 < 5;
       
       if (!isImage) {
-        message.error(`${file.name} is not an image file`);
+        message.error(t('profileEdit.notImageFile', { fileName: file.name }));
         return false;
       }
       if (!isLt5M) {
-        message.error(`${file.name} is larger than 5MB`);
+        message.error(t('profileEdit.fileTooLarge', { fileName: file.name }));
         return false;
       }
       return true;
@@ -364,25 +389,25 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
           }
           
           // Don't auto-fill coordinates - let user add their own city name
-          message.success("Location detected! 📍 You can now add your city name manually.");
+          message.success(t('profileEdit.locationDetectedSuccess'));
         } catch (error) {
           console.error("Error getting location:", error);
-          message.error("Could not get location details");
+          message.error(t('profileEdit.couldNotGetLocationDetails'));
           setShowLocationDialog(false);
         }
       },
       (error) => {
-        let errorMessage = "Could not get your location";
+        let errorMessage = t('profileEdit.couldNotGetLocation');
         
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = "Location access denied.";
+            errorMessage = t('profileEdit.locationAccessDenied');
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information is unavailable.";
+            errorMessage = t('profileEdit.locationUnavailable');
             break;
           case error.TIMEOUT:
-            errorMessage = "Location request timed out.";
+            errorMessage = t('profileEdit.locationTimeout');
             break;
         }
         
@@ -409,6 +434,19 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
       console.log('🚀 [ProfileEditSection] Starting profile update...');
       console.log('📝 Form values:', values);
       console.log('👤 Current user:', currentUser?.id);
+      
+      // If this is forced profile completion, validate that at least bio OR location is provided
+      if (forceEdit) {
+        const hasBio = values.bio && values.bio.trim() !== '';
+        const hasLocation = values.location && values.location.trim() !== '';
+        
+        if (!hasBio && !hasLocation) {
+          message.error('Please provide at least a bio or location to complete your profile.');
+          setLoading(false);
+          return;
+        }
+        console.log('✅ Profile completion validation passed');
+      }
       
       let imageObjects = [];
 
@@ -444,10 +482,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
 
       // Update user document in Firestore
       const updateData = {
+        // Use same field names as onboarding for consistency
         firstName: values.first_name,
         lastName: values.last_name,
-        first_name: values.first_name, // Keep legacy field
-        last_name: values.last_name, // Keep legacy field
         username: values.username,
         bio: values.bio || '',
         location: values.location || '',
@@ -473,7 +510,22 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
       await updateDoc(doc(db, 'Users', currentUser.id), updateData);
 
       console.log('✅ Profile updated successfully in Firestore');
-      message.success("Profile updated successfully! 🎉");
+      
+      // Multiple strategies to ensure data refresh
+      console.log('🔄 Refreshing user data in AuthContext...');
+      
+      // 1. Force refresh with cache clearing (this explicitly clears cache)
+      await refreshUserData();
+      
+      // 2. Small delay to ensure data propagation in Firestore
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // 3. Another refresh to be absolutely sure
+      await refreshUserData();
+      
+      console.log('✅ User data refreshed with explicit cache clearing');
+      
+      message.success(t('profileEdit.profileUpdatedSuccess'));
       
       if (onUpdateSuccess) {
         console.log('🔄 Calling onUpdateSuccess callback...');
@@ -486,7 +538,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
         code: error.code,
         stack: error.stack
       });
-      message.error(`Failed to update profile: ${error.message}`);
+      message.error(t('profileEdit.failedToUpdateProfile', { error: error.message }));
     } finally {
       setLoading(false);
     }
@@ -496,9 +548,12 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
     <div className={css.container}>
       {forceEdit && (
         <Alert
-          message="Complete Your Profile"
-          description="Your profile seems to be missing some information. Please fill in the details below to enhance your experience."
-          type="warning"
+          message={fromOnboardingRedirect ? "Welcome! Complete Your Profile" : t('profileEdit.completeProfileAlert')}
+          description={fromOnboardingRedirect ? 
+            "You've successfully completed the onboarding! To continue using the app, please add at least a bio or location. The website and relationship status are optional but help others connect with you better." : 
+            "Please add at least a bio or location to complete your profile. Other fields are optional."
+          }
+          type={fromOnboardingRedirect ? "info" : "warning"}
           showIcon
           style={{ marginBottom: '1.5rem' }}
         />
@@ -515,48 +570,57 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
           <Card title={
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Iconify icon="eva:person-fill" width="20px" />
-              <span>Basic Information</span>
+              <span>{t('profileEdit.basicInformation')}</span>
             </div>
           } style={{ marginBottom: '1.5rem' }}>
             <Row gutter={16}>
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="first_name"
-                  label="First Name"
-                  rules={[{ required: true, message: 'Please enter your first name' }]}
+                  label={t('profileEdit.firstName')}
+                  rules={[{ required: true, message: t('profileEdit.pleaseEnterFirstName') }]}
                 >
-                  <Input placeholder="Enter your first name" />
+                  <Input placeholder={t('profileEdit.enterFirstName')} />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="last_name"
-                  label="Last Name"
-                  rules={[{ required: true, message: 'Please enter your last name' }]}
+                  label={t('profileEdit.lastName')}
+                  rules={[{ required: true, message: t('profileEdit.pleaseEnterLastName') }]}
                 >
-                  <Input placeholder="Enter your last name" />
+                  <Input placeholder={t('profileEdit.enterLastName')} />
                 </Form.Item>
               </Col>
             </Row>
 
             <Form.Item
               name="username"
-              label="Username"
+              label={t('profileEdit.username')}
               rules={[
-                { required: true, message: 'Please enter a username' },
-                { min: 3, message: 'Username must be at least 3 characters' }
+                { required: true, message: t('profileEdit.pleaseEnterUsername') },
+                { min: 3, message: t('profileEdit.usernameMinLength') }
               ]}
             >
-              <Input placeholder="Enter your username" prefix="@" />
+              <Input placeholder={t('profileEdit.enterUsername')} prefix="@" />
             </Form.Item>
 
             <Form.Item
               name="bio"
-              label="Bio"
-              rules={[{ max: 500, message: 'Bio must be less than 500 characters' }]}
+              label={
+                <span>
+                  {t('profileEdit.bio')}
+                  {forceEdit && (
+                    <span style={{ color: '#1890ff', fontSize: '12px', marginLeft: '8px' }}>
+                      (Required: Bio OR Location)
+                    </span>
+                  )}
+                </span>
+              }
+              rules={[{ max: 500, message: t('profileEdit.bioMaxLength') }]}
             >
               <TextArea
-                placeholder="Tell people about yourself..."
+                placeholder={forceEdit ? "Tell others about yourself... (Required if no location)" : t('profileEdit.tellAboutYourself')}
                 rows={4}
                 showCount
                 maxLength={500}
@@ -568,7 +632,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
           <Card title={
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Iconify icon="eva:camera-fill" width="20px" />
-              <span>Your Photos ({uploadedImages.length}/6)</span>
+              <span>{t('profileEdit.yourPhotosCount', { count: uploadedImages.length })}</span>
             </div>
           } style={{ marginBottom: '1.5rem' }}>
             {/* Upload Area - Show only when no images uploaded yet */}
@@ -593,10 +657,10 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                       <Iconify icon="eva:cloud-upload-fill" width="32px" style={{ color: "var(--primary)" }} />
                     </div>
                     <Title level={4} style={{ margin: "0 0 0.5rem", color: "#333" }}>
-                      Click or drag files to upload
+                      {t('profileEdit.clickOrDragUpload')}
                     </Title>
                     <Text type="secondary">
-                      Support for single or bulk upload. PNG, JPG up to 5MB each
+                      {t('profileEdit.uploadSupport')}
                     </Text>
                   </div>
                 </Dragger>
@@ -613,10 +677,10 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                   marginBottom: "1rem" 
                 }}>
                   <Text strong style={{ fontSize: "16px", color: "#333" }}>
-                    Your Photos ({previewImages.length}/6)
+                    {t('profileEdit.yourPhotosCount', { count: previewImages.length })}
                   </Text>
                   <Text type="secondary" style={{ fontSize: "14px" }}>
-                    {uploadedImages.length >= 6 ? "Maximum photos reached" : "Tap to set as main photo"}
+                    {uploadedImages.length >= 6 ? t('profileEdit.maxPhotosReached') : t('profileEdit.tapToSetMain')}
                   </Text>
                 </div>
                 
@@ -674,7 +738,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                       >
                         <Iconify icon="eva:plus-fill" width="20px" style={{ color: "var(--primary)" }} />
                         <Text style={{ color: "var(--primary)", fontSize: "11px", marginTop: "3px" }}>
-                          Add Photo
+                          {t('profileEdit.addPhoto')}
                         </Text>
                       </div>
                     </div>
@@ -690,7 +754,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                 }}>
                   <Text style={{ color: "#1890ff", fontSize: "13px" }}>
                     <Iconify icon="eva:star-fill" width="13px" style={{ marginRight: "4px" }} />
-                    <strong>Main photo</strong> will be shown in your profile and suggestions. Tap any photo to make it main.
+                    {t('profileEdit.mainPhotoWillBeShown')}
                   </Text>
                 </div>
               </div>
@@ -701,14 +765,26 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
           <Card title={
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Iconify icon="eva:info-fill" width="20px" />
-              <span>Additional Information</span>
+              <span>{t('profileEdit.additionalInformation')}</span>
             </div>
           } style={{ marginBottom: '1.5rem' }}>
             <Row gutter={16}>
               <Col xs={24} sm={12}>
-                <Form.Item name="location" label="Location">
+                <Form.Item 
+                  name="location" 
+                  label={
+                    <span>
+                      {t('profileEdit.location')}
+                      {forceEdit && (
+                        <span style={{ color: '#1890ff', fontSize: '12px', marginLeft: '8px' }}>
+                          (Required: Bio OR Location)
+                        </span>
+                      )}
+                    </span>
+                  }
+                >
                   <Input 
-                    placeholder="City, Country" 
+                    placeholder={forceEdit ? "Your city, country... (Required if no bio)" : t('profileEdit.cityCountry')} 
                     prefix={<Iconify icon="eva:pin-fill" width="16px" />}
                   />
                 </Form.Item>
@@ -716,24 +792,24 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
               <Col xs={24} sm={12}>
                 <Form.Item 
                   name="website" 
-                  label="Website"
-                  rules={[{ type: "url", message: "Please enter a valid URL" }]}
+                  label={t('profileEdit.website')}
+                  rules={[{ type: "url", message: t('profileEdit.validUrlRequired') }]}
                 >
                   <Input 
-                    placeholder="https://yourwebsite.com" 
+                    placeholder={t('profileEdit.yourWebsiteUrl')} 
                     prefix={<Iconify icon="eva:link-fill" width="16px" />}
                   />
                 </Form.Item>
               </Col>
             </Row>
 
-            <Form.Item name="relationshipStatus" label="Relationship Status">
-              <Select placeholder="Select your relationship status">
-                <Option value="single">Single</Option>
-                <Option value="in_relationship">In a Relationship</Option>
-                <Option value="married">Married</Option>
-                <Option value="its_complicated">It's Complicated</Option>
-                <Option value="prefer_not_to_say">Prefer Not to Say</Option>
+            <Form.Item name="relationshipStatus" label={t('profileEdit.relationshipStatus')}>
+              <Select placeholder={t('profileEdit.selectRelationshipStatus')}>
+                <Option value="single">{t('profileEdit.single')}</Option>
+                <Option value="in_relationship">{t('profileEdit.inRelationship')}</Option>
+                <Option value="married">{t('profileEdit.married')}</Option>
+                <Option value="its_complicated">{t('profileEdit.itsComplicated')}</Option>
+                <Option value="prefer_not_to_say">{t('profileEdit.preferNotToSay')}</Option>
               </Select>
             </Form.Item>
           </Card>
@@ -742,7 +818,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
           <Card title={
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Iconify icon="eva:heart-fill" width="20px" />
-              <span>Interests ({selectedInterests.length}/8)</span>
+              <span>{t('profileEdit.interests')} ({selectedInterests.length}/8)</span>
             </div>
           } style={{ marginBottom: '1.5rem' }}>
             <div className={css.interestsGrid}>
@@ -776,7 +852,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                 color: selectedInterests.length >= 8 ? '#ff4d4f' : undefined 
               }}
             >
-              Select up to 8 interests that describe you
+              {t('profileEdit.selectUpToInterests')}
             </Text>
           </Card>
 
@@ -791,7 +867,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
               loading={loading}
               style={{ minWidth: '200px' }}
             >
-              {forceEdit ? 'Complete Profile' : 'Save Changes'}
+              {forceEdit ? t('profileEdit.completeProfile') : t('profileEdit.saveChanges')}
             </Button>
           </div>
 
@@ -801,17 +877,111 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
               title={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Iconify icon="eva:star-fill" width="20px" />
-                  <span>Astrological Profile</span>
+                  <span>{t('profileEdit.astrologicalProfile')}</span>
                 </div>
               }
               style={{ marginBottom: '1.5rem' }}
             >
+              {/* Show current answers if questionnaire is completed */}
+              {checkQuestionnaireCompletion() && (userData?.data?.questionnaire || currentUser?.questionnaire) && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <Text strong style={{ fontSize: '16px', color: '#722ed1' }}>
+                      {t('profileEdit.currentAnswers')}
+                    </Text>
+                  </div>
+                  
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} sm={8}>
+                      <div style={{ 
+                        padding: '1rem', 
+                        background: '#f0f7ff', 
+                        borderRadius: '8px',
+                        border: '1px solid #d6e4ff',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '24px', marginBottom: '0.5rem' }}>
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Berbec' && '♈'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Taur' && '♉'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Gemeni' && '♊'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Rac' && '♋'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Leu' && '♌'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Fecioară' && '♍'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Balanță' && '♎'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Scorpion' && '♏'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Săgetător' && '♐'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Capricorn' && '♑'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Vărsător' && '♒'}
+                          {(userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign) === 'Pești' && '♓'}
+                        </div>
+                        <Text strong style={{ color: '#722ed1' }}>
+                          {t('profileEdit.zodiacSign')}
+                        </Text>
+                        <div style={{ marginTop: '0.25rem' }}>
+                          <Text>{userData?.data?.questionnaire?.zodiacSign || currentUser?.questionnaire?.zodiacSign || 'N/A'}</Text>
+                        </div>
+                      </div>
+                    </Col>
+                    
+                    <Col xs={24} sm={8}>
+                      <div style={{ 
+                        padding: '1rem', 
+                        background: '#fff7e6', 
+                        borderRadius: '8px',
+                        border: '1px solid #ffd591',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '24px', marginBottom: '0.5rem' }}>
+                          🎂
+                        </div>
+                        <Text strong style={{ color: '#fa8c16' }}>
+                          {t('profileEdit.birthDate')}
+                        </Text>
+                        <div style={{ marginTop: '0.25rem' }}>
+                          <Text>{userData?.data?.questionnaire?.birthDate || currentUser?.questionnaire?.birthDate || 'N/A'}</Text>
+                        </div>
+                        {/* Display calculated age */}
+                        {(userData?.data?.questionnaire?.birthDate || currentUser?.questionnaire?.birthDate || userData?.data?.age || currentUser?.age) && (
+                          <div style={{ marginTop: '0.5rem', padding: '0.25rem 0.5rem', background: 'rgba(250, 140, 22, 0.1)', borderRadius: '4px' }}>
+                                                         <Text style={{ color: '#fa8c16', fontSize: '12px', fontWeight: '500' }}>
+                               {t('profileEdit.age')}: {userData?.data?.age || currentUser?.age || calculateAge(userData?.data?.questionnaire?.birthDate || currentUser?.questionnaire?.birthDate) || 'N/A'} years
+                             </Text>
+                          </div>
+                        )}
+                      </div>
+                    </Col>
+                    
+                    <Col xs={24} sm={8}>
+                      <div style={{ 
+                        padding: '1rem', 
+                        background: '#f6ffed', 
+                        borderRadius: '8px',
+                        border: '1px solid #b7eb8f',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontSize: '24px', marginBottom: '0.5rem' }}>
+                          💕
+                        </div>
+                        <Text strong style={{ color: '#52c41a' }}>
+                          {t('profileEdit.relationshipType')}
+                        </Text>
+                        <div style={{ marginTop: '0.25rem' }}>
+                          <Text>{userData?.data?.questionnaire?.relationshipType || currentUser?.questionnaire?.relationshipType || 'N/A'}</Text>
+                        </div>
+                      </div>
+                    </Col>
+                  </Row>
+                  
+                  <Divider />
+                </div>
+              )}
+              
               <div style={{ textAlign: 'center' }}>
                 <div style={{ marginBottom: '1rem' }}>
                   <Text type="secondary" style={{ fontSize: '14px' }}>
                     {checkQuestionnaireCompletion() 
-                      ? "Want to update your astrological preferences or questionnaire answers?"
-                      : "Complete your astrological profile to enhance YDestiny compatibility!"
+                      ? t('profileEdit.wantToUpdate')
+                      : t('profileEdit.completeAstrological')
                     }
                   </Text>
                 </div>
@@ -828,12 +998,12 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                     fontWeight: '500'
                   }}
                 >
-                  {checkQuestionnaireCompletion() ? "Retake Questionnaire" : "Start Questionnaire"}
+                  {checkQuestionnaireCompletion() ? t('profileEdit.retakeQuestionnaire') : t('profileEdit.startQuestionnaire')}
                 </Button>
                 
                 <div style={{ marginTop: '0.5rem' }}>
                   <Text type="secondary" style={{ fontSize: '12px' }}>
-                    This will update your compatibility matches
+                    {t('profileEdit.updateCompatibilityMatches')}
                   </Text>
                 </div>
               </div>
@@ -868,12 +1038,11 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
             </div>
             
             <Title level={3} style={{ margin: "0 0 0.5rem" }}>
-              Enable Location Access
+              {t('profileEdit.enableLocationAccess')}
             </Title>
             
             <Text type="secondary" style={{ fontSize: "15px", lineHeight: "1.5" }}>
-              We'd like to detect your location to help you connect with people nearby. 
-              Your location is only used to improve your experience and is never shared without your permission.
+              {t('profileEdit.locationPermissionDesc')}
             </Text>
           </div>
 
@@ -887,7 +1056,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
                 minWidth: "100px"
               }}
             >
-              Skip
+              {t('profileEdit.skip')}
             </Button>
             
             <Button
@@ -901,13 +1070,13 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false }) =>
               }}
               icon={<Iconify icon="eva:checkmark-fill" width="16px" />}
             >
-              Allow Location
+              {t('profileEdit.allowLocation')}
             </Button>
           </div>
 
           <Text type="secondary" style={{ fontSize: "12px", marginTop: "1rem", display: "block" }}>
             <Iconify icon="eva:shield-fill" width="14px" style={{ marginRight: "4px" }} />
-            Your privacy is important to us
+            {t('profileEdit.privacyImportant')}
           </Text>
         </Modal>
       </Spin>

@@ -4,9 +4,11 @@ import { Button, Typography, Form, Input, Select, message, Progress, Modal } fro
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useFirebaseAuth";
 import Iconify from "@/components/Iconify";
+import LanguageSelector from "@/components/LanguageSelector";
 import css from "@/styles/AuthPages.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
 import interestCss from "@/styles/InterestCards.module.css";
+import { useLanguage } from "@/lib/i18n";
 import { db } from "@/lib/firebase";
 import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 
@@ -15,225 +17,214 @@ const { TextArea } = Input;
 const { Option } = Select;
 
 export default function ProfilePage() {
+  console.log('🚀 [COMPONENT] ProfilePage component rendering/mounting');
+  
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm();
   const [selectedInterests, setSelectedInterests] = useState([]);
-  const [showLocationDialog, setShowLocationDialog] = useState(false);
-  const [locationDetected, setLocationDetected] = useState(false);
+  
+  // Onboarding simplificat - doar interests
+  
+  console.log('🚀 [COMPONENT] Initial state - user:', user);
+  console.log('🚀 [COMPONENT] Initial state - selectedInterests:', selectedInterests);
 
-  const handleSubmit = async (values) => {
+    const handleSubmit = async () => {
     setLoading(true);
     try {
-      // Get form values if not provided (for onClick case)
-      if (!values) {
-        values = form.getFieldsValue();
-        console.log('Form values retrieved manually:', values);
+      if (selectedInterests.length === 0) {
+        message.warning(t('onboarding.pleaseSelectInterest'));
+        setLoading(false);
+        return;
       }
 
-      // Get GPS coordinates from localStorage if they exist
-      let gpsCoordinates = null;
-      try {
-        const storedLocation = localStorage.getItem('userLocation');
-        if (storedLocation) {
-          gpsCoordinates = JSON.parse(storedLocation);
-        }
-      } catch (error) {
-        console.error("Error parsing GPS coordinates:", error);
-      }
+      console.log('📤 [SUBMIT] Onboarding interests only:', selectedInterests);
 
-      // Debug values for specific user
-      if (user?.id === 'D0TBplLwTgUXPMYINyk6rOoitV52') {
-        console.log('\n=== ONBOARDING SUBMIT DEBUG ===');
-        console.log('Form values:', values);
-        console.log('selectedInterests:', selectedInterests);
-        console.log('=== END SUBMIT DEBUG ===\n');
-      }
-
-      // Update user profile in Firestore
+      // Simple update - only interests, preserve all existing data
       const updateData = {
-        bio: values.bio || '',
-        location: values.location || '',
-        website: values.website || '',
         interests: selectedInterests,
-        relationshipStatus: values.relationshipStatus || '',
         updatedAt: serverTimestamp()
       };
 
-      // Add GPS coordinates if they exist
-      if (gpsCoordinates) {
-        updateData.gpsCoordinates = gpsCoordinates;
-      }
+      console.log('📝 [Profile Step] Saving interests only:', updateData);
 
       await updateDoc(doc(db, 'Users', user.id), updateData);
 
-      message.success("Profile updated successfully! 🎉");
+      // Clear temporary localStorage data since we saved to Firestore
+      localStorage.removeItem(`onboarding_profile_${user.id}`);
+
+      message.success("Interests saved successfully! 🎉");
       router.push("/onboarding/questionnaire");
     } catch (error) {
-      console.error("Error updating profile:", error);
-      message.error("Failed to update profile. Please try again.");
+      console.error("Error saving interests:", error);
+      message.error("Failed to save interests. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // TEST FUNCTION - să verific ce date sunt în Firestore
-  const testFirestoreData = async () => {
-    try {
-      console.log('\n=== TESTING FIRESTORE DATA ===');
-      const userDocRef = doc(db, 'Users', user.id);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        console.log('Current Firestore data:');
-        console.log('bio:', userData.bio);
-        console.log('location:', userData.location);
-        console.log('website:', userData.website);
-        console.log('relationshipStatus:', userData.relationshipStatus);
-        console.log('interests:', userData.interests);
-        console.log('questionnaire:', userData.questionnaire);
-        console.log('Full document:', userData);
-      } else {
-        console.log('Document does not exist!');
-      }
-      console.log('=== END FIRESTORE TEST ===\n');
-    } catch (error) {
-      console.error('Error testing Firestore:', error);
-    }
-  };
+  // Simplified onboarding - interests only, no complex debugging needed
 
   const handleBack = () => {
+    console.log('⬅️ [BACK] Back button clicked');
+    console.log('⬅️ [BACK] Current interests before leaving:', selectedInterests);
+    
+    // Force save interests before leaving
+    console.log('⬅️ [BACK] Force saving interests before navigation...');
+    saveToLocalStorage();
+    
     router.push("/onboarding/photos");
   };
 
   // Load existing profile data from Firestore on component mount
   useEffect(() => {
+    console.log('🏗️ [EFFECT] Loading profile data useEffect triggered');
+    console.log('🏗️ [EFFECT] User object:', user);
+    console.log('🏗️ [EFFECT] User ID:', user?.id);
+    
+    // WAIT FOR USER TO BE LOADED - don't do anything if user is null
+    if (!user || !user.id) {
+      console.log('🏗️ [EFFECT] ❌ User not loaded yet, skipping profile load');
+      return;
+    }
+    
     const loadExistingProfile = () => {
       if (user) {
-        // Set form values if they exist
-        form.setFieldsValue({
-          bio: user.bio || '',
-          location: user.location || '',
-          website: user.website || '',
-          relationshipStatus: user.relationshipStatus || ''
-        });
-
-        // Set interests if they exist
-        if (user.interests && Array.isArray(user.interests)) {
-          setSelectedInterests(user.interests);
+        console.log('🔄 [LOAD] Starting to load profile data for user:', user.id);
+        
+        // First try to load from localStorage (temporary values during onboarding)
+        const tempProfileData = localStorage.getItem(`onboarding_profile_${user.id}`);
+        console.log('🔄 [LOAD] localStorage key:', `onboarding_profile_${user.id}`);
+        console.log('🔄 [LOAD] Raw localStorage data:', tempProfileData);
+        
+        let savedValues = {};
+        
+        if (tempProfileData) {
+          try {
+            savedValues = JSON.parse(tempProfileData);
+            console.log('🔄 [LOAD] Parsed localStorage data:', savedValues);
+          } catch (error) {
+            console.error('🔄 [LOAD] Error parsing temporary profile data:', error);
+          }
+        } else {
+          console.log('🔄 [LOAD] No localStorage data found');
         }
 
-        console.log('Loaded existing profile data');
+        console.log('🔄 [LOAD] User Firestore data:');
+        console.log('🔄 [LOAD] user.bio:', user.bio);
+        console.log('🔄 [LOAD] user.location:', user.location);
+        console.log('🔄 [LOAD] user.website:', user.website);
+        console.log('🔄 [LOAD] user.relationshipStatus:', user.relationshipStatus);
+        console.log('🔄 [LOAD] user.interests:', user.interests);
+
+        // Load interests (try temp data first, then Firestore)
+        const tempInterests = savedValues.interests || user.interests;
+        console.log('🔄 [LOAD] Interests to set:', tempInterests);
+        
+        if (tempInterests && Array.isArray(tempInterests)) {
+          setSelectedInterests(tempInterests);
+          console.log('🔄 [LOAD] ✅ Set interests:', tempInterests);
+        } else {
+          console.log('🔄 [LOAD] No interests to set - user can select them');
+        }
+
+        console.log('🔄 [LOAD] ✅ Profile loading completed');
+      } else {
+        console.log('🔄 [LOAD] ❌ Cannot load - no user found');
       }
     };
 
-    if (user) {
-      loadExistingProfile();
-    }
-  }, [user, form]);
+    loadExistingProfile();
+  }, [user]);
 
-  // Check for location on component mount
+  // Additional useEffect to trigger when user becomes available
   useEffect(() => {
-    // Check if location was already detected in this session
-    const locationStored = localStorage.getItem('locationDetected');
-    if (locationStored) {
-      setLocationDetected(true);
+    console.log('👤 [USER WATCH] User state changed');
+    console.log('👤 [USER WATCH] User:', user);
+    console.log('👤 [USER WATCH] User ID:', user?.id);
+    
+    if (user && user.id) {
+      console.log('👤 [USER WATCH] ✅ User is now available! Triggering profile load...');
+    } else {
+      console.log('👤 [USER WATCH] ❌ User still not available');
+    }
+  }, [user]);
+
+  // Auto-save interests to localStorage
+  const saveToLocalStorage = () => {
+    if (!user || !user.id) {
+      console.log('🔧 [SAVE] ❌ Cannot save - user not loaded yet');
       return;
     }
 
-    // Check if geolocation is supported
-    if (!navigator.geolocation) {
+    const dataToSave = {
+      interests: selectedInterests
+    };
+    
+    console.log('🔧 [SAVE] ✅ Attempting to save interests to localStorage:');
+    console.log('🔧 [SAVE] User ID:', user.id);
+    console.log('🔧 [SAVE] SelectedInterests state:', selectedInterests);
+    console.log('🔧 [SAVE] Data to save:', dataToSave);
+    console.log('🔧 [SAVE] localStorage key:', `onboarding_profile_${user.id}`);
+    
+    localStorage.setItem(`onboarding_profile_${user.id}`, JSON.stringify(dataToSave));
+    
+    // Verify save worked
+    const savedData = localStorage.getItem(`onboarding_profile_${user.id}`);
+    console.log('🔧 [SAVE] ✅ Verification - data actually saved:', savedData);
+  };
+
+  // Save to localStorage whenever interests change
+  useEffect(() => {
+    console.log('💾 [EFFECT] Interests save useEffect triggered');
+    console.log('💾 [EFFECT] Current interests:', selectedInterests);
+    console.log('💾 [EFFECT] User ID:', user?.id);
+    
+    // Don't save if user is not loaded yet
+    if (!user || !user.id) {
+      console.log('💾 [EFFECT] ❌ User not loaded yet, skipping save');
       return;
     }
+    
+    // Save if there are interests selected or if localStorage data exists
+    if (selectedInterests.length > 0 || localStorage.getItem(`onboarding_profile_${user.id}`)) {
+      console.log('💾 [EFFECT] ✅ Has interests - calling saveToLocalStorage');
+      saveToLocalStorage();
+    } else {
+      console.log('💾 [EFFECT] ❌ No interests to save');
+    }
+  }, [selectedInterests, user?.id]);
 
-    // Show location dialog after a short delay
-    const timer = setTimeout(() => {
-      setShowLocationDialog(true);
-    }, 1000);
+  // No form field handlers needed - only interests
 
-    return () => clearTimeout(timer);
-  }, []);
+  // Onboarding simplified - no location or other complex features needed
 
   const handleInterestToggle = (interestName) => {
+    console.log('🎨 [INTERESTS] Interest toggled:', interestName);
+    console.log('🎨 [INTERESTS] Previous interests:', selectedInterests);
+    
     setSelectedInterests(prev => {
+      let newInterests;
       if (prev.includes(interestName)) {
         // Remove interest
-        return prev.filter(item => item !== interestName);
+        newInterests = prev.filter(item => item !== interestName);
+        console.log('🎨 [INTERESTS] Removing interest, new list:', newInterests);
       } else {
         // Add interest (max 8)
         if (prev.length >= 8) {
-          message.warning("You can select maximum 8 interests");
+          message.warning(t('onboarding.maxInterestsWarning'));
+          console.log('🎨 [INTERESTS] Max interests reached, not adding');
           return prev;
         }
-        return [...prev, interestName];
+        newInterests = [...prev, interestName];
+        console.log('🎨 [INTERESTS] Adding interest, new list:', newInterests);
       }
+      return newInterests;
     });
   };
 
-  const handleAllowLocation = () => {
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const coordinatesObj = { latitude, longitude };
-          
-          // Store coordinates in localStorage and mark as detected
-          localStorage.setItem('userLocation', JSON.stringify(coordinatesObj));
-          localStorage.setItem('locationDetected', 'true');
-          setLocationDetected(true);
-          setShowLocationDialog(false);
-          
-          // Save coordinates to Firestore immediately
-          try {
-            await updateDoc(doc(db, 'Users', user.id), {
-              gpsCoordinates: coordinatesObj,
-              updatedAt: serverTimestamp()
-            });
-          } catch (firestoreError) {
-            console.error("Error saving GPS coordinates to Firestore:", firestoreError);
-            // Continue even if Firestore save fails
-          }
-          
-          // Don't auto-fill coordinates - let user add their own city name  
-          message.success("Location detected! 📍 You can now add your city name manually.");
-        } catch (error) {
-          console.error("Error getting location:", error);
-          message.error("Could not get location details");
-          setShowLocationDialog(false);
-        }
-      },
-      (error) => {
-        let errorMessage = "Could not get your location";
-        
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = "Location access denied.";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information is unavailable.";
-            break;
-          case error.TIMEOUT:
-            errorMessage = "Location request timed out.";
-            break;
-        }
-        
-        message.error(errorMessage);
-        setShowLocationDialog(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
-      }
-    );
-  };
-
-  const handleSkipLocation = () => {
-    localStorage.setItem('locationDetected', 'skipped');
-    setShowLocationDialog(false);
-  };
+  // Location functions removed - handled in profile edit only
 
   const interestOptions = [
     { name: "Travel", icon: "eva:compass-fill" },
@@ -257,161 +248,93 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className={layoutCss.twoColumnLayout}>
-      {/* Left Column */}
-      <div className={layoutCss.leftColumn}>
-        {/* Header Section */}
-        <div className={layoutCss.headerSection}>
-          <Text strong style={{ fontSize: "14px", color: "#666", marginBottom: "8px", display: "block" }}>
-            Step 2 of 3: Tell Us About Yourself
-          </Text>
-          <Progress 
-            percent={66} 
-            strokeColor={{
-              '0%': 'var(--primary)',
-              '100%': 'var(--primary)',
-            }}
-            trailColor="#f0f0f0"
-            style={{ marginBottom: "1rem" }}
-          />
-          
-          <div className={css.authHeader}>
-            <Title level={2} className={css.authTitle} style={{ margin: "0 0 0.5rem" }}>
-              About You 💫
-            </Title>
-            <Text type="secondary" className={css.authSubtitle}>
-              Share a bit about yourself to help others get to know you better
-            </Text>
-          </div>
-        </div>
-
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          className={css.authForm}
-          requiredMark={false}
-        >
-          <Form.Item
-            name="bio"
-            label="Bio"
-            rules={[
-              { max: 500, message: "Bio must be less than 500 characters" }
-            ]}
-          >
-            <TextArea
-              placeholder="Tell people about yourself... What makes you unique?"
-              rows={6}
-              showCount
-              maxLength={500}
-              className={css.authInput}
-              style={{ resize: "none" }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="location"
-            label="Location"
-          >
-            <Input
-              size="large"
-              prefix={<Iconify icon="eva:pin-fill" width="20px" />}
-              placeholder="City, Country"
-              className={css.authInput}
-            />
-            {locationDetected && (
-              <Text type="secondary" style={{ fontSize: "12px", marginTop: "4px", display: "block", color: "#52c41a" }}>
-                <Iconify icon="eva:checkmark-circle-fill" width="14px" style={{ marginRight: "4px" }} />
-                Location detected! You can edit the field above.
-              </Text>
-            )}
-          </Form.Item>
-
-          <Form.Item
-            name="website"
-            label="Website"
-            rules={[
-              { type: "url", message: "Please enter a valid URL" }
-            ]}
-          >
-            <Input
-              size="large"
-              prefix={<Iconify icon="eva:link-fill" width="20px" />}
-              placeholder="https://yourwebsite.com"
-              className={css.authInput}
-            />
-          </Form.Item>
-        </Form>
+    <div className={layoutCss.singleColumnLayout}>
+      {/* Language Selector */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '1rem', 
+        right: '1rem', 
+        zIndex: 10 
+      }}>
+        <LanguageSelector size="small" showIcon={false} />
       </div>
 
-      {/* Right Column */}
-      <div className={layoutCss.rightColumn}>
-        <Form form={form} layout="vertical" requiredMark={false}>
-          <Form.Item
-            name="relationshipStatus"
-            label="Relationship Status"
-          >
-            <Select
-              size="large"
-              placeholder="Select status"
-              className={css.authInput}
-              allowClear
+      {/* Header Section */}
+      <div className={layoutCss.headerSection}>
+        <Text strong style={{ fontSize: "14px", color: "#666", marginBottom: "8px", display: "block" }}>
+          {t('onboarding.profileStep')}
+        </Text>
+        <Progress 
+          percent={66} 
+          strokeColor={{
+            '0%': 'var(--primary)',
+            '100%': 'var(--primary)',
+          }}
+          trailColor="#f0f0f0"
+          style={{ marginBottom: "1rem" }}
+        />
+        
+        <div className={css.authHeader}>
+          <Title level={2} className={css.authTitle} style={{ margin: "0 0 0.5rem" }}>
+            {t('onboarding.yourInterests')}
+          </Title>
+          <Text type="secondary" className={css.authSubtitle}>
+            {t('onboarding.interestsSubtitle')}
+          </Text>
+        </div>
+      </div>
+
+      {/* Interests Section */}
+      <div style={{ padding: "2rem 0" }}>
+        <div className={interestCss.interestsContainer}>
+          {interestOptions.map(interest => (
+            <div
+              key={interest.name}
+              className={`${interestCss.interestCard} ${
+                selectedInterests.includes(interest.name) ? interestCss.selected : ''
+              }`}
+              onClick={() => handleInterestToggle(interest.name)}
             >
-              <Option value="single">Single</Option>
-              <Option value="in_relationship">In a relationship</Option>
-              <Option value="married">Married</Option>
-              <Option value="complicated">It&apos;s complicated</Option>
-              <Option value="prefer_not_to_say">Prefer not to say</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            label="Interests"
-          >
-            <div className={interestCss.interestsContainer}>
-              {interestOptions.map(interest => (
-                <div
-                  key={interest.name}
-                  className={`${interestCss.interestCard} ${
-                    selectedInterests.includes(interest.name) ? interestCss.selected : ''
-                  }`}
-                  onClick={() => handleInterestToggle(interest.name)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Iconify 
-                      icon={interest.icon} 
-                      width="16px" 
-                      color={selectedInterests.includes(interest.name) ? 'white' : '#1890ff'} 
-                    />
-                    <p className={interestCss.interestText}>{interest.name}</p>
-                  </div>
-                  {selectedInterests.includes(interest.name) && (
-                    <div className={interestCss.selectedIndicator}>
-                      <Iconify icon="eva:checkmark-fill" width="12px" color="white" />
-                    </div>
-                  )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Iconify 
+                  icon={interest.icon} 
+                  width="16px" 
+                  color={selectedInterests.includes(interest.name) ? 'white' : '#1890ff'} 
+                />
+                <p className={interestCss.interestText}>{interest.name}</p>
+              </div>
+              {selectedInterests.includes(interest.name) && (
+                <div className={interestCss.selectedIndicator}>
+                  <Iconify icon="eva:checkmark-fill" width="12px" color="white" />
                 </div>
-              ))}
+              )}
             </div>
-            <div className={`${interestCss.counterText} ${
-              selectedInterests.length >= 8 ? interestCss.warning : ''
-            }`}>
-              {selectedInterests.length}/8 interests selected
+          ))}
+        </div>
+        
+        <div className={`${interestCss.counterText} ${
+          selectedInterests.length >= 8 ? interestCss.warning : ''
+        }`} style={{ textAlign: "center", marginTop: "1rem" }}>
+          {t('onboarding.interestsSelected', { count: selectedInterests.length })}
+          {selectedInterests.length === 0 && (
+            <div style={{ color: "#ff4d4f", fontSize: "12px", marginTop: "4px" }}>
+              {t('onboarding.pleaseSelectInterest')}
             </div>
-          </Form.Item>
+          )}
+        </div>
 
-                  <div style={{ 
+        <div style={{ 
           background: "#f0f7ff", 
           padding: "1rem", 
           borderRadius: "8px", 
-          marginTop: "1rem",
-          border: "1px solid #d6e4ff"
+          marginTop: "2rem",
+          border: "1px solid #d6e4ff",
+          textAlign: "center"
         }}>
           <Text style={{ color: "#1890ff", fontSize: "14px" }}>
-            💡 <strong>Complete your profile:</strong> Add at least a bio or location to help others find you. More details = better connections!
+            <strong>{t('onboarding.whyInterestsMatter')}</strong> {t('onboarding.interestsExplanation')}
           </Text>
         </div>
-        </Form>
       </div>
 
       {/* Footer Section - spans both columns */}
@@ -421,6 +344,8 @@ export default function ProfilePage() {
         paddingTop: "1rem", 
         borderTop: "1px solid #f0f0f0" 
       }}>
+
+
         <div style={{ display: "flex", gap: "1rem" }}>
           <Button
             size="large"
@@ -433,10 +358,8 @@ export default function ProfilePage() {
             }}
             icon={<Iconify icon="eva:arrow-back-fill" width="20px" />}
           >
-            Back
+            {t('onboarding.backButton')}
           </Button>
-          
-     
           
           <Button
             type="primary"
@@ -447,80 +370,12 @@ export default function ProfilePage() {
             style={{ flex: 1 }}
             onClick={handleSubmit}
           >
-            {loading ? "Saving..." : "Continue to Questions"}
+            {loading ? t('onboarding.saving') : t('onboarding.continue')}
           </Button>
         </div>
       </div>
 
-      {/* Location Permission Dialog */}
-      <Modal
-        title={null}
-        open={showLocationDialog}
-        footer={null}
-        closable={false}
-        centered
-        width={400}
-        styles={{
-          body: { padding: "2rem", textAlign: "center" }
-        }}
-      >
-        <div style={{ marginBottom: "1.5rem" }}>
-          <div style={{
-            width: "80px",
-            height: "80px",
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #1890ff, #40a9ff)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 1rem"
-          }}>
-            <Iconify icon="eva:navigation-2-fill" width="40px" color="white" />
-          </div>
-          
-          <Title level={3} style={{ margin: "0 0 0.5rem" }}>
-            Enable Location Access
-          </Title>
-          
-          <Text type="secondary" style={{ fontSize: "15px", lineHeight: "1.5" }}>
-            We&apos;d like to detect your location to help you connect with people nearby. 
-            Your location is only used to improve your experience and is never shared without your permission.
-          </Text>
-        </div>
 
-        <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-          <Button
-            size="large"
-            onClick={handleSkipLocation}
-            style={{
-              borderRadius: "8px",
-              fontWeight: "500",
-              minWidth: "100px"
-            }}
-          >
-            Skip
-          </Button>
-          
-          <Button
-            type="primary"
-            size="large"
-            onClick={handleAllowLocation}
-            style={{
-              borderRadius: "8px",
-              fontWeight: "500",
-              minWidth: "120px"
-            }}
-            icon={<Iconify icon="eva:checkmark-fill" width="16px" />}
-          >
-            Allow Location
-          </Button>
-        </div>
-
-        <Text type="secondary" style={{ fontSize: "12px", marginTop: "1rem", display: "block" }}>
-          <Iconify icon="eva:shield-fill" width="14px" style={{ marginRight: "4px" }} />
-          Your privacy is important to us
-        </Text>
-      </Modal>
     </div>
   );
 } 

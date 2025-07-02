@@ -505,13 +505,10 @@ export const updateUserProfile = async (userData) => {
       return { latitude: lat, longitude: lng };
     };
 
-    // Prepare update data with proper field mapping and validation
+    // Prepare update data with consistent field names (modern naming convention)
     const updateData = {
-      // Use new field names as primary, fallback to legacy
       firstName: sanitizeString(firstName || first_name, 50),
       lastName: sanitizeString(lastName || last_name, 50),
-      first_name: sanitizeString(firstName || first_name, 50), // Keep legacy field for compatibility
-      last_name: sanitizeString(lastName || last_name, 50), // Keep legacy field for compatibility
       username: sanitizeString(username, 30),
       bio: sanitizeString(bio, 500),
       location: sanitizeString(location, 100),

@@ -108,6 +108,11 @@ self.addEventListener('fetch', (event) => {
               return response;
             }
 
+            // Only cache GET requests
+            if (request.method !== 'GET') {
+              return response;
+            }
+
             // Clone response for caching
             const responseToCache = response.clone();
 

@@ -7,7 +7,8 @@ import {
   deleteDoc, 
   addDoc,
   query,
-  where
+  where,
+  updateDoc
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -418,5 +419,106 @@ export const getOnlineCompatibleUsers = async (userId) => {
   } catch (error) {
     console.error("❌ Error fetching online compatible users:", error);
     return [];
+  }
+};
+
+/**
+ * Grant premium to a user manually from admin dashboard
+ */
+export const grantPremiumToUser = async (userId, premiumType = 'admin_granted', endDate = null) => {
+  try {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Validate premium type
+    const validTypes = ['admin_granted', 'lifetime', 'temporary'];
+    if (!validTypes.includes(premiumType)) {
+      throw new Error('Invalid premium type');
+    }
+
+    // Validate end date for temporary premium
+    if (premiumType === 'temporary' && !endDate) {
+      throw new Error('End date is required for temporary premium');
+    }
+
+    // Create premium subscription data using same structure as Stripe
+    let currentPeriodEnd;
+    if (premiumType === 'lifetime') {
+      currentPeriodEnd = new Date(2099, 11, 31); // Far future date
+    } else if (premiumType === 'temporary') {
+      currentPeriodEnd = new Date(endDate);
+    } else {
+      currentPeriodEnd = new Date(2099, 11, 31); // Default to lifetime
+    }
+
+    const premiumData = {
+      subscription: {
+        status: 'active',
+        isPremium: true,
+        type: premiumType,
+        source: 'admin_granted',
+        customerId: null,
+        subscriptionId: `admin_granted_${userId}_${Date.now()}`,
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: currentPeriodEnd,
+        cancelAtPeriodEnd: false,
+        priceId: null,
+        grantedAt: new Date(),
+        grantedBy: 'admin',
+        updatedAt: new Date()
+      }
+    };
+
+    // Update user document
+    const userRef = doc(db, 'Users', userId);
+    await updateDoc(userRef, premiumData);
+
+    console.log(`✅ Successfully granted ${premiumType} premium to user ${userId}`);
+    
+    return {
+      success: true,
+      message: `Premium ${premiumType} granted successfully`,
+      premiumData: premiumData.subscription
+    };
+  } catch (error) {
+    console.error('Error granting premium to user:', error);
+    throw error;
+  }
+};
+
+/**
+ * Remove premium from a user manually from admin dashboard
+ */
+export const removePremiumFromUser = async (userId) => {
+  try {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    // Remove premium subscription data
+    const premiumRemovalData = {
+      subscription: {
+        status: 'canceled',
+        isPremium: false,
+        canceledAt: new Date(),
+        canceledBy: 'admin',
+        updatedAt: new Date()
+      }
+    };
+
+    // Update user document
+    const userRef = doc(db, 'Users', userId);
+    await updateDoc(userRef, premiumRemovalData);
+
+    console.log(`✅ Successfully removed premium from user ${userId}`);
+    
+    return {
+      success: true,
+      message: 'Premium removed successfully'
+    };
+  } catch (error) {
+    console.error('Error removing premium from user:', error);
+    throw error;
   }
 }; 

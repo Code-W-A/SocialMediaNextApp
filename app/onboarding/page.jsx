@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useFirebaseAuth";
 import { getOnboardingProgress, checkOnboardingStatus } from "@/utils/onboardingHelpers";
 import Iconify from "@/components/Iconify";
+import LanguageSelector from "@/components/LanguageSelector";
 import css from "@/styles/AuthPages.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
 import { useLanguage } from "@/lib/i18n";
@@ -38,22 +39,22 @@ export default function OnboardingPage() {
 
   const onboardingSteps = [
     {
-      title: "Add Profile Photos",
-      description: "Upload your best photos to make a great first impression",
+      title: t('onboarding.addProfilePhotos'),
+      description: t('onboarding.addProfilePhotosDesc'),
       icon: "eva:camera-fill",
       route: "/onboarding/photos",
       completed: progress.hasPhotos
     },
     {
-      title: "Tell Us About Yourself",
-      description: "Add a bio, location and interests",
+      title: t('onboarding.tellUsAboutYourself'),
+      description: t('onboarding.tellUsAboutYourselfDesc'),
       icon: "eva:edit-fill",
       route: "/onboarding/profile",
-      completed: progress.hasProfile
+      completed: progress.hasInterests
     },
     {
-      title: "Answer Questions",
-      description: "Help us understand your preferences better",
+      title: t('onboarding.answerQuestions'),
+      description: t('onboarding.answerQuestionsDesc'),
       icon: "eva:question-mark-circle-fill",
       route: "/onboarding/questionnaire",
       completed: progress.hasQuestionnaire
@@ -68,6 +69,16 @@ export default function OnboardingPage() {
 
   return (
     <div className={layoutCss.singleColumnLayout}>
+      {/* Language Selector */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '1rem', 
+        right: '1rem', 
+        zIndex: 10 
+      }}>
+        <LanguageSelector size="small" showIcon={false} />
+      </div>
+
       {/* Header Section */}
       <div className={layoutCss.headerSection}>
         <div className={css.authHeader}>
@@ -100,14 +111,11 @@ export default function OnboardingPage() {
           {onboardingSteps.map((step, index) => (
             <Card 
               key={index}
-              hoverable
-              onClick={() => router.push(step.route)}
               style={{ 
                 border: step.completed ? "1.5px solid #52c41a" : "1.5px solid #e8e8e8",
                 borderRadius: "12px",
-                transition: "all 0.3s ease",
-                cursor: "pointer",
-                background: step.completed ? "#f6ffed" : "#fff"
+                background: step.completed ? "#f6ffed" : "#fff",
+                cursor: "default"
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
@@ -133,7 +141,7 @@ export default function OnboardingPage() {
                     </Title>
                     {step.completed && (
                       <Text style={{ color: "#52c41a", fontSize: "12px", fontWeight: "600" }}>
-                        ✓ Completed
+                        {t('onboarding.completed')}
                       </Text>
                     )}
                   </div>
@@ -141,11 +149,23 @@ export default function OnboardingPage() {
                     {step.description}
                   </Text>
                 </div>
-                <Iconify 
-                  icon={step.completed ? "eva:edit-outline" : "eva:arrow-forward-fill"} 
-                  width="20px" 
-                  style={{ color: step.completed ? "#52c41a" : "#999" }} 
-                />
+                <div style={{ 
+                  width: "32px", 
+                  height: "32px", 
+                  borderRadius: "50%", 
+                  background: step.completed ? "#52c41a" : "#f0f0f0",
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "center" 
+                }}>
+                  <Text style={{ 
+                    color: step.completed ? "#fff" : "#999", 
+                    fontSize: "14px", 
+                    fontWeight: "600" 
+                  }}>
+                    {index + 1}
+                  </Text>
+                </div>
               </div>
             </Card>
           ))}
@@ -168,9 +188,9 @@ export default function OnboardingPage() {
               fontWeight: "500"
             }}
           >
-            {progress.completedSteps === 0 ? "Start Setup" : 
-             progress.completedSteps === progress.totalSteps ? "Review Profile" : 
-             "Continue Setup"}
+            {progress.completedSteps === 0 ? t('onboarding.startSetup') : 
+             progress.completedSteps === progress.totalSteps ? t('onboarding.reviewProfile') : 
+             t('onboarding.continueSetup')}
           </Button>
         </div>
       </div>

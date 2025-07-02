@@ -388,7 +388,7 @@ const AdminChatDashboard = () => {
         onCancel={handleCloseModal}
         footer={null}
         width={700}
-        bodyStyle={{ padding: '0' }}
+        styles={{ body: { padding: '0' } }}
         destroyOnClose
       >
         {selectedChat && (

@@ -8,11 +8,8 @@ import {
   sendMessage as sendFirebaseMessage,
   setTyping,
   subscribeToTyping,
-  markConversationAsRead,
-  addReaction,
-  removeReaction
+  markConversationAsRead
 } from "@/actions/chat";
-import MessageReactions from "./MessageReactions";
 import ReadReceiptIndicator from "./ReadReceiptIndicator";
 import ChatSearch from "./ChatSearch";
 import ImageUpload from "./ImageUpload";
@@ -86,32 +83,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     return () => clearTimeout(timer);
   }, [conversation?.id, currentUser?.id, messages]);
 
-  // Handle reaction toggle for hover actions
-  const handleReactionToggle = async (messageId, emoji, currentReactions) => {
-    try {
-      // Check if user already reacted with any emoji
-      let currentUserReaction = null;
-      for (const [reactionEmoji, reactionList] of Object.entries(currentReactions)) {
-        if (reactionList.some(r => r.userId === currentUser?.id)) {
-          currentUserReaction = reactionEmoji;
-          break;
-        }
-      }
 
-      if (currentUserReaction) {
-        // Remove current reaction first
-        await removeReaction(conversation.id, messageId, currentUser.id, currentUserReaction);
-      }
-      
-      // If clicking different emoji, add new reaction
-      if (currentUserReaction !== emoji) {
-        await addReaction(conversation.id, messageId, currentUser.id, emoji);
-      }
-    } catch (error) {
-      console.error("Error toggling reaction:", error);
-      throw error;
-    }
-  };
 
   // Cleanup typing indicator on unmount
   useEffect(() => {
@@ -483,8 +455,6 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                           isVisible={hoveredMessageId === messageItem.id && editingMessageId !== messageItem.id}
                           onEdit={() => setEditingMessageId(messageItem.id)}
                           onDelete={() => {/* Real-time updates will handle this */}}
-                          reactions={{}} // Will be passed from MessageReactions component
-                          onReactionToggle={(emoji) => handleReactionToggle(messageItem.id, emoji, {})}
                           onPopoverStateChange={(isOpen) => {
                             if (isOpen) {
                               setActivePopoverId(messageItem.id);
@@ -502,23 +472,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                             }
                           }}
                         />
-                        
-                        {/* Message Reactions - only show if not hovering (to avoid conflict) */}
-                        {hoveredMessageId !== messageItem.id && (
-                          <div style={{
-                            position: 'absolute',
-                            bottom: '-8px',
-                            [isCurrentUser ? 'right' : 'left']: '8px',
-                            zIndex: 10
-                          }}>
-                            <MessageReactions
-                              conversationId={conversation.id}
-                              messageId={messageItem.id}
-                              currentUserId={currentUser?.id}
-                              isCurrentUser={isCurrentUser}
-                            />
-                          </div>
-                        )}
+
                       </div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: isCurrentUser ? 'flex-end' : 'flex-start', gap: '4px' }}>

@@ -32,6 +32,18 @@ export default function OnboardingCompletePage() {
     try {
       // Force refresh user data before redirecting to ensure onboardingCompleted is true
       await refreshUser();
+      
+      // Clean up all temporary onboarding data from localStorage
+      if (user?.id) {
+        localStorage.removeItem(`onboarding_photos_${user.id}`);
+        localStorage.removeItem(`onboarding_profile_${user.id}`);
+        localStorage.removeItem(`onboarding_questionnaire_${user.id}`);
+        console.log('🧹 Cleaned up all temporary onboarding data from localStorage');
+      }
+      
+      // Add a small delay to ensure all changes have propagated
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       router.push("/home");
     } catch (error) {
       console.error('Error refreshing user before redirect:', error);

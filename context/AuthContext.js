@@ -314,7 +314,16 @@ export const AuthProvider = ({ children }) => {
       // Clear cache for current user
       userCacheRef.current = null;
       lastUserFetchRef.current = 0;
-      return await fetchUserData(auth.currentUser, true);
+
+      // Fetch fresh user data
+      const userData = await fetchUserData(auth.currentUser, true);
+
+      // Update state so components relying on `user` see the changes immediately
+      if (userData && mountedRef.current) {
+        setUser(userData);
+      }
+
+      return userData;
     }
     return null;
   }, [fetchUserData]);

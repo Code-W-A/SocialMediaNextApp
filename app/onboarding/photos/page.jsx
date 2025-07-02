@@ -4,9 +4,11 @@ import { Button, Typography, Upload, message, Progress, Image } from "antd";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useFirebaseAuth";
 import Iconify from "@/components/Iconify";
+import LanguageSelector from "@/components/LanguageSelector";
 import css from "@/styles/AuthPages.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
 import layoutCss from "@/styles/onboardingLayout.module.css";
+import { useLanguage } from "@/lib/i18n";
 import { storage, db } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
@@ -19,6 +21,7 @@ const { Dragger } = Upload;
 export default function PhotosPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [mainImageIndex, setMainImageIndex] = useState(0);
@@ -27,36 +30,67 @@ export default function PhotosPage() {
   // Load existing images from Firestore on component mount
   useEffect(() => {
     const loadExistingImages = async () => {
-      if (user?.images && user.images.length > 0) {
-        try {
-          // Create preview objects from existing Firestore images
-          const existingPreviews = user.images.map((image, index) => ({
-            url: image.fileUri,
-            uid: `existing-${index}`,
-            isExisting: true,
-            fileName: image.fileName,
-            isMain: image.isMain
-          }));
+      if (user) {
+        // First try to load from localStorage (temporary images during onboarding)
+        const tempPhotosData = localStorage.getItem(`onboarding_photos_${user.id}`);
+        let hasTemporaryData = false;
+        
+        if (tempPhotosData) {
+          try {
+            const { uploadedImages: tempImages, mainImageIndex: tempMainIndex } = JSON.parse(tempPhotosData);
+            if (tempImages && tempImages.length > 0) {
+              setUploadedImages(tempImages);
+              setMainImageIndex(tempMainIndex || 0);
+              
+              // Create previews for temp images (they should be File objects with URLs)
+              const tempPreviews = tempImages.map((file, index) => ({
+                url: file.url || (file.originFileObj ? URL.createObjectURL(file.originFileObj) : ''),
+                uid: file.uid,
+                file: file,
+                index: index
+              }));
+              setPreviewImages(tempPreviews);
+              hasTemporaryData = true;
+              
+              console.log('Loaded temporary photos data from localStorage:', tempImages.length, 'images');
+            }
+          } catch (error) {
+            console.error('Error parsing temporary photos data:', error);
+          }
+        }
 
-          // Create file list objects for antd Upload component
-          const existingFileList = user.images.map((image, index) => ({
-            uid: `existing-${index}`,
-            name: image.fileName,
-            status: 'done',
-            url: image.fileUri,
-            isExisting: true
-          }));
+        // Only load from Firestore if no temporary data exists
+        if (!hasTemporaryData && user.images && user.images.length > 0) {
+          try {
+            // Create preview objects from existing Firestore images
+            const existingPreviews = user.images.map((image, index) => ({
+              url: image.fileUri,
+              uid: `existing-${index}`,
+              isExisting: true,
+              fileName: image.fileName,
+              isMain: image.isMain
+            }));
 
-          setPreviewImages(existingPreviews);
-          setUploadedImages(existingFileList);
+            // Create file list objects for antd Upload component
+            const existingFileList = user.images.map((image, index) => ({
+              uid: `existing-${index}`,
+              name: image.fileName,
+              status: 'done',
+              url: image.fileUri,
+              isExisting: true
+            }));
 
-          // Set main image index
-          const mainIndex = user.images.findIndex(img => img.isMain);
-          setMainImageIndex(mainIndex >= 0 ? mainIndex : 0);
+            setPreviewImages(existingPreviews);
+            setUploadedImages(existingFileList);
 
-          console.log('Loaded existing images:', user.images.length);
-        } catch (error) {
-          console.error('Error loading existing images:', error);
+            // Set main image index
+            const mainIndex = user.images.findIndex(img => img.isMain);
+            setMainImageIndex(mainIndex >= 0 ? mainIndex : 0);
+
+            console.log('Loaded existing images from Firestore:', user.images.length);
+          } catch (error) {
+            console.error('Error loading existing images:', error);
+          }
         }
       }
     };
@@ -65,6 +99,25 @@ export default function PhotosPage() {
       loadExistingImages();
     }
   }, [user]);
+
+  // Auto-save photos to localStorage
+  const saveToLocalStorage = () => {
+    if (user && uploadedImages.length > 0) {
+      const dataToSave = {
+        uploadedImages: uploadedImages,
+        mainImageIndex: mainImageIndex
+      };
+      localStorage.setItem(`onboarding_photos_${user.id}`, JSON.stringify(dataToSave));
+      console.log('Auto-saved photos data to localStorage:', uploadedImages.length, 'images');
+    }
+  };
+
+  // Auto-save whenever uploadedImages or mainImageIndex changes
+  useEffect(() => {
+    if (uploadedImages.length > 0) {
+      saveToLocalStorage();
+    }
+  }, [uploadedImages, mainImageIndex]);
 
   // Cleanup preview URLs when component unmounts
   useEffect(() => {
@@ -160,6 +213,9 @@ export default function PhotosPage() {
         updatedAt: serverTimestamp()
       });
 
+      // Clear temporary localStorage data since we saved to Firestore
+      localStorage.removeItem(`onboarding_photos_${user.id}`);
+
       message.success("Photos updated successfully! 🎉");
       router.push("/onboarding/profile");
     } catch (error) {
@@ -195,10 +251,20 @@ export default function PhotosPage() {
 
   return (
     <div className={layoutCss.singleColumnLayout}>
+      {/* Language Selector */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '1rem', 
+        right: '1rem', 
+        zIndex: 10 
+      }}>
+        <LanguageSelector size="small" showIcon={false} />
+      </div>
+
       {/* Header Section */}
       <div className={layoutCss.headerSection}>
         <Text strong style={{ fontSize: "14px", color: "#666", marginBottom: "8px", display: "block" }}>
-          Step 1 of 3: Add Profile Photos
+          {t('onboarding.photosStep')}
         </Text>
         <Progress 
           percent={33} 
@@ -212,10 +278,10 @@ export default function PhotosPage() {
         
         <div className={css.authHeader}>
           <Title level={2} className={css.authTitle} style={{ margin: "0 0 0.5rem" }}>
-            Add Your Photos 📸
+            {t('onboarding.shareYourBestMoments')}
           </Title>
           <Text type="secondary" className={css.authSubtitle}>
-            Upload at least 1 photo to continue. Add up to 6 photos to make a great first impression and attract more connections.
+            {t('onboarding.photosSubtitle')}
           </Text>
         </div>
       </div>
@@ -244,10 +310,10 @@ export default function PhotosPage() {
                   <Iconify icon="eva:cloud-upload-fill" width="32px" style={{ color: "var(--primary)" }} />
                 </div>
                 <Title level={4} style={{ margin: "0 0 0.5rem", color: "#333" }}>
-                  Click or drag files to upload
+                  {t('onboarding.clickOrDragFiles')}
                 </Title>
                 <Text type="secondary">
-                  Support for single or bulk upload. PNG, JPG up to 5MB each
+                  {t('onboarding.supportSingleBulk')}
                 </Text>
               </div>
             </Dragger>
@@ -264,10 +330,10 @@ export default function PhotosPage() {
               marginBottom: "1rem" 
             }}>
               <Text strong style={{ fontSize: "16px", color: "#333" }}>
-                Your Photos ({previewImages.length}/6)
+                {t('onboarding.yourPhotos', { count: previewImages.length })}
               </Text>
               <Text type="secondary" style={{ fontSize: "14px" }}>
-                {uploadedImages.length >= 6 ? "Maximum photos reached" : "Tap to set as main photo"}
+                {uploadedImages.length >= 6 ? t('onboarding.maxPhotosReachedLabel') : t('onboarding.tapToSetMain')}
               </Text>
             </div>
             
@@ -290,7 +356,7 @@ export default function PhotosPage() {
                     {index === mainImageIndex && (
                       <div className={photoCss.mainBadge}>
                         <Iconify icon="eva:star-fill" width="10px" />
-                        <span>Main</span>
+                        <span>{t('onboarding.main')}</span>
                       </div>
                     )}
                     
@@ -376,7 +442,7 @@ export default function PhotosPage() {
                   >
                     <Iconify icon="eva:plus-fill" width="20px" style={{ color: "var(--primary)" }} />
                     <Text style={{ color: "var(--primary)", fontSize: "11px", marginTop: "3px" }}>
-                      Add Photo
+                      {t('onboarding.addPhoto')}
                     </Text>
                   </div>
                 </div>
@@ -392,7 +458,7 @@ export default function PhotosPage() {
             }}>
               <Text style={{ color: "#1890ff", fontSize: "13px" }}>
                 <Iconify icon="eva:star-fill" width="13px" style={{ marginRight: "4px" }} />
-                <strong>Main photo</strong> will be shown in your profile and suggestions. Tap any photo to make it main.
+                {t('onboarding.mainPhotoNote')}
               </Text>
             </div>
           </div>
@@ -413,7 +479,7 @@ export default function PhotosPage() {
             }}
             icon={<Iconify icon="eva:arrow-back-fill" width="20px" />}
           >
-            Back
+            {t('onboarding.backButton')}
           </Button>
           
           <Button
@@ -425,7 +491,7 @@ export default function PhotosPage() {
             className={css.authButton}
             style={{ flex: 1 }}
           >
-            {loading ? "Uploading..." : uploadedImages.length > 0 ? `Continue with ${uploadedImages.length} photo${uploadedImages.length > 1 ? 's' : ''}` : 'Add photos to continue'}
+            {loading ? t('onboarding.uploading') : uploadedImages.length > 0 ? t('onboarding.continueWithPhotos', { count: uploadedImages.length, plural: uploadedImages.length > 1 ? 's' : '' }) : t('onboarding.addPhotosToContine')}
           </Button>
         </div>
       </div>

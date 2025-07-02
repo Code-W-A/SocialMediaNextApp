@@ -19,7 +19,6 @@ import {
 // } from "@/actions/user";
 import { currentUser } from "@/lib/firebaseAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import V1MigrationWrapper from "@/components/V1MigrationWrapper";
 
 const HomeLayout = async ({ children }) => {
   const queryClient = new QueryClient();
@@ -35,36 +34,33 @@ const HomeLayout = async ({ children }) => {
   //   staleTime: 1000 * 60 * 20,
   // });
 
-
   return (
     <ProtectedRoute>
       <SettingsContextProvider>
         <ThemeProvider>
           <HydrationBoundary state={dehydrate(queryClient)}>
-            <V1MigrationWrapper>
-              <Box
-                type="baseBg"
-                style={{ position: "relative", width: "100vw", height: "100vh" }}
-              >
-                <div className={css.wrapper}>
-                  {/* header */}
-                  <Header />
+            <Box
+              type="baseBg"
+              style={{ position: "relative", width: "100vw", height: "100vh" }}
+            >
+              <div className={css.wrapper}>
+                {/* header */}
+                <Header />
 
-                  {/* body */}
-                  <div className={css.container}>
-                    <Sidebar />
+                {/* body */}
+                <div className={css.container}>
+                  <Sidebar />
 
-                    <div className={css.page_body}>{children}</div>
-                  </div>
-                  
-                  {/* Bottom Navigation for Mobile */}
-                  <BottomNavbar />
-                  
-                  {/* Admin Chat Support - Hidden, used via dropdown triggers */}
-                  <AdminChatSupport trigger="hidden" />
+                  <div className={css.page_body}>{children}</div>
                 </div>
-              </Box>
-            </V1MigrationWrapper>
+                
+                {/* Bottom Navigation for Mobile */}
+                <BottomNavbar />
+                
+                {/* Admin Chat Support - Hidden, used via dropdown triggers */}
+                <AdminChatSupport trigger="hidden" />
+              </div>
+            </Box>
           </HydrationBoundary>
           <Toaster />
         </ThemeProvider>

@@ -3,14 +3,10 @@ import React, { useState } from "react";
 import { Button, Tooltip, Popover, message, Modal } from "antd";
 import { 
   EditOutlined, 
-  DeleteOutlined, 
-  CopyOutlined,
-  SmileOutlined,
-  MoreOutlined,
+  DeleteOutlined,
   ExclamationCircleOutlined
 } from "@ant-design/icons";
 import { deleteMessage } from "@/actions/chat";
-import { addReaction, removeReaction } from "@/actions/chat";
 
 const { confirm } = Modal;
 
@@ -22,59 +18,25 @@ const MessageHoverActions = ({
   isVisible,
   onEdit,
   onDelete,
-  reactions = {},
-  onReactionToggle,
   onPopoverStateChange
 }) => {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
 
   // Notify parent when any popover state changes
   const handlePopoverChange = (type, isOpen) => {
-    if (type === 'emoji') {
-      setShowEmojiPicker(isOpen);
-    } else if (type === 'delete') {
+    if (type === 'delete') {
       setShowDeleteOptions(isOpen);
     }
     
     // Notify parent about overall popover state
-    const anyPopoverOpen = (type === 'emoji' ? isOpen : showEmojiPicker) || 
-                          (type === 'delete' ? isOpen : showDeleteOptions);
-    onPopoverStateChange?.(anyPopoverOpen);
+    onPopoverStateChange?.(isOpen);
   };
-
-  const quickEmojis = ['❤️', '👍', '😂', '😮', '😢', '😡'];
 
   const canEdit = messageItem.senderId === currentUserId && 
                   messageItem.type === "text" && 
                   !messageItem.deleted;
 
   const canDelete = messageItem.senderId === currentUserId && !messageItem.deleted;
-
-  const handleCopy = () => {
-    if (messageItem.text) {
-      navigator.clipboard.writeText(messageItem.text);
-      message.success("Message copied");
-    }
-  };
-
-  const handleReaction = async (emoji) => {
-    try {
-      await onReactionToggle?.(emoji);
-      setShowEmojiPicker(false);
-    } catch (error) {
-      message.error("Failed to add reaction");
-    }
-  };
-
-  const getCurrentUserReaction = () => {
-    for (const [emoji, reactionList] of Object.entries(reactions)) {
-      if (reactionList.some(r => r.userId === currentUserId)) {
-        return emoji;
-      }
-    }
-    return null;
-  };
 
   const handleDeleteForMe = async () => {
     try {
@@ -141,42 +103,8 @@ const MessageHoverActions = ({
     return deleteOptions;
   };
 
-  const emojiPickerContent = (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: 'repeat(3, 1fr)', 
-      gap: '8px',
-      padding: '8px',
-      maxWidth: '150px'
-    }}>
-      {quickEmojis.map((emoji) => {
-        const isCurrentUserReaction = getCurrentUserReaction() === emoji;
-        return (
-          <Button
-            key={emoji}
-            type="text"
-            size="small"
-            onClick={() => handleReaction(emoji)}
-            style={{
-              fontSize: '16px',
-              height: '32px',
-              width: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: isCurrentUserReaction ? '2px solid var(--primary)' : 'none',
-              backgroundColor: isCurrentUserReaction ? 'rgba(24, 144, 255, 0.1)' : 'transparent'
-            }}
-          >
-            {emoji}
-          </Button>
-        );
-      })}
-    </div>
-  );
-
   // Keep visible if any popover is open
-  const shouldShowActions = isVisible || showEmojiPicker || showDeleteOptions;
+  const shouldShowActions = isVisible || showDeleteOptions;
   
   if (!shouldShowActions) return null;
 
@@ -199,51 +127,6 @@ const MessageHoverActions = ({
         animation: 'fadeInUp 0.2s ease-out'
       }}
     >
-      {/* Quick Reaction Button */}
-              <Popover
-          content={emojiPickerContent}
-          trigger="click"
-          open={showEmojiPicker}
-          onOpenChange={(isOpen) => handlePopoverChange('emoji', isOpen)}
-          placement="top"
-        >
-        <Tooltip title="Add reaction">
-          <Button
-            type="text"
-            size="small"
-            icon={<SmileOutlined />}
-            style={{
-              minWidth: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          />
-        </Tooltip>
-      </Popover>
-
-      {/* Copy Button */}
-      {messageItem.text && (
-        <Tooltip title="Copy message">
-          <Button
-            type="text"
-            size="small"
-            icon={<CopyOutlined />}
-            onClick={handleCopy}
-            style={{
-              minWidth: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          />
-        </Tooltip>
-      )}
-
       {/* Edit Button */}
       {canEdit && (
         <Tooltip title="Edit message">

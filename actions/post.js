@@ -543,7 +543,14 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
             authorId: likeData.authorId,
             postId: likeData.postId,
             createdAt: toSerializableDate(likeData.createdAt),
-            author: userMap[likeData.authorId] || { firstName: "Unknown", lastName: "User" }
+            author: userMap[likeData.authorId]?.data || { 
+              id: likeData.authorId,
+              firstName: "Unknown", 
+              lastName: "User",
+              first_name: "Unknown",
+              last_name: "User",
+              username: "unknown"
+            }
           });
         });
       }
@@ -572,7 +579,14 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
         likesCount: processedLikes.length, // REAL COUNT FROM SUBCOLLECTION!
         commentsCount: processedComments.length,
         isVisible: postData.isVisible !== false,
-        author: userMap[postData.authorId] || { firstName: "Unknown", lastName: "User" },
+        author: userMap[postData.authorId]?.data || { 
+          id: postData.authorId,
+          firstName: "Unknown", 
+          lastName: "User",
+          first_name: "Unknown",
+          last_name: "User",
+          username: "unknown"
+        },
         comments: processedComments
       };
     });
@@ -786,7 +800,14 @@ export const getPosts = async (lastCursor = null, userId, limitCount = 10) => {
         createdAt: toSerializableDate(postData.createdAt),
         updatedAt: toSerializableDate(postData.updatedAt),
         editedAt: toSerializableDate(postData.editedAt),
-        author: authorData?.data || { id: postData.authorId, firstName: 'Unknown', lastName: 'User' },
+        author: authorData?.data || { 
+          id: postData.authorId, 
+          firstName: 'Unknown', 
+          lastName: 'User',
+          first_name: 'Unknown',
+          last_name: 'User',
+          username: 'unknown'
+        },
         likes,
         comments,
         commentsCount: comments.length

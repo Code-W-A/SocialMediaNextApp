@@ -347,7 +347,7 @@ const Post = ({ data, queryId }) => {
             <Flex gap={".5rem"}>
               {/* Compatibility button - only show for other users */}
               {data?.authorId !== currentUser?.id && (
-                <Link href={`/user/${data?.authorId}`} passHref>
+                <Link href={`/profile/${data?.authorId}?person=${getAuthorDisplayName(data?.author)}`} passHref>
                   <Button
                     size="small"
                     style={{

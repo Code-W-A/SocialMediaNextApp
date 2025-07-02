@@ -29,7 +29,7 @@ export const metadata = {
   icons: {
     shortcut: "/images/destiny-logo.svg",
     apple: [
-      { url: "/images/logo.png", sizes: "180x180", type: "image/png" },
+      { url: "/images/sigla-512.png", sizes: "180x180", type: "image/png" },
     ],
   },
   other: {
@@ -60,7 +60,7 @@ export default function RootLayout({ children }) {
           <head>
             <link rel="manifest" href="/manifest.json" />
             <link rel="icon" href="/images/destiny-logo.svg" />
-            <link rel="apple-touch-icon" href="/images/logo.png" />
+            <link rel="apple-touch-icon" href="/images/sigla-512.png" />
             <meta name="theme-color" content="#667eea" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
             <meta name="apple-mobile-web-app-status-bar-style" content="default" />

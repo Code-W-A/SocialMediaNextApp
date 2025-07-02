@@ -7,6 +7,7 @@ import { getAllUsers } from "@/actions/admin";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getFullCompatibility, areRelationshipTypesCompatible, getCompatibilityScoreDetails } from "@/utils/compatibilityHelpers";
+import { getDisplayName } from "@/utils/profileHelpers";
 import { createConversation } from "@/actions/chat";
 import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
@@ -525,7 +526,7 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
             type="default"
             size="small"
             icon={<Iconify icon="eva:person-fill" width="14px" />}
-            onClick={() => router.push(`/user/${user.id}`)}
+            onClick={() => router.push(`/profile/${user.id}?person=${getDisplayName(user)}`)}
             style={{
               flex: 1,
               height: '36px',

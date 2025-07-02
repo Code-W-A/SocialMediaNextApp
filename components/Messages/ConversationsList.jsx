@@ -335,7 +335,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 icon={<Iconify icon="eva:person-fill" width="12px" />}
                 onClick={(e) => {
                   e.stopPropagation();
-                  window.open(`/user/${user.id}`, '_blank');
+                  window.open(`/profile/${user.id}?person=${getDisplayName(user)}`, '_blank');
                 }}
                 style={{ 
                   border: '1px solid #d9d9d9',

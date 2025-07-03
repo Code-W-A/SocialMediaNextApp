@@ -7,6 +7,19 @@
   padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+/* Visibility states with smooth animations */
+.wrapper.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.wrapper.hidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .container {
@@ -15,6 +28,7 @@
   align-items: center;
   max-width: 100%;
   padding: 0 16px;
+  position: relative;
 }
 
 .navItem {
@@ -93,6 +107,106 @@
   pointer-events: none; /* Prevent label from interfering with parent click */
 }
 
+/* Toggle Button Styles */
+.toggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  z-index: 10;
+}
+
+.toggleButtonInner {
+  position: relative;
+  width: 36px;
+  height: 24px;
+  border-radius: 18px 18px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 8px;
+}
+
+.toggleButtonInner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.toggleButtonInner:active {
+  transform: translateY(0);
+  transition: transform 0.1s ease;
+}
+
+/* Floating Toggle Button (when navbar is hidden) */
+.floatingToggle {
+  position: fixed;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
+  animation: slideUpFloat 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUpFloat {
+  from {
+    bottom: -40px;
+    opacity: 0;
+  }
+  to {
+    bottom: -12px;
+    opacity: 1;
+  }
+}
+
+.floatingToggleButton {
+  position: relative;
+  width: 60px;
+  height: 32px;
+  border-radius: 20px 20px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  overflow: hidden;
+}
+
+.floatingToggleButton:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.floatingToggleButton:active {
+  transform: translateY(-1px);
+  transition: transform 0.1s ease;
+}
+
+/* Decorative lines for the floating button */
+.floatingToggleDecoration {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  transform: translateY(-50%);
+  transition: all 0.3s ease;
+}
+
+.floatingToggleDecoration:first-child {
+  left: 8px;
+}
+
+.floatingToggleDecoration:last-child {
+  right: 8px;
+}
+
 /* Light mode styles */
 .light {
   background: white;
@@ -110,6 +224,22 @@
 
 .light .navItem.active {
   background: var(--primary-low);
+}
+
+.light .toggleButtonInner,
+.toggleLight {
+  background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%);
+  border: 1px solid #e8e8e8;
+  border-bottom: none;
+}
+
+.toggleLight .floatingToggleDecoration {
+  background: #ccc;
+}
+
+.light .toggleButtonInner:hover,
+.toggleLight:hover {
+  background: linear-gradient(180deg, #f8f9fa 0%, #e8e8e8 100%);
 }
 
 /* Dark mode styles */
@@ -131,6 +261,22 @@
   background: rgba(249, 170, 17, 0.15);
 }
 
+.dark .toggleButtonInner,
+.toggleDark {
+  background: linear-gradient(180deg, rgb(33, 43, 54) 0%, rgb(28, 36, 46) 100%);
+  border: 1px solid #444;
+  border-bottom: none;
+}
+
+.toggleDark .floatingToggleDecoration {
+  background: #666;
+}
+
+.dark .toggleButtonInner:hover,
+.toggleDark:hover {
+  background: linear-gradient(180deg, rgb(28, 36, 46) 0%, rgb(24, 32, 42) 100%);
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   .navItem {
@@ -148,11 +294,38 @@
     font-size: 10px !important;
     max-width: 45px;
   }
+
+  .toggleButtonInner {
+    width: 32px;
+    height: 20px;
+  }
+
+  .floatingToggleButton {
+    width: 50px;
+    height: 28px;
+  }
+
+  .floatingToggleDecoration {
+    width: 6px;
+    height: 1.5px;
+  }
+
+  .floatingToggleDecoration:first-child {
+    left: 6px;
+  }
+
+  .floatingToggleDecoration:last-child {
+    right: 6px;
+  }
 }
 
 /* Large screens - hide bottom navbar */
 @media (min-width: 1024px) {
   .wrapper {
+    display: none;
+  }
+
+  .floatingToggle {
     display: none;
   }
 }
@@ -178,4 +351,9 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Additional smooth animations for better UX */
+.wrapper * {
+  transition: transform 0.2s ease, opacity 0.2s ease;
 } 

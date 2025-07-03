@@ -16,6 +16,7 @@ import { CrownOutlined } from "@ant-design/icons";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n";
 import { openSupport } from "@/utils/supportHelpers";
+import PWAInstallButton from "@/components/PWAInstallButton";
 
 const Header = () => {
   const { user } = useUser();
@@ -173,6 +174,18 @@ const Header = () => {
                 {!isMobile && <span className={css.premiumText}>{t('common.premium')}</span>}
               </Button>
             )}
+
+            {/* PWA Install Button */}
+            <PWAInstallButton
+              variant="secondary"
+              size="small"
+              showText={!isMobile}
+              style={{
+                minWidth: isMobile ? '32px' : 'auto',
+                height: isMobile ? '32px' : '32px',
+                padding: isMobile ? '6px' : '6px 12px'
+              }}
+            />
               
             <LanguageSwitcher 
               size="small" 

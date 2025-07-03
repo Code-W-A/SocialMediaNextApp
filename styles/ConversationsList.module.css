@@ -3,6 +3,11 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  /* Ensure touch events work properly */
+  touch-action: manipulation;
+  /* Allow this component to stretch and let its inner containers manage scrolling */
+  flex: 1 1 auto;
+  min-height: 0; /* Important for flexbox child overflow */
 }
 
 .searchContainer {
@@ -25,7 +30,13 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0.5rem 0;
-  min-height: 0;
+  min-height: 0; /* Important for flexbox child overflow */
+  /* Touch scrolling improvements for mobile */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  height: 100%;
+  max-height: 100%;
 }
 
 .conversationItem {
@@ -36,6 +47,9 @@
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: 0;
+  /* Ensure touch events don't block scrolling */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .conversationItem:hover {
@@ -148,6 +162,11 @@
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
+    /* Enhanced touch scrolling for mobile */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    scroll-behavior: smooth;
   }
   
   .conversationItem {
@@ -178,6 +197,11 @@
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
+    /* Enhanced touch scrolling for small mobile screens */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    scroll-behavior: smooth;
   }
   
   .conversationItem {
@@ -196,4 +220,61 @@
   .lastMessage {
     font-size: 13px !important;
   }
+}
+
+/* iOS Safari specific scrolling fixes */
+@supports (-webkit-touch-callout: none) {
+  .conversationsContainer {
+    /* Enhanced iOS scroll support */
+    -webkit-overflow-scrolling: touch;
+    overflow: auto;
+    /* Prevent iOS bounce scrolling from interfering */
+    overscroll-behavior-y: contain;
+    /* Force hardware acceleration */
+    transform: translateZ(0);
+    will-change: scroll-position;
+  }
+  
+  @media (max-width: 768px) {
+    .conversationsContainer {
+      -webkit-overflow-scrolling: touch;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
+      transform: translateZ(0);
+    }
+  }
+}
+
+/* Make Ant Design Tabs content holder flex so that tab panes take remaining height */
+.wrapper :global(.ant-tabs-content-holder) {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0; /* Important for flexbox child overflow */
+}
+
+.wrapper :global(.ant-tabs-content) {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0; /* Important for flexbox child overflow */
+}
+
+.wrapper :global(.ant-tabs-tabpane) {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0; /* Important for flexbox child overflow */
+}
+
+/* Ensure Ant Design Tabs component takes full height */
+.wrapper :global(.ant-tabs) {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Important for flexbox child overflow */
 } 

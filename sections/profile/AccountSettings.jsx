@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Card, 
   Button, 
@@ -31,6 +31,19 @@ const AccountSettings = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check for mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Reset Password
   const handleResetPassword = async () => {
@@ -108,6 +121,7 @@ const AccountSettings = () => {
           loading={resetPasswordLoading}
           onClick={handleResetPassword}
           icon={<Iconify icon="eva:email-fill" width="16px" />}
+          style={{ width: isMobile ? '100%' : 'auto' }}
         >
           {t('accountSettings.sendResetEmail')}
         </Button>
@@ -123,6 +137,7 @@ const AccountSettings = () => {
           danger
           onClick={() => setDeleteAccountModal(true)}
           icon={<Iconify icon="eva:trash-2-fill" width="16px" />}
+          style={{ width: isMobile ? '100%' : 'auto' }}
         >
           {t('accountSettings.deleteAccount')}
         </Button>
@@ -183,13 +198,15 @@ const AccountSettings = () => {
           dataSource={securityItems}
           renderItem={(item) => (
             <List.Item
-              actions={[item.action]}
+              actions={isMobile ? [] : [item.action]}
               style={{ 
                 borderColor: item.danger ? '#ff4d4f' : undefined,
                 backgroundColor: item.danger ? '#fff2f0' : undefined,
                 borderRadius: item.danger ? '8px' : undefined,
                 padding: item.danger ? '16px' : undefined,
-                marginBottom: item.danger ? '8px' : undefined
+                marginBottom: item.danger ? '8px' : undefined,
+                flexDirection: isMobile ? 'column' : 'row',
+                alignItems: isMobile ? 'flex-start' : 'center'
               }}
             >
               <List.Item.Meta
@@ -215,7 +232,18 @@ const AccountSettings = () => {
                     {item.title}
                   </Text>
                 }
-                description={item.description}
+                description={
+                  <div>
+                    <div style={{ marginBottom: isMobile ? '12px' : '0' }}>
+                      {item.description}
+                    </div>
+                    {isMobile && (
+                      <div style={{ marginTop: '12px' }}>
+                        {item.action}
+                      </div>
+                    )}
+                  </div>
+                }
               />
             </List.Item>
           )}
@@ -237,7 +265,7 @@ const AccountSettings = () => {
           setCurrentPassword('');
         }}
         footer={null}
-        width={500}
+        width={isMobile ? '90%' : 500}
         centered
       >
         <div style={{ padding: '1rem 0' }}>
@@ -298,7 +326,8 @@ const AccountSettings = () => {
             display: 'flex', 
             gap: '12px', 
             marginTop: '2rem',
-            justifyContent: 'flex-end'
+            justifyContent: 'flex-end',
+            flexDirection: isMobile ? 'column' : 'row'
           }}>
             <Button
               onClick={() => {
@@ -307,6 +336,7 @@ const AccountSettings = () => {
                 setCurrentPassword('');
               }}
               disabled={deleteAccountLoading}
+              style={{ width: isMobile ? '100%' : 'auto' }}
             >
               {t('accountSettings.deleteAccountModal.cancel')}
             </Button>
@@ -317,6 +347,7 @@ const AccountSettings = () => {
               onClick={handleDeleteAccount}
               disabled={deleteConfirmation !== 'DELETE' || !currentPassword.trim()}
               icon={<Iconify icon="eva:trash-2-fill" width="16px" />}
+              style={{ width: isMobile ? '100%' : 'auto' }}
             >
               {t('accountSettings.deleteAccountModal.deleteAccountPermanently')}
             </Button>

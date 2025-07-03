@@ -26,7 +26,7 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
   // Check for mobile screen size
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 480);
+      setIsMobile(window.innerWidth <= 768);
     };
     
     checkMobile();
@@ -44,9 +44,9 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
     position: 'relative',
     width: '100%',
     height: 'auto',
-    minHeight: '520px',
-    maxHeight: '580px',
-    borderRadius: '20px',
+    minHeight: isMobile ? '280px' : '520px',
+    maxHeight: isMobile ? '320px' : '580px',
+    borderRadius: isMobile ? '16px' : '20px',
     overflow: 'hidden',
     cursor: 'pointer',
     background: '#fff',
@@ -61,7 +61,7 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
   const imageContainerStyle = {
     position: 'relative',
     width: '100%',
-    height: '240px',
+    height: isMobile ? '200px' : '240px',
     overflow: 'hidden',
     flexShrink: 0
   };
@@ -117,6 +117,215 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
     gap: '10px'
   };
 
+  // Mobile version
+  if (isMobile) {
+    return (
+      <div 
+        style={cardStyle}
+        onClick={() => router.push(`/profile/${user.id}?person=${getDisplayName(user)}`)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Image Section - Full height for mobile */}
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          height: '200px',
+          overflow: 'hidden',
+          flexShrink: 0
+        }}>
+          <img
+            src={mainImage}
+            alt={`${user.firstName} ${user.lastName}`}
+            style={imageStyle}
+          />
+          
+          {/* Verification Badge */}
+          {user.verified && (
+            <div style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              background: 'linear-gradient(135deg, #1890ff, #40a9ff)',
+              borderRadius: '50%',
+              width: '24px',
+              height: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2,
+              boxShadow: '0 2px 8px rgba(24, 144, 255, 0.3)'
+            }}>
+              <Iconify icon="eva:checkmark-fill" width="12px" style={{ color: 'white' }} />
+            </div>
+          )}
+
+          {/* Online Status - top left */}
+          <div style={{ 
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            zIndex: 2,
+            filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.8))'
+          }}>
+            <OnlineStatusIndicator 
+              userId={user.id} 
+              showText={false} 
+              size="small"
+            />
+          </div>
+        </div>
+
+        {/* Info Section - Bottom */}
+        <div style={{
+          padding: '8px',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between'
+        }}>
+          {/* Name, Age, Compatibility */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '6px'
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '700',
+                color: '#333',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                marginBottom: '2px'
+              }}>
+                {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email?.split('@')[0] || 'Unknown User'}
+                {user.age && (
+                  <span style={{ 
+                    color: '#666', 
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    marginLeft: '6px'
+                  }}>
+                    {user.age}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            {/* Compatibility Score */}
+            <div style={{
+              background: `linear-gradient(135deg, ${scoreDetails.color}, ${scoreDetails.color}dd)`,
+              color: 'white',
+              padding: '4px 8px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: '700',
+              flexShrink: 0
+            }}>
+              {scoreDetails.overall}%
+            </div>
+          </div>
+
+          {/* Chat Button - Full width at bottom */}
+          <Button
+            type="primary"
+            block
+            icon={<Iconify icon="eva:message-circle-fill" width="16px" />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStartChat(user);
+            }}
+            style={{
+              height: '36px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
+              border: 'none',
+              fontWeight: '600',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+          >
+            Chat
+          </Button>
+        </div>
+
+        {/* Compatibility Modal */}
+        <Modal
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <OnlineStatusAvatar userId={user.id} size="medium">
+                  <Avatar src={mainImage} size={40}>
+                    {user.firstName?.[0]}{user.lastName?.[0]}
+                  </Avatar>
+                </OnlineStatusAvatar>
+                <div>
+                  <span>Compatibility with {user.firstName}</span>
+                  <div style={{ marginTop: '4px' }}>
+                    <OnlineStatusIndicator userId={user.id} showText={true} />
+                  </div>
+                </div>
+              </div>
+              <div style={{
+                background: `linear-gradient(135deg, ${scoreDetails.color}, ${scoreDetails.color}dd)`,
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Text style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: 0 }}>
+                  {scoreDetails.overall}%
+                </Text>
+                <Text style={{ color: 'white', fontSize: '14px', margin: 0 }}>
+                  {scoreDetails.emoji} {scoreDetails.level}
+                </Text>
+              </div>
+            </div>
+          }
+          open={showCompatibility}
+          onCancel={() => setShowCompatibility(false)}
+          footer={null}
+          width="90%"
+          style={{ maxWidth: '400px' }}
+        >
+          <div style={{ padding: '16px 0' }}>
+            <div style={{ 
+              background: 'linear-gradient(135deg, #f0f2ff, #fafbff)',
+              padding: '20px',
+              borderRadius: '12px',
+              marginBottom: '24px',
+              textAlign: 'center'
+            }}>
+              <Title level={4} style={{ margin: '0 0 8px 0', color: scoreDetails.color }}>
+                Overall Compatibility
+              </Title>
+              <div style={{ 
+                fontSize: '32px', 
+                fontWeight: '800', 
+                color: scoreDetails.color,
+                marginBottom: '8px'
+              }}>
+                {scoreDetails.overall}%
+              </div>
+              <Text style={{ fontSize: '14px', color: '#666' }}>
+                {scoreDetails.emoji} {scoreDetails.level}
+              </Text>
+            </div>
+          </div>
+        </Modal>
+      </div>
+    );
+  }
+
+  // Desktop version
   return (
     <div 
       style={cardStyle}
@@ -805,6 +1014,21 @@ const MatchesPage = () => {
   const { user: currentUser } = useUser();
   const { t } = useLanguage();
   const router = useRouter();
+  const [isMobile, setIsMobile] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  // Check for mobile screen size and iOS
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+      setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Get user's compatible user IDs
   const { data: compatibleUserIds, isLoading: loadingCompatibilities } = useQuery({
@@ -860,17 +1084,17 @@ const MatchesPage = () => {
       <div style={{ 
         width: '100%',
         maxWidth: 'none',
-        padding: '1.5rem 2rem',
+        padding: isMobile ? '1rem 1rem' : '1.5rem 2rem',
         minHeight: '100%',
-        paddingBottom: '4rem'
+        paddingBottom: isMobile && isIOS ? '8rem' : isMobile ? '5rem' : '4rem'
       }}>
         {/* Header */}
         <div style={{ 
           textAlign: 'center',
-          marginBottom: '3rem',
+          marginBottom: isMobile ? '1.5rem' : '3rem',
           background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
-          borderRadius: '24px',
-          padding: '2.5rem 2rem',
+          borderRadius: isMobile ? '16px' : '24px',
+          padding: isMobile ? '1.2rem 1rem' : '2.5rem 2rem',
           color: 'white',
           position: 'relative',
           overflow: 'hidden'
@@ -890,43 +1114,45 @@ const MatchesPage = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '16px',
-              marginBottom: '16px'
+              gap: isMobile ? '8px' : '16px',
+              marginBottom: isMobile ? '8px' : '16px'
             }}>
-              <Iconify icon="eva:heart-fill" width="40px" style={{ color: 'white' }} />
-              <Title level={1} style={{ 
+              <Iconify icon="eva:heart-fill" width={isMobile ? "24px" : "40px"} style={{ color: 'white' }} />
+              <Title level={isMobile ? 3 : 1} style={{ 
                 margin: 0, 
                 color: 'white',
-                fontSize: '2.5rem',
+                fontSize: isMobile ? '1.4rem' : '2.5rem',
                 fontWeight: '800'
               }}>
                 {t('matches.title')}
               </Title>
             </div>
             
-            <Text style={{ 
-              fontSize: '18px',
-              color: 'rgba(255, 255, 255, 0.9)',
-              display: 'block',
-              marginBottom: '24px'
-            }}>
-              {t('matches.subtitle')}
-            </Text>
+            {!isMobile && (
+              <Text style={{ 
+                fontSize: '18px',
+                color: 'rgba(255, 255, 255, 0.9)',
+                display: 'block',
+                marginBottom: '24px'
+              }}>
+                {t('matches.subtitle')}
+              </Text>
+            )}
             
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: isMobile ? '8px' : '12px',
               background: 'rgba(255, 255, 255, 0.2)',
-              padding: '12px 24px',
+              padding: isMobile ? '8px 16px' : '12px 24px',
               borderRadius: '50px',
               backdropFilter: 'blur(10px)',
               border: '1px solid rgba(255, 255, 255, 0.3)'
             }}>
-              <Text strong style={{ fontSize: '24px', color: 'white' }}>
+              <Text strong style={{ fontSize: isMobile ? '16px' : '24px', color: 'white' }}>
                 {compatibleUsers.length}
               </Text>
-              <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '16px' }}>
+              <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: isMobile ? '12px' : '16px' }}>
                 {t('matches.compatibleSoulsFound')}
               </Text>
             </div>
@@ -935,12 +1161,12 @@ const MatchesPage = () => {
 
         {/* Loading State */}
         {isLoading && (
-          <Row gutter={[24, 32]} style={{ marginBottom: '3rem' }}>
+          <Row gutter={isMobile ? [12, 16] : [24, 32]} style={{ marginBottom: isMobile ? '1.5rem' : '3rem' }}>
             {Array(6).fill(0).map((_, i) => (
-              <Col xs={24} sm={12} lg={8} key={i}>
+              <Col xs={12} sm={12} lg={8} key={i}>
                 <div style={{
-                  height: '480px',
-                  borderRadius: '20px',
+                  height: isMobile ? '280px' : '480px',
+                  borderRadius: isMobile ? '16px' : '20px',
                   background: 'linear-gradient(135deg, #f5f5f5, #e8e8e8)',
                   animation: 'pulse 1.5s ease-in-out infinite'
                 }} />
@@ -951,9 +1177,9 @@ const MatchesPage = () => {
 
         {/* Matches Grid */}
         {!isLoading && compatibleUsers.length > 0 ? (
-          <Row gutter={[24, 32]} style={{ marginBottom: '3rem' }}>
+          <Row gutter={isMobile ? [12, 16] : [24, 32]} style={{ marginBottom: isMobile ? '1.5rem' : '3rem' }}>
             {compatibleUsers.map((user) => (
-              <Col xs={24} sm={12} lg={8} key={user.id}>
+              <Col xs={12} sm={12} lg={8} key={user.id}>
                 <MatchCard
                   user={user}
                   currentUser={currentUser}

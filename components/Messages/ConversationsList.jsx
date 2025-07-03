@@ -210,27 +210,33 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
     });
   }, [compatibleUsers, searchText, conversations]);
 
-  // Memoized conversation item renderer
+  // Memoized conversation item renderer with improved touch handling
   const renderConversationItem = useCallback((conversation) => {
     const otherUser = conversation.otherUser;
-    const isSelected = selectedId === conversation.id;
-    const isFromCurrentUser = conversation.lastMessage?.senderId === currentUser?.id;
     const mainImage = getMainProfileImage(otherUser?.images);
     const displayName = getDisplayName(otherUser);
+    
+    const isSelected = selectedId === conversation.id;
+    const isFromCurrentUser = conversation.lastMessage?.senderId === currentUser?.id;
+
+    const handleClick = (e) => {
+      // Don't prevent default or stop propagation unnecessarily
+      onSelectConversation(conversation);
+    };
 
     return (
       <div
         key={conversation.id}
         className={`${css.conversationItem} ${isSelected ? css.selected : ''}`}
-        onClick={() => onSelectConversation(conversation)}
+        onClick={handleClick}
+        style={{ 
+          cursor: 'pointer',
+          // Ensure touch events work properly
+          touchAction: 'manipulation'
+        }}
       >
         <div className={css.avatarContainer}>
-          <Badge 
-            count={conversation.unreadCount} 
-            size="small"
-            offset={[-5, 5]}
-          >
-            <OnlineStatusAvatar userId={otherUser?.id} size="medium">
+          <OnlineStatusAvatar userId={otherUser?.id} size="medium">
             <Avatar 
               src={mainImage} 
               size={48}
@@ -238,17 +244,13 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
               {otherUser?.firstName?.[0] || otherUser?.username?.[0] || otherUser?.email?.[0]}
               {otherUser?.lastName?.[0]}
             </Avatar>
-            </OnlineStatusAvatar>
-          </Badge>
+          </OnlineStatusAvatar>
         </div>
 
         <div className={css.conversationContent}>
           <div className={css.header}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Typography.Text 
-                className={css.participantName}
-                strong={conversation.unreadCount > 0}
-              >
+              <Typography.Text className={css.participantName}>
                 {displayName}
               </Typography.Text>
               <PremiumBadge 
@@ -258,11 +260,8 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 showTooltip={false}
               />
             </div>
-            <Typography.Text 
-              className={css.timestamp}
-              type="secondary"
-            >
-              {formatTime(conversation.lastMessage?.timestamp || conversation.updatedAt)}
+            <Typography.Text className={css.timestamp} type="secondary">
+              {conversation.lastMessage && formatTime(conversation.lastMessage.timestamp)}
             </Typography.Text>
           </div>
 
@@ -279,7 +278,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                   {truncateMessage(conversation.lastMessage.text)}
                 </>
               ) : (
-                <span style={{ fontStyle: 'italic' }}>Start a conversation...</span>
+                <span style={{ fontStyle: 'italic' }}>Start a conversation</span>
               )}
             </Typography.Text>
             
@@ -292,27 +291,45 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
     );
   }, [selectedId, currentUser?.id, onSelectConversation, formatTime, truncateMessage]);
 
-  // Memoized compatible user item renderer
+  // Memoized compatible user item renderer with improved touch handling
   const renderCompatibleUserItem = useCallback((user) => {
     const mainImage = getMainProfileImage(user?.images);
     const displayName = getDisplayName(user);
+
+    const handleItemClick = (e) => {
+      // Don't prevent default or stop propagation unnecessarily
+      handleStartConversation(user);
+    };
+
+    const handleViewProfile = (e) => {
+      e.stopPropagation();
+      window.open(`/profile/${user.id}?person=${getDisplayName(user)}`, '_blank');
+    };
+
+    const handleMessageClick = (e) => {
+      e.stopPropagation();
+      handleStartConversation(user);
+    };
 
     return (
       <div
         key={user.id}
         className={css.conversationItem}
-        style={{ cursor: 'pointer' }}
-        onClick={() => handleStartConversation(user)}
+        style={{ 
+          cursor: 'pointer',
+          touchAction: 'manipulation'
+        }}
+        onClick={handleItemClick}
       >
         <div className={css.avatarContainer}>
           <OnlineStatusAvatar userId={user?.id} size="medium">
-          <Avatar 
-            src={mainImage} 
-            size={48}
-          >
-            {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
-            {user?.lastName?.[0]}
-          </Avatar>
+            <Avatar 
+              src={mainImage} 
+              size={48}
+            >
+              {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
+              {user?.lastName?.[0]}
+            </Avatar>
           </OnlineStatusAvatar>
         </div>
 
@@ -333,10 +350,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
               <Button 
                 size="small"
                 icon={<Iconify icon="eva:person-fill" width="12px" />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(`/profile/${user.id}?person=${getDisplayName(user)}`, '_blank');
-                }}
+                onClick={handleViewProfile}
                 style={{ 
                   border: '1px solid #d9d9d9',
                   borderRadius: '8px',
@@ -346,23 +360,20 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 title="View Profile"
               />
               
-            <Button 
-              type="primary" 
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStartConversation(user);
-              }}
-              style={{ 
-                background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
-                border: 'none',
+              <Button 
+                type="primary" 
+                size="small"
+                onClick={handleMessageClick}
+                style={{ 
+                  background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
+                  border: 'none',
                   borderRadius: '8px',
                   fontSize: '10px',
                   padding: '0 12px'
-              }}
-            >
-              Message
-            </Button>
+                }}
+              >
+                Message
+              </Button>
             </div>
           </div>
 

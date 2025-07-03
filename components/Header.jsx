@@ -91,12 +91,12 @@ const Header = () => {
       icon: <Iconify icon="eva:settings-fill" width="16px" />,
       onClick: () => handleNavigation('/settings')
     },
-    {
-      key: 'support',
-      label: t('common.support'),
-      icon: <Iconify icon="eva:headphones-fill" width="16px" />,
-      onClick: handleSupportClick
-    },
+    // {
+    //   key: 'support',
+    //   label: t('common.support'),
+    //   icon: <Iconify icon="eva:headphones-fill" width="16px" />,
+    //   onClick: handleSupportClick
+    // },
     {
       type: 'divider',
     },

@@ -10,7 +10,7 @@ import ProfileBody from "../ProfileBody";
 import ProfileEditSection from "../ProfileEditSection";
 import AccountSettings from "../AccountSettings";
 import { useUser } from "@/hooks/useFirebaseAuth";
-import { Button, Typography, Alert, Tabs } from "antd";
+import { Button, Typography, Alert, Tabs, Dropdown, Menu } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import PWAInstallSection from "@/components/PWAInstallSection";
@@ -35,6 +35,7 @@ const ProfileView = ({ userId }) => {
   const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState("1");
   const [showEditSection, setShowEditSection] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
   // Check if redirected from OnboardingGuard for profile completion
   const forceComplete = searchParams.get('complete') === 'true';
@@ -153,6 +154,18 @@ const ProfileView = ({ userId }) => {
     setShowEditSection(true);
     setSelectedTab("edit");
   };
+
+  // Check for mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // If error (very rare now), show generic error
   if (isError) {
@@ -278,6 +291,31 @@ const ProfileView = ({ userId }) => {
     });
   }
 
+  // Create dropdown menu for mobile
+  const createDropdownMenu = () => {
+    const items = tabItems.map(item => ({
+      key: item.key,
+      label: item.label,
+      disabled: isProfileCompletionForced && item.key !== "edit" && item.key !== "settings"
+    }));
+
+    return {
+      items,
+      onClick: ({ key }) => {
+        if (isProfileCompletionForced && key !== "edit" && key !== "settings") {
+          return;
+        }
+        setSelectedTab(key);
+      }
+    };
+  };
+
+  // Get current tab info
+  const getCurrentTabInfo = () => {
+    const currentTab = tabItems.find(tab => tab.key === selectedTab);
+    return currentTab ? currentTab.label : "Profile";
+  };
+
   return (
     <div className={css.wrapper}>
       <div className={css.container}>
@@ -372,21 +410,58 @@ const ProfileView = ({ userId }) => {
 
         {/* Profile Content with Tabs */}
         <div style={{ marginTop: '1rem' }}>
-          <Tabs
-            activeKey={selectedTab}
-            onChange={handleTabChange}
-            items={tabItems.map(item => ({
-              ...item,
-              disabled: isProfileCompletionForced && item.key !== "edit" && item.key !== "settings"
-            }))}
-            size="large"
-            tabBarStyle={{ 
-              background: 'white', 
-              borderRadius: '8px', 
-              padding: '0 1rem',
-              marginBottom: '1rem'
-            }}
-          />
+          {isMobile ? (
+            // Mobile: Show dropdown menu
+            <div style={{ marginBottom: '1rem' }}>
+              <Dropdown
+                menu={createDropdownMenu()}
+                trigger={['click']}
+                placement="bottomCenter"
+              >
+                <Button
+                  style={{
+                    width: '100%',
+                    height: '48px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'white',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    padding: '0 16px'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center' }}>
+                    {getCurrentTabInfo()}
+                  </span>
+                  <Iconify icon="eva:more-vertical-fill" width="20px" />
+                </Button>
+              </Dropdown>
+              
+              {/* Tab Content */}
+              <div style={{ marginTop: '1rem' }}>
+                {tabItems.find(tab => tab.key === selectedTab)?.children}
+              </div>
+            </div>
+          ) : (
+            // Desktop: Show regular tabs
+            <Tabs
+              activeKey={selectedTab}
+              onChange={handleTabChange}
+              items={tabItems.map(item => ({
+                ...item,
+                disabled: isProfileCompletionForced && item.key !== "edit" && item.key !== "settings"
+              }))}
+              size="large"
+              tabBarStyle={{ 
+                background: 'white', 
+                borderRadius: '8px', 
+                padding: '0 1rem',
+                marginBottom: '1rem'
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

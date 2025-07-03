@@ -19,13 +19,56 @@ import MessageHoverActions from "./MessageHoverActions";
 import OnlineStatusIndicator, { OnlineStatusAvatar } from "../OnlineStatusIndicator";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { useSettingsContext } from "@/context/settings/settings-context";
+import { useLanguage } from "@/lib/i18n";
 import dayjs from "dayjs";
+import useBottomNavbarHeight from "@/hooks/useBottomNavbarHeight";
 
 const { useToken } = theme;
+
+// Custom hook for dynamic viewport height
+const useViewportHeight = () => {
+  const [viewportHeight, setViewportHeight] = useState(0);
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      // Use the actual viewport height
+      const vh = window.visualViewport?.height || window.innerHeight;
+      setViewportHeight(vh);
+      
+      // Update CSS custom property for dynamic height
+      document.documentElement.style.setProperty('--viewport-height', `${vh}px`);
+    };
+
+    // Initial measurement
+    updateViewportHeight();
+
+    // Listen for viewport changes (important for iOS Safari)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+    }
+    
+    // Fallback for older browsers
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+      }
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+    };
+  }, []);
+
+  return viewportHeight;
+};
 
 const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   const { settings: { theme: currentTheme } } = useSettingsContext();
   const { token } = useToken();
+  const { t } = useLanguage();
+  const viewportHeight = useViewportHeight();
+  const { height: bottomNavbarHeight } = useBottomNavbarHeight();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -36,7 +79,34 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   const [activePopoverId, setActivePopoverId] = useState(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const wrapperRef = useRef(null);
   const otherUser = conversation?.otherUser;
+
+  // Dynamic height adjustment for mobile
+  useEffect(() => {
+    if (!isMobile || !wrapperRef.current) return;
+
+    const updateChatHeight = () => {
+      if (wrapperRef.current && viewportHeight > 0) {
+        // Calculate available height minus header and bottom navigation
+        const headerHeight = 60; // Approximate header height on mobile
+        const availableHeight = viewportHeight - headerHeight - bottomNavbarHeight;
+        wrapperRef.current.style.height = `${Math.max(availableHeight, 300)}px`;
+      }
+    };
+
+    updateChatHeight();
+    
+    // Update on viewport changes (keyboard show/hide on iOS)
+    const resizeObserver = new ResizeObserver(updateChatHeight);
+    if (wrapperRef.current) {
+      resizeObserver.observe(wrapperRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [isMobile, viewportHeight, bottomNavbarHeight]);
 
   // Subscribe to messages in real-time
   useEffect(() => {
@@ -83,8 +153,6 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     return () => clearTimeout(timer);
   }, [conversation?.id, currentUser?.id, messages]);
 
-
-
   // Cleanup typing indicator on unmount
   useEffect(() => {
     return () => {
@@ -111,7 +179,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       });
     } catch (error) {
       console.error("Error sending message:", error);
-      message.error("Failed to send message");
+      message.error(t('chat.failedToSendMessage'));
       setNewMessage(messageText); // Restore message on error
     } finally {
       setSending(false);
@@ -234,7 +302,15 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   const mainImage = getMainProfileImage(otherUser.images);
 
   return (
-    <div className={css.wrapper}>
+    <div 
+      ref={wrapperRef}
+      className={css.wrapper}
+      style={isMobile ? { 
+        height: 'auto',
+        minHeight: '100%',
+        maxHeight: '100%'
+      } : {}}
+    >
       {/* Custom CSS for textarea placeholder and typing animation */}
       <style jsx>{`
         .custom-textarea::placeholder {
@@ -360,10 +436,10 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                 {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
               </Avatar>
               <Typography.Title level={4} type="secondary">
-                Start a conversation
+                {t('chat.startConversation')}
               </Typography.Title>
               <Typography.Text type="secondary">
-                Send a message to {otherUser.firstName || otherUser.username || 'this person'} to start your conversation.
+                {t('chat.sendMessageToStart', { name: otherUser.firstName || otherUser.username || t('common.thisPerson') })}
               </Typography.Text>
             </div>
           ) : (
@@ -532,7 +608,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
                     color: currentTheme === 'dark' ? '#ccc' : '#666'
                   }}
                 >
-                  {otherUser.firstName || otherUser.username || 'User'} is typing...
+                  {t('chat.isTyping', { name: otherUser.firstName || otherUser.username || t('common.user') })}
                 </Typography.Text>
               </div>
             </div>
@@ -566,7 +642,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
             }}
             onKeyPress={handleKeyPress}
             onBlur={handleStopTyping}
-            placeholder={`Message ${otherUser.firstName || otherUser.username || 'user'}...`}
+            placeholder={t('chat.messagePlaceholder', { name: otherUser.firstName || otherUser.username || t('common.user') })}
             disabled={sending}
             rows={1}
             style={textareaStyle}

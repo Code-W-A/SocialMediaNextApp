@@ -21,13 +21,31 @@ export const useBottomNavbarHeight = () => {
       if (navbar) {
         const height = navbar.offsetHeight;
         setNavbarHeight(height);
-              } else {
-          // Fallback height calculation with extra padding
-          // Based on CSS: padding(8px) + icon(32px) + margin(4px) + label(~12px) + padding(8px) + safe-area + extra(26px)
-          const safeAreaInsetBottom = parseInt(getComputedStyle(document.documentElement)
-            .getPropertyValue('env(safe-area-inset-bottom)') || '0px');
-          setNavbarHeight(90 + safeAreaInsetBottom);
+      } else {
+        // Fallback height calculation with iOS-specific adjustments
+        const safeAreaInsetBottom = parseInt(
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('env(safe-area-inset-bottom)') || '0px'
+        );
+        
+        // Detect iOS device
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        
+        // Use fallback values that match CSS
+        let baseHeight = 60; // Reduced from 90 to match new CSS values
+        
+        if (window.innerWidth <= 480) {
+          baseHeight = 50; // Even smaller for very small screens
         }
+        
+        // Add extra padding for iOS due to safe area issues
+        if (isIOS) {
+          baseHeight += 20;
+        }
+        
+        setNavbarHeight(baseHeight + safeAreaInsetBottom);
+      }
     };
 
     // Calculate on mount

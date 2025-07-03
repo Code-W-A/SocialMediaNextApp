@@ -24,7 +24,24 @@
     
     /* Mobile: Make container full width and add bottom padding for navbar */
     @media (max-width: 1023px) {
-        padding-bottom: 160px; /* GLOBAL MOBILE PADDING FOR BOTTOM NAVBAR */
+        padding-bottom: 80px; /* GLOBAL MOBILE PADDING FOR BOTTOM NAVBAR - Updated to match new values */
+    }
+    
+    /* Smaller screens need less padding */
+    @media (max-width: 480px) {
+        padding-bottom: 60px;
+    }
+    
+    /* iOS Safari specific fixes */
+    @supports (-webkit-touch-callout: none) {
+        @media (max-width: 1023px) {
+            /* iOS fallback with extra safe area */
+            padding-bottom: calc(80px + env(safe-area-inset-bottom, 30px));
+        }
+        
+        @media (max-width: 480px) {
+            padding-bottom: calc(60px + env(safe-area-inset-bottom, 30px));
+        }
     }
 }
 .page_body{

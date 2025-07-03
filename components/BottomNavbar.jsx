@@ -96,11 +96,17 @@ const BottomNavbar = () => {
       onClick: () => handleNavigation('/settings')
     },
     {
-      key: 'support',
-      label: t('common.support'),
-      icon: <Iconify icon="eva:headphones-fill" width="16px" />,
-      onClick: handleSupportClick
+      key: 'contact',
+      label: t('common.contact'),
+      icon: <Iconify icon="eva:email-fill" width="16px" />,
+      onClick: () => router.push('/contact')
     },
+    // {
+    //   key: 'support',
+    //   label: t('common.support'),
+    //   icon: <Iconify icon="eva:headphones-fill" width="16px" />,
+    //   onClick: handleSupportClick
+    // },
     {
       type: 'divider',
     },
@@ -132,6 +138,26 @@ const BottomNavbar = () => {
     <>
       {/* Main Navbar */}
       <div className={`${css.wrapper} ${theme === 'dark' ? css.dark : css.light} ${isVisible ? css.visible : css.hidden}`}>
+        {/* Toggle Button positioned at top of navbar */}
+        <div 
+          className={css.toggleButton}
+          onClick={toggleNavbarVisibility}
+          role="button"
+          tabIndex={0}
+          aria-label="Toggle navbar"
+        >
+          <div className={`${css.toggleButtonInner} ${theme === 'dark' ? css.toggleDark : css.toggleLight}`}>
+            <Iconify 
+              icon="eva:chevron-down-fill" 
+              width="28px" 
+              style={{ 
+                color: theme === 'dark' ? '#fff' : '#666',
+                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            />
+          </div>
+        </div>
+
         <div className={css.container}>
           {/* Left Navigation Items */}
           {leftRoutes.map((route, index) => (
@@ -161,26 +187,6 @@ const BottomNavbar = () => {
               </Typography.Text>
             </div>
           ))}
-
-          {/* Center Toggle Button */}
-          <div 
-            className={css.toggleButton}
-            onClick={toggleNavbarVisibility}
-            role="button"
-            tabIndex={0}
-            aria-label="Toggle navbar"
-          >
-            <div className={`${css.toggleButtonInner} ${theme === 'dark' ? css.toggleDark : css.toggleLight}`}>
-              <Iconify 
-                icon="eva:chevron-down-fill" 
-                width="20px" 
-                style={{ 
-                  color: theme === 'dark' ? '#fff' : '#666',
-                  transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                }}
-              />
-            </div>
-          </div>
 
           {/* Right Navigation Items */}
           {rightRoutes.map((route, index) => (
@@ -262,7 +268,7 @@ const BottomNavbar = () => {
             <div className={css.floatingToggleDecoration} />
             <Iconify 
               icon="eva:chevron-up-fill" 
-              width="20px" 
+              width="32px" 
               style={{ 
                 color: theme === 'dark' ? '#fff' : '#666',
                 zIndex: 2,

@@ -118,21 +118,7 @@ export default function OfflinePage() {
             {isOnline ? t('offline.backToDestiny') : t('offline.tryAgain')}
           </Button>
 
-          {/* Additional Info */}
-          <div style={{
-            background: '#f8f9fa',
-            padding: '1rem',
-            borderRadius: '12px',
-            marginTop: '1rem'
-          }}>
-            <Paragraph style={{ 
-              margin: 0,
-              fontSize: '14px',
-              color: '#666'
-            }}>
-              💡 <strong>{t('offline.didYouKnow')}</strong> {t('offline.offlineFunctionality')}
-            </Paragraph>
-          </div>
+      
         </Space>
       </Card>
     </div>

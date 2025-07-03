@@ -85,12 +85,12 @@ const Header = () => {
       icon: <CrownOutlined style={{ color: '#FFD700' }} />,
       onClick: () => handleNavigation('/premium')
     },
-    {
-      key: 'settings',
-      label: t('common.settings'),
-      icon: <Iconify icon="eva:settings-fill" width="16px" />,
-      onClick: () => handleNavigation('/settings')
-    },
+    // {
+    //   key: 'settings',
+    //   label: t('common.settings'),
+    //   icon: <Iconify icon="eva:settings-fill" width="16px" />,
+    //   onClick: () => handleNavigation('/settings')
+    // },
     // {
     //   key: 'support',
     //   label: t('common.support'),

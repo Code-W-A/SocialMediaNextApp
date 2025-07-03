@@ -89,12 +89,12 @@ const BottomNavbar = () => {
       icon: <Iconify icon="eva:person-fill" width="16px" />,
       onClick: () => router.push(`/profile/${user?.id}?person=${getUserDisplayName(user)}`)
     },
-    {
-      key: 'settings',
-      label: t('common.settings'),
-      icon: <Iconify icon="eva:settings-fill" width="16px" />,
-      onClick: () => handleNavigation('/settings')
-    },
+    // {
+    //   key: 'settings',
+    //   label: t('common.settings'),
+    //   icon: <Iconify icon="eva:settings-fill" width="16px" />,
+    //   onClick: () => handleNavigation('/settings')
+    // },
     {
       key: 'contact',
       label: t('common.contact'),

@@ -15,10 +15,6 @@ const transporter = nodemailer.createTransport({
 const getEmailTemplate = (type, data, language = 'en') => {
   const translations = {
     en: {
-      confirmationSubject: 'Confirm Your YDestiny Account',
-      confirmationTitle: 'Welcome to YDestiny!',
-      confirmationMessage: 'Thank you for joining YDestiny. Please confirm your email address to activate your account.',
-      confirmButton: 'Confirm Email',
       welcomeSubject: 'Welcome to YDestiny - Your Cosmic Journey Begins!',
       welcomeTitle: 'Welcome to YDestiny!',
       welcomeMessage: 'Your account has been successfully created. Start exploring your cosmic connections and find your perfect match through astrological compatibility.',
@@ -28,10 +24,6 @@ const getEmailTemplate = (type, data, language = 'en') => {
       footer: 'Best regards,<br>The YDestiny Team'
     },
     ro: {
-      confirmationSubject: 'Confirmă-ți Contul YDestiny',
-      confirmationTitle: 'Bun venit la YDestiny!',
-      confirmationMessage: 'Îți mulțumim că te-ai alăturat YDestiny. Te rugăm să confirmi adresa de email pentru a activa contul.',
-      confirmButton: 'Confirmă Email-ul',
       welcomeSubject: 'Bun venit la YDestiny - Călătoria Ta Cosmică Începe!',
       welcomeTitle: 'Bun venit la YDestiny!',
       welcomeMessage: 'Contul tău a fost creat cu succes. Începe să explorezi conexiunile tale cosmice și găsește-ți perechea perfectă prin compatibilitatea astrologică.',
@@ -59,30 +51,6 @@ const getEmailTemplate = (type, data, language = 'en') => {
   `;
 
   switch (type) {
-    case 'confirmation':
-      return {
-        subject: t.confirmationSubject,
-        html: `
-          ${baseStyle}
-          <div class="container">
-            <div class="header">
-              <h1>${t.confirmationTitle}</h1>
-            </div>
-            <div class="content">
-              <p>Hello ${data.name || 'there'},</p>
-              <p>${t.confirmationMessage}</p>
-              <div style="text-align: center;">
-                <a href="${data.confirmationUrl}" class="button">${t.confirmButton}</a>
-              </div>
-              <p>If you didn't create this account, please ignore this email.</p>
-            </div>
-            <div class="footer">
-              <p>${t.footer}</p>
-            </div>
-          </div>
-        `
-      };
-
     case 'welcome':
       return {
         subject: t.welcomeSubject,

@@ -20,7 +20,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getMyCompatibleUsers } from "./admin";
+// Removed getMyCompatibleUsers import - compatibility filter removed
 import { getUser } from "./user";
 import { toSerializableDate } from "@/utils/dateHelpers";
 import { serializeFirebaseData } from "@/utils/firebaseHelpers";
@@ -351,8 +351,8 @@ export const createPost = async (post) => {
   }
 };
 
-// Optimized feed with better caching and reduced queries
-export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10) => {
+// Simple feed showing all public posts with progressive loading
+export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 3) => {
   console.log("🔥 getMyPostsFeed called:", { userId, lastCursor, limitCount });
   
   try {
@@ -360,31 +360,10 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
       throw new Error("User ID is required");
     }
 
-    // Import admin settings function
-    const { isCompatibilityFilterEnabled } = await import('./adminSettings');
-    
-    // Check if compatibility filter is enabled
-    const filterEnabled = await isCompatibilityFilterEnabled();
-    console.log("🔧 Compatibility filter enabled:", filterEnabled);
+    console.log("🌍 Getting all public posts with progressive loading");
 
-    let authorIds = [userId]; // Always include current user
-
-    if (filterEnabled) {
-      // Get compatible users only if filter is enabled
-      const compatibleUsers = await getMyCompatibleUsers(userId);
-      console.log("👥 Compatible users count:", compatibleUsers.length);
-      
-      // Include compatible users in the list
-      authorIds = [...compatibleUsers.map(user => user.id), userId];
-      console.log("📝 Total author IDs to query (with compatibility filter):", authorIds.length);
-    } else {
-      // If filter is disabled, we'll get all posts and filter by visibility only
-      console.log("📝 Compatibility filter disabled - will show all public posts");
-    }
-
-    // Build query for posts from compatible users + own posts
+    // Build query for all public posts with pagination
     const postsRef = collection(db, "Posts");
-    let postsQuery;
     let lastDocSnapshot = null;
 
     // If we have a cursor, get the document snapshot for proper pagination
@@ -402,60 +381,22 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
       }
     }
 
-    if (filterEnabled && authorIds.length > 1) {
-      // Use compatibility filter - only show posts from compatible users
-      try {
-        // Try to use the optimized query with array-contains-any
-        postsQuery = query(
-          postsRef,
-          where("authorId", "in", authorIds.slice(0, 10)), // Firestore 'in' limit is 10
-          where("isVisible", "!=", false),
-          orderBy("createdAt", "desc"),
-          ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
-          limit(limitCount)
-        );
-      } catch (indexError) {
-        console.log("⚠️ Optimized query failed, using fallback approach");
-        // Fallback: get all recent posts and filter
-        postsQuery = query(
-          postsRef,
-          orderBy("createdAt", "desc"),
-          ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
-          limit(limitCount * 5) // Get more to filter
-        );
-      }
-    } else {
-      // No compatibility filter - show all public posts
-      console.log("🌍 Getting all public posts (no compatibility filter)");
-      postsQuery = query(
-        postsRef,
-        where("isVisible", "!=", false),
-        orderBy("createdAt", "desc"),
-        ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
-        limit(limitCount)
-      );
-    }
+    // Simple query for all public posts
+    console.log("📄 Querying all public posts with limit:", limitCount);
+    const postsQuery = query(
+      postsRef,
+      where("isVisible", "!=", false),
+      orderBy("createdAt", "desc"),
+      ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+      limit(limitCount)
+    );
 
     const snapshot = await getDocs(postsQuery);
     console.log("📄 Raw posts retrieved:", snapshot.docs.length);
 
-    // Filter posts based on compatibility filter setting
-    let relevantDocs;
-    if (filterEnabled && authorIds.length > 1) {
-      // Filter posts to only compatible users
-      relevantDocs = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        return authorIds.includes(data.authorId) && data.isVisible !== false;
-      }).slice(0, limitCount);
-      console.log("🎯 Relevant posts after compatibility filtering:", relevantDocs.length);
-    } else {
-      // No filtering by compatibility - show all visible posts
-      relevantDocs = snapshot.docs.filter(doc => {
-        const data = doc.data();
-        return data.isVisible !== false;
-      }).slice(0, limitCount);
-      console.log("🌍 Relevant posts after visibility filtering (no compatibility filter):", relevantDocs.length);
-    }
+    // All posts from query are already filtered for visibility and limited
+    const relevantDocs = snapshot.docs;
+    console.log("✅ Posts ready for display:", relevantDocs.length);
 
     if (relevantDocs.length === 0) {
       return {

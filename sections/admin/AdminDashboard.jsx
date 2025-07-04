@@ -25,10 +25,10 @@ import {
   Radio,
   Popconfirm
 } from "antd";
-import { UserOutlined, HeartOutlined, SearchOutlined, FilterOutlined, CrownOutlined, MessageOutlined } from "@ant-design/icons";
+import { UserOutlined, HeartOutlined, SearchOutlined, CrownOutlined, MessageOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser } from "@/actions/admin";
-import { getAdminSettings, toggleCompatibilityFilter } from "@/actions/adminSettings";
+// Removed admin settings import - simplified feed system
 import { getMainProfileImage } from "@/utils/imageHelpers";
 
 import AdminChatDashboard from "@/components/AdminChatDashboard";
@@ -60,11 +60,7 @@ const AdminDashboard = () => {
     queryFn: getAllUsers,
   });
 
-  // Fetch admin settings
-  const { data: adminSettingsData, isLoading: settingsLoading } = useQuery({
-    queryKey: ["admin-settings"],
-    queryFn: getAdminSettings,
-  });
+  // Removed admin settings query - simplified feed system
 
   // Removed V1 migration data fetch
 
@@ -155,18 +151,7 @@ const AdminDashboard = () => {
     },
   });
 
-  // Toggle compatibility filter mutation
-  const toggleCompatibilityFilterMutation = useMutation({
-    mutationFn: ({ enabled }) => toggleCompatibilityFilter(enabled, 'admin'),
-    onSuccess: (data) => {
-      message.success(data.message);
-      queryClient.invalidateQueries(["admin-settings"]);
-    },
-    onError: (error) => {
-      message.error("Failed to update compatibility filter!");
-      console.error(error);
-    },
-  });
+  // Removed compatibility filter mutation - simplified feed system
 
   const openCompatibilityModal = (user) => {
     setSelectedUser(user);
@@ -776,131 +761,7 @@ const AdminDashboard = () => {
         </div>
       )
     },
-    {
-      key: 'settings',
-      label: (
-        <span>
-          <FilterOutlined />
-          Application Settings
-        </span>
-      ),
-      children: (
-        <div>
-          <Card
-            title={
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <FilterOutlined />
-                Feed & Display Settings
-              </div>
-            }
-            style={{ marginBottom: '24px' }}
-          >
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {/* Compatibility Filter Toggle */}
-              <Card 
-                size="small" 
-                title="Compatibility Filter" 
-                style={{ background: '#fafafa' }}
-              >
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <Text strong>Filter Posts by Compatibility</Text>
-                      <br />
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        When enabled, users see only posts from people they are compatible with. 
-                        When disabled, users see all public posts.
-                      </Text>
-                    </div>
-                    <div style={{ marginLeft: '24px' }}>
-                      {settingsLoading ? (
-                        <Button loading size="large">Loading...</Button>
-                      ) : (
-                        <Button
-                          type={adminSettingsData?.settings?.compatibilityFilterEnabled ? "primary" : "default"}
-                          size="large"
-                          onClick={() => {
-                            const newState = !adminSettingsData?.settings?.compatibilityFilterEnabled;
-                            toggleCompatibilityFilterMutation.mutate({ enabled: newState });
-                          }}
-                          loading={toggleCompatibilityFilterMutation.isPending}
-                          style={{
-                            background: adminSettingsData?.settings?.compatibilityFilterEnabled 
-                              ? '#52c41a' : '#f5f5f5',
-                            borderColor: adminSettingsData?.settings?.compatibilityFilterEnabled 
-                              ? '#52c41a' : '#d9d9d9',
-                            color: adminSettingsData?.settings?.compatibilityFilterEnabled 
-                              ? 'white' : '#666'
-                          }}
-                        >
-                          {adminSettingsData?.settings?.compatibilityFilterEnabled ? '✅ ENABLED' : '❌ DISABLED'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Current Status */}
-                  <div style={{ 
-                    padding: '12px', 
-                    background: adminSettingsData?.settings?.compatibilityFilterEnabled ? '#f6ffed' : '#fff2e8',
-                    border: `1px solid ${adminSettingsData?.settings?.compatibilityFilterEnabled ? '#b7eb8f' : '#ffcc99'}`,
-                    borderRadius: '6px',
-                    marginTop: '12px'
-                  }}>
-                    <Text strong style={{ 
-                      color: adminSettingsData?.settings?.compatibilityFilterEnabled ? '#52c41a' : '#d4380d' 
-                    }}>
-                      Current Status: {adminSettingsData?.settings?.compatibilityFilterEnabled ? 'Compatibility Filter ON' : 'Compatibility Filter OFF'}
-                    </Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: '11px' }}>
-                      {adminSettingsData?.settings?.compatibilityFilterEnabled 
-                        ? 'Users see only posts from compatible people + their own posts'
-                        : 'Users see all public posts from everyone in the app'
-                      }
-                    </Text>
-                    {adminSettingsData?.settings?.lastUpdated && (
-                      <>
-                        <br />
-                        <Text type="secondary" style={{ fontSize: '10px' }}>
-                          Last changed: {new Date(adminSettingsData.settings.lastUpdated.seconds ? 
-                            adminSettingsData.settings.lastUpdated.seconds * 1000 : 
-                            adminSettingsData.settings.lastUpdated).toLocaleString()} 
-                          by {adminSettingsData.settings.updatedBy || 'system'}
-                        </Text>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Impact Information */}
-                  <div style={{ marginTop: '16px' }}>
-                    <Text strong style={{ fontSize: '13px' }}>How this affects the app:</Text>
-                    <ul style={{ fontSize: '12px', color: '#666', marginTop: '8px', paddingLeft: '20px' }}>
-                      <li><strong>When ON:</strong> Users see a curated feed based on manual compatibility assignments</li>
-                      <li><strong>When OFF:</strong> Users see a general social media feed with all public posts</li>
-                      <li>This setting applies to the main feed, profile posts are always visible</li>
-                      <li>Changes take effect immediately for all users</li>
-                    </ul>
-                  </div>
-                </Space>
-              </Card>
-
-              {/* Future Settings Placeholder */}
-              <Card 
-                size="small" 
-                title="Future Settings" 
-                style={{ background: '#f9f9f9', border: '1px dashed #d9d9d9' }}
-              >
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Additional application settings will be added here in future updates.
-                  This section will include content moderation, notification settings, and more.
-                </Text>
-              </Card>
-            </Space>
-          </Card>
-        </div>
-      )
-    },
+    // Removed settings tab - simplified feed system without admin controls
     {
       key: 'chats',
       label: (

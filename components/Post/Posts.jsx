@@ -17,7 +17,7 @@ const Posts = ({ id = "all" }) => {
   // Stable query function
   const queryFn = useCallback(({ pageParam = null }) => {
     if (id === "all") {
-      // For main feed, get posts from compatible users + own posts
+      // For main feed, get all public posts
       return getMyPostsFeed(currentUser?.id, pageParam);
     } else {
       // For specific user profile, get their posts
@@ -155,7 +155,7 @@ const Posts = ({ id = "all" }) => {
           <Flex vertical align="center" gap={"large"} style={{ padding: '2rem' }}>
             <Typography.Text type="secondary" style={{ textAlign: 'center' }}>
               {id === "all" 
-                ? "Nu sunt postări disponibile. Începe să postezi sau conectează-te cu utilizatori compatibili!" 
+                ? "Nu sunt postări disponibile încă. Începe să postezi și să interacționezi cu comunitatea!" 
                 : "Nu sunt postări disponibile."}
             </Typography.Text>
           </Flex>

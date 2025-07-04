@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Typography, Button, List, Space, Tag, message, Divider, Row, Col } from 'antd';
 import { FileTextOutlined, DownloadOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useLanguage } from '@/lib/i18n';
-import { useUser } from '@/lib/context/UserContext';
+import { useUser } from '@/hooks/useFirebaseAuth';
 
 const { Title, Text, Paragraph } = Typography;
 

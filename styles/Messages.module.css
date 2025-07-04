@@ -129,7 +129,7 @@
   .title {
     font-size: 1.25rem !important;
   }
-}
+} 
 
 /* iOS Safari specific fixes */
 @supports (-webkit-touch-callout: none) {

@@ -236,7 +236,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         }}
       >
         <div className={css.avatarContainer}>
-          <OnlineStatusAvatar userId={otherUser?.id} size="medium">
+            <OnlineStatusAvatar userId={otherUser?.id} size="medium">
             <Avatar 
               src={mainImage} 
               size={48}
@@ -244,7 +244,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
               {otherUser?.firstName?.[0] || otherUser?.username?.[0] || otherUser?.email?.[0]}
               {otherUser?.lastName?.[0]}
             </Avatar>
-          </OnlineStatusAvatar>
+            </OnlineStatusAvatar>
         </div>
 
         <div className={css.conversationContent}>
@@ -323,13 +323,13 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
       >
         <div className={css.avatarContainer}>
           <OnlineStatusAvatar userId={user?.id} size="medium">
-            <Avatar 
-              src={mainImage} 
-              size={48}
-            >
-              {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
-              {user?.lastName?.[0]}
-            </Avatar>
+          <Avatar 
+            src={mainImage} 
+            size={48}
+          >
+            {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
+            {user?.lastName?.[0]}
+          </Avatar>
           </OnlineStatusAvatar>
         </div>
 
@@ -360,20 +360,20 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 title="View Profile"
               />
               
-              <Button 
-                type="primary" 
-                size="small"
+            <Button 
+              type="primary" 
+              size="small"
                 onClick={handleMessageClick}
-                style={{ 
-                  background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
-                  border: 'none',
+              style={{ 
+                background: 'linear-gradient(135deg, var(--primary), #FFB84D)',
+                border: 'none',
                   borderRadius: '8px',
                   fontSize: '10px',
                   padding: '0 12px'
-                }}
-              >
-                Message
-              </Button>
+              }}
+            >
+              Message
+            </Button>
             </div>
           </div>
 

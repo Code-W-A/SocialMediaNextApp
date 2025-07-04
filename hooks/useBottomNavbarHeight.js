@@ -21,7 +21,7 @@ export const useBottomNavbarHeight = () => {
       if (navbar) {
         const height = navbar.offsetHeight;
         setNavbarHeight(height);
-      } else {
+              } else {
         // Fallback height calculation with iOS-specific adjustments
         const safeAreaInsetBottom = parseInt(
           getComputedStyle(document.documentElement)
@@ -45,7 +45,7 @@ export const useBottomNavbarHeight = () => {
         }
         
         setNavbarHeight(baseHeight + safeAreaInsetBottom);
-      }
+        }
     };
 
     // Calculate on mount

@@ -1,6 +1,6 @@
 "use client";
-import React, { useState } from "react";
-import { Button, Tooltip, Popover, message, Modal } from "antd";
+import React from "react";
+import { Button, Tooltip, message, Modal } from "antd";
 import { 
   EditOutlined, 
   DeleteOutlined,
@@ -20,17 +20,7 @@ const MessageHoverActions = ({
   onDelete,
   onPopoverStateChange
 }) => {
-  const [showDeleteOptions, setShowDeleteOptions] = useState(false);
-
-  // Notify parent when any popover state changes
-  const handlePopoverChange = (type, isOpen) => {
-    if (type === 'delete') {
-      setShowDeleteOptions(isOpen);
-    }
-    
-    // Notify parent about overall popover state
-    onPopoverStateChange?.(isOpen);
-  };
+  // No need for delete options state anymore since we only have one option
 
   const canEdit = messageItem.senderId === currentUserId && 
                   messageItem.type === "text" && 
@@ -38,15 +28,7 @@ const MessageHoverActions = ({
 
   const canDelete = messageItem.senderId === currentUserId && !messageItem.deleted;
 
-  const handleDeleteForMe = async () => {
-    try {
-      await deleteMessage(conversationId, messageItem.id, currentUserId);
-      message.success("Message deleted");
-      onDelete?.();
-    } catch (error) {
-      message.error("Failed to delete message");
-    }
-  };
+
 
   const handleDeleteForEveryone = async () => {
     try {
@@ -58,35 +40,7 @@ const MessageHoverActions = ({
     }
   };
 
-  const getDeleteOptions = () => {
-    const messageTime = messageItem.timestamp?.toDate ? 
-      messageItem.timestamp.toDate() : new Date(messageItem.timestamp);
-    const now = new Date();
-    const hoursDiff = (now - messageTime) / (1000 * 60 * 60);
-    const canDeleteForEveryone = hoursDiff <= 24;
-
-    const deleteOptions = [
-      {
-        key: 'delete-me',
-        label: 'Delete for me',
-        onClick: () => {
-          confirm({
-            title: 'Delete message for you?',
-            icon: <ExclamationCircleOutlined />,
-            content: 'This message will only be deleted for you.',
-            okText: 'Delete',
-            okType: 'danger',
-            onOk: handleDeleteForMe
-          });
-        }
-      }
-    ];
-
-    if (canDeleteForEveryone) {
-      deleteOptions.push({
-        key: 'delete-everyone',
-        label: 'Delete for everyone',
-        onClick: () => {
+  const handleDeleteClick = () => {
           confirm({
             title: 'Delete message for everyone?',
             icon: <ExclamationCircleOutlined />,
@@ -95,18 +49,9 @@ const MessageHoverActions = ({
             okType: 'danger',
             onOk: handleDeleteForEveryone
           });
-        },
-        danger: true
-      });
-    }
-
-    return deleteOptions;
   };
 
-  // Keep visible if any popover is open
-  const shouldShowActions = isVisible || showDeleteOptions;
-  
-  if (!shouldShowActions) return null;
+  if (!isVisible) return null;
 
   return (
     <div
@@ -149,33 +94,12 @@ const MessageHoverActions = ({
 
       {/* Delete Button */}
       {canDelete && (
-        <Popover
-          content={
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {getDeleteOptions().map(option => (
-                <Button
-                  key={option.key}
-                  type="text"
-                  size="small"
-                  danger={option.danger}
-                  onClick={option.onClick}
-                  style={{ justifyContent: 'flex-start' }}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
-          }
-          trigger="click"
-          open={showDeleteOptions}
-          onOpenChange={(isOpen) => handlePopoverChange('delete', isOpen)}
-          placement="top"
-        >
-          <Tooltip title="Delete message">
+        <Tooltip title="Delete message for everyone">
             <Button
               type="text"
               size="small"
               icon={<DeleteOutlined />}
+            onClick={handleDeleteClick}
               style={{
                 minWidth: '28px',
                 height: '28px',
@@ -187,7 +111,6 @@ const MessageHoverActions = ({
               }}
             />
           </Tooltip>
-        </Popover>
       )}
 
       <style jsx>{`

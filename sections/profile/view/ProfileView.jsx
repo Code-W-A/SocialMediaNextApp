@@ -446,21 +446,21 @@ const ProfileView = ({ userId }) => {
             </div>
           ) : (
             // Desktop: Show regular tabs
-            <Tabs
-              activeKey={selectedTab}
-              onChange={handleTabChange}
-              items={tabItems.map(item => ({
-                ...item,
-                disabled: isProfileCompletionForced && item.key !== "edit" && item.key !== "settings"
-              }))}
-              size="large"
-              tabBarStyle={{ 
-                background: 'white', 
-                borderRadius: '8px', 
-                padding: '0 1rem',
-                marginBottom: '1rem'
-              }}
-            />
+          <Tabs
+            activeKey={selectedTab}
+            onChange={handleTabChange}
+            items={tabItems.map(item => ({
+              ...item,
+              disabled: isProfileCompletionForced && item.key !== "edit" && item.key !== "settings"
+            }))}
+            size="large"
+            tabBarStyle={{ 
+              background: 'white', 
+              borderRadius: '8px', 
+              padding: '0 1rem',
+              marginBottom: '1rem'
+            }}
+          />
           )}
         </div>
       </div>

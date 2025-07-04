@@ -35,7 +35,16 @@ export async function POST(request) {
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/premium/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/premium`,
       allow_promotion_codes: true,
+      
+      // Collect complete billing address for Romanian e-factura compliance
       billing_address_collection: 'required',
+      phone_number_collection: {
+        enabled: true,
+      },
+      
+      // Ensure customer data is collected properly
+      customer_creation: 'always',
+      
       subscription_data: {
         metadata: {
           userId: user.id,

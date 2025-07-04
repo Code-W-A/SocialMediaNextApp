@@ -25,6 +25,7 @@ import { deletePost, editPost } from "@/actions/post";
 import { getUserDisplayName, getDisplayName } from "@/utils/profileHelpers";
 import LikeButton from "./LikeButton";
 import { getMainProfileImage } from "@/utils/imageHelpers";
+import PremiumBadge from "../PremiumBadge";
 
 const Post = ({ data, queryId }) => {
   const { user: currentUser } = useUser();

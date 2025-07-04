@@ -12,6 +12,7 @@ import { createConversation } from "@/actions/chat";
 import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import OnlineStatusIndicator, { OnlineStatusAvatar } from "@/components/OnlineStatusIndicator";
+import PremiumBadge from "@/components/PremiumBadge";
 import css from "@/styles/Home.module.css";
 import { useLanguage } from "@/lib/i18n";
 
@@ -199,15 +200,21 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                marginBottom: '2px'
+                marginBottom: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
               }}>
-                {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email?.split('@')[0] || 'Unknown User'}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email?.split('@')[0] || 'Unknown User'}
+                </span>
+                <PremiumBadge user={user} size="small" showText={false} showTooltip={false} />
                 {user.age && (
                   <span style={{ 
                     color: '#666', 
                     fontSize: '12px',
                     fontWeight: '500',
-                    marginLeft: '6px'
+                    flexShrink: 0
                   }}>
                     {user.age}
                   </span>
@@ -400,9 +407,21 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
                   lineHeight: '1.1',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
                 }}>
-                  {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email?.split('@')[0] || 'Unknown User'}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email?.split('@')[0] || 'Unknown User'}
+                  </span>
+                  <PremiumBadge 
+                    user={user} 
+                    size="small" 
+                    showText={false} 
+                    showTooltip={false}
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6))' }}
+                  />
                 </div>
                 
                 {/* Online Status Indicator */}
@@ -511,6 +530,9 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
             }}>
               {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username || user.email?.split('@')[0] || 'Unknown User'}
             </span>
+            
+            {/* Premium Badge */}
+            <PremiumBadge user={user} size="small" showText={false} showTooltip={false} />
             
             {/* Online Status Indicator */}
             <div style={{ flexShrink: 0 }}>

@@ -34,6 +34,15 @@ export const createCheckoutSession = async (userId, customerEmail) => {
         },
       },
       allow_promotion_codes: true,
+      
+      // Collect complete billing address for Romanian e-factura compliance
+      billing_address_collection: 'required',
+      phone_number_collection: {
+        enabled: true,
+      },
+      
+      // Ensure customer data is collected properly
+      customer_creation: 'always',
     });
 
     return { sessionId: session.id, url: session.url };

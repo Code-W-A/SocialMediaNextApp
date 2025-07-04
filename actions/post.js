@@ -360,13 +360,27 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
       throw new Error("User ID is required");
     }
 
-    // Get compatible users (cached)
-    const compatibleUsers = await getMyCompatibleUsers(userId);
-    console.log("👥 Compatible users count:", compatibleUsers.length);
+    // Import admin settings function
+    const { isCompatibilityFilterEnabled } = await import('./adminSettings');
     
-    // Include current user in the list
-    const authorIds = [...compatibleUsers.map(user => user.id), userId];
-    console.log("📝 Total author IDs to query:", authorIds.length);
+    // Check if compatibility filter is enabled
+    const filterEnabled = await isCompatibilityFilterEnabled();
+    console.log("🔧 Compatibility filter enabled:", filterEnabled);
+
+    let authorIds = [userId]; // Always include current user
+
+    if (filterEnabled) {
+      // Get compatible users only if filter is enabled
+      const compatibleUsers = await getMyCompatibleUsers(userId);
+      console.log("👥 Compatible users count:", compatibleUsers.length);
+      
+      // Include compatible users in the list
+      authorIds = [...compatibleUsers.map(user => user.id), userId];
+      console.log("📝 Total author IDs to query (with compatibility filter):", authorIds.length);
+    } else {
+      // If filter is disabled, we'll get all posts and filter by visibility only
+      console.log("📝 Compatibility filter disabled - will show all public posts");
+    }
 
     // Build query for posts from compatible users + own posts
     const postsRef = collection(db, "Posts");
@@ -388,37 +402,60 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 10)
       }
     }
 
-    try {
-      // Try to use the optimized query with array-contains-any
+    if (filterEnabled && authorIds.length > 1) {
+      // Use compatibility filter - only show posts from compatible users
+      try {
+        // Try to use the optimized query with array-contains-any
+        postsQuery = query(
+          postsRef,
+          where("authorId", "in", authorIds.slice(0, 10)), // Firestore 'in' limit is 10
+          where("isVisible", "!=", false),
+          orderBy("createdAt", "desc"),
+          ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+          limit(limitCount)
+        );
+      } catch (indexError) {
+        console.log("⚠️ Optimized query failed, using fallback approach");
+        // Fallback: get all recent posts and filter
+        postsQuery = query(
+          postsRef,
+          orderBy("createdAt", "desc"),
+          ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+          limit(limitCount * 5) // Get more to filter
+        );
+      }
+    } else {
+      // No compatibility filter - show all public posts
+      console.log("🌍 Getting all public posts (no compatibility filter)");
       postsQuery = query(
         postsRef,
-        where("authorId", "in", authorIds.slice(0, 10)), // Firestore 'in' limit is 10
         where("isVisible", "!=", false),
         orderBy("createdAt", "desc"),
         ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
         limit(limitCount)
-      );
-    } catch (indexError) {
-      console.log("⚠️ Optimized query failed, using fallback approach");
-      // Fallback: get all recent posts and filter
-      postsQuery = query(
-        postsRef,
-        orderBy("createdAt", "desc"),
-        ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
-        limit(limitCount * 5) // Get more to filter
       );
     }
 
     const snapshot = await getDocs(postsQuery);
     console.log("📄 Raw posts retrieved:", snapshot.docs.length);
 
-    // Filter posts if using fallback query
-    const relevantDocs = snapshot.docs.filter(doc => {
-      const data = doc.data();
-      return authorIds.includes(data.authorId) && data.isVisible !== false;
-    }).slice(0, limitCount);
-
-    console.log("🎯 Relevant posts after filtering:", relevantDocs.length);
+    // Filter posts based on compatibility filter setting
+    let relevantDocs;
+    if (filterEnabled && authorIds.length > 1) {
+      // Filter posts to only compatible users
+      relevantDocs = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return authorIds.includes(data.authorId) && data.isVisible !== false;
+      }).slice(0, limitCount);
+      console.log("🎯 Relevant posts after compatibility filtering:", relevantDocs.length);
+    } else {
+      // No filtering by compatibility - show all visible posts
+      relevantDocs = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return data.isVisible !== false;
+      }).slice(0, limitCount);
+      console.log("🌍 Relevant posts after visibility filtering (no compatibility filter):", relevantDocs.length);
+    }
 
     if (relevantDocs.length === 0) {
       return {

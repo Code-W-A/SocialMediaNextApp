@@ -1233,7 +1233,7 @@ const MatchesPage = () => {
                 <Iconify icon="eva:heart-outline" width="48px" style={{ color: 'white' }} />
               </div>
               <Title level={2} style={{ marginBottom: '16px', color: '#666' }}>
-                No cosmic matches yet
+                {t('matches.noMatchesYet')}
               </Title>
               <Paragraph style={{ 
                 fontSize: '16px', 
@@ -1242,8 +1242,7 @@ const MatchesPage = () => {
                 lineHeight: '1.6',
                 color: '#888'
               }}>
-                Our cosmic compatibility system is working behind the scenes. 
-                Compatibilities are carefully curated by our team based on astrological and numerological analysis.
+                {t('matches.noMatchesDescription')}
               </Paragraph>
               <Button 
                 type="primary" 
@@ -1260,7 +1259,7 @@ const MatchesPage = () => {
                 }}
               >
                 <Iconify icon="eva:home-fill" width="20px" style={{ marginRight: '8px' }} />
-                Explore App
+                {t('matches.exploreApp')}
               </Button>
             </div>
           )

@@ -921,7 +921,49 @@ export const updatePostLike = async (postId, type, userId) => {
   }
 };
 
-// Optimized addComment with batch operations
+// Optimized addComment with batch operations and compatibility check
+// Check if user can comment on a specific post (based on compatibility)
+export const canUserComment = async (postId, userId) => {
+  try {
+    if (!postId || !userId) {
+      return { canComment: false, reason: "Missing required parameters" };
+    }
+
+    // Get post data to check the author
+    const postDocRef = doc(db, "Posts", postId);
+    const postDocSnapshot = await getDoc(postDocRef);
+    
+    if (!postDocSnapshot.exists()) {
+      return { canComment: false, reason: "Post not found" };
+    }
+
+    const postData = postDocSnapshot.data();
+    const postAuthorId = postData.authorId;
+
+    // Check if the commenter is the post author (always allowed)
+    if (userId === postAuthorId) {
+      return { canComment: true, reason: "Own post" };
+    }
+
+    // Check compatibility between commenter and post author
+    const { areUsersCompatible } = await import('./admin');
+    const isCompatible = await areUsersCompatible(userId, postAuthorId);
+    
+    if (!isCompatible) {
+      return { 
+        canComment: false, 
+        reason: "You can only comment on posts from people you're compatible with",
+        postAuthorId 
+      };
+    }
+    
+    return { canComment: true, reason: "Compatible users" };
+  } catch (error) {
+    console.error("Error checking comment permission:", error);
+    return { canComment: false, reason: "Error checking permissions" };
+  }
+};
+
 export const addComment = async (postId, comment, userId) => {
   console.log("🔥 addComment called:", { postId, comment: comment?.substring(0, 50), userId });
   
@@ -929,6 +971,45 @@ export const addComment = async (postId, comment, userId) => {
     if (!postId || !comment || !userId) {
       console.error("❌ Missing required parameters:", { postId: !!postId, comment: !!comment, userId: !!userId });
       throw new Error("Missing required parameters");
+    }
+
+    // Get post data to check the author
+    console.log("📝 Getting post data to check author:", postId);
+    const postDocRef = doc(db, "Posts", postId);
+    const postDocSnapshot = await getDoc(postDocRef);
+    
+    if (!postDocSnapshot.exists()) {
+      console.error("❌ Post not found:", postId);
+      throw new Error("Post not found");
+    }
+
+    const postData = postDocSnapshot.data();
+    const postAuthorId = postData.authorId;
+    
+    console.log("👤 Post author ID:", postAuthorId);
+    console.log("👤 Comment author ID:", userId);
+
+    // Check if the commenter is the post author (always allowed)
+    if (userId === postAuthorId) {
+      console.log("✅ User is commenting on their own post - allowed");
+    } else {
+      // Check compatibility between commenter and post author
+      console.log("🔍 Checking compatibility between users...");
+      const { areUsersCompatible } = await import('./admin');
+      const isCompatible = await areUsersCompatible(userId, postAuthorId);
+      
+      console.log("🤝 Compatibility result:", { 
+        commenterId: userId, 
+        postAuthorId, 
+        isCompatible 
+      });
+
+      if (!isCompatible) {
+        console.error("❌ Users are not compatible - comment not allowed");
+        throw new Error("You can only comment on posts from people you're compatible with");
+      }
+      
+      console.log("✅ Users are compatible - comment allowed");
     }
 
     // Get user data from cache
@@ -1410,15 +1491,41 @@ export const deleteComment = async (postId, commentId, userId) => {
       createdAt: commentData.createdAt
     });
     
-    if (commentData.authorId !== userId) {
+    // Check if user is comment author
+    const isCommentAuthor = commentData.authorId === userId;
+    
+    // Check if user is post author (can moderate comments on their post)
+    console.log("📍 Getting post document to check post author...");
+    const postRefForAuth = doc(db, "Posts", postId);
+    const postDocForAuth = await getDoc(postRefForAuth);
+    
+    if (!postDocForAuth.exists()) {
+      console.error("❌ Post not found:", postId);
+      throw new Error("Post not found");
+    }
+    
+    const postData = postDocForAuth.data();
+    const isPostAuthor = postData.authorId === userId;
+    
+    console.log("🔍 Authorization check:", {
+      commentAuthor: commentData.authorId,
+      postAuthor: postData.authorId,
+      currentUser: userId,
+      isCommentAuthor,
+      isPostAuthor,
+      canDelete: isCommentAuthor || isPostAuthor
+    });
+    
+    if (!isCommentAuthor && !isPostAuthor) {
       console.error("❌ Authorization failed:", {
         commentAuthor: commentData.authorId,
+        postAuthor: postData.authorId,
         currentUser: userId
       });
-      throw new Error("You can only delete your own comments");
+      throw new Error("You can only delete your own comments or moderate comments on your posts");
     }
 
-    console.log("✅ Authorization successful - User is the comment author");
+    console.log("✅ Authorization successful -", isCommentAuthor ? "User is the comment author" : "User is the post author (moderating)");
 
     // Use batch for atomic operations
     const batch = writeBatch(db);

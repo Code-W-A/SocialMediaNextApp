@@ -1,7 +1,7 @@
-import { Avatar, Button, Flex, Input, Modal, Typography } from "antd";
+import { Avatar, Button, Flex, Input, Modal, Typography, Alert } from "antd";
 import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import Iconify from "../Iconify";
-import { addComment } from "@/actions/post";
+import { addComment, canUserComment } from "@/actions/post";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useUser } from "@/hooks/useFirebaseAuth";
@@ -12,6 +12,8 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
   const [value, setValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [commentPermission, setCommentPermission] = useState({ canComment: true, reason: "" });
+  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
   const { user } = useUser();
   const queryClient = useQueryClient();
   const textAreaRef = useRef(null);
@@ -27,6 +29,34 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Check comment permission when dialog opens
+  useEffect(() => {
+    const checkCommentPermission = async () => {
+      if (!open || !user?.id || !postId) {
+        setIsCheckingPermission(false);
+        return;
+      }
+
+      try {
+        setIsCheckingPermission(true);
+        const permission = await canUserComment(postId, user.id);
+        setCommentPermission(permission);
+      } catch (error) {
+        console.error("Error checking comment permission:", error);
+        setCommentPermission({ 
+          canComment: false, 
+          reason: "Error checking permissions" 
+        });
+      } finally {
+        setIsCheckingPermission(false);
+      }
+    };
+
+    if (open) {
+      checkCommentPermission();
+    }
+  }, [open, postId, user?.id]);
   
   // Create the correct query key that matches Posts.jsx
   const queryKey = useMemo(() => ["posts", queryId, user?.id], [queryId, user?.id]);
@@ -350,11 +380,40 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
           </Typography.Text>
         </Flex>
 
+        {/* Show restriction message if user cannot comment */}
+        {!isCheckingPermission && !commentPermission.canComment && (
+          <Alert
+            message="Nu poți comenta la această postare"
+            description={
+              commentPermission.reason === "You can only comment on posts from people you're compatible with" 
+                ? "Poți comenta doar la postările persoanelor cu care ești compatibil(ă). Pentru a deveni compatibil cu cineva, contactează administratorul."
+                : commentPermission.reason
+            }
+            type="warning"
+            showIcon
+          />
+        )}
+
+        {/* Show loading while checking permissions */}
+        {isCheckingPermission && (
+          <Alert
+            message="Se verifică permisiunile..."
+            type="info"
+            showIcon
+          />
+        )}
+
                  {/* Comment input */}
          <Input.TextArea
            ref={textAreaRef}
-           disabled={isPending || isSubmitting}
-           placeholder="Write your comment..."
+           disabled={isPending || isSubmitting || isCheckingPermission || !commentPermission.canComment}
+           placeholder={
+             isCheckingPermission 
+               ? "Se verifică permisiunile..." 
+               : !commentPermission.canComment 
+                 ? "Nu poți comenta la această postare"
+                 : "Scrie comentariul tău..."
+           }
            value={value}
            onChange={(e) => setValue(e.target.value)}
            onKeyDown={handleKeyPress}
@@ -363,7 +422,7 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
              maxRows: isMobile ? 10 : 8 
            }}
            maxLength={500}
-           showCount={value.length > 400}
+           showCount={value.length > 400 && commentPermission.canComment}
            style={{ 
              fontSize: isMobile ? '16px' : '14px',
              lineHeight: '1.5',
@@ -372,9 +431,11 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
          />
 
         {/* Helper text */}
-        <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-          Press Ctrl+Enter (Cmd+Enter on Mac) to submit
-        </Typography.Text>
+        {commentPermission.canComment && !isCheckingPermission && (
+          <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+            Press Ctrl+Enter (Cmd+Enter on Mac) to submit
+          </Typography.Text>
+        )}
 
                  {/* Action buttons */}
          <Flex 
@@ -392,22 +453,24 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
                width: isMobile ? '100%' : 'auto'
              }}
            >
-             Cancel
+             {commentPermission.canComment ? 'Cancel' : 'Close'}
            </Button>
            
-           <Button
-             type="primary"
-             onClick={handleSubmit}
-             loading={isPending || isSubmitting}
-             disabled={isDisabled}
-             icon={<Iconify icon="ph:paper-plane-tilt-fill" />}
-             size={isMobile ? 'large' : 'middle'}
-             style={{
-               width: isMobile ? '100%' : 'auto'
-             }}
-           >
-             Post Comment
-           </Button>
+           {commentPermission.canComment && !isCheckingPermission && (
+             <Button
+               type="primary"
+               onClick={handleSubmit}
+               loading={isPending || isSubmitting}
+               disabled={isDisabled}
+               icon={<Iconify icon="ph:paper-plane-tilt-fill" />}
+               size={isMobile ? 'large' : 'middle'}
+               style={{
+                 width: isMobile ? '100%' : 'auto'
+               }}
+             >
+               Post Comment
+             </Button>
+           )}
          </Flex>
       </Flex>
     </Modal>

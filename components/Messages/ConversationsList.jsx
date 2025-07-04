@@ -13,6 +13,10 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import PremiumBadge from "@/components/PremiumBadge";
 import { now } from "@/utils/dateHelpers";
+import { useUser } from "@/hooks/useFirebaseAuth";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useLanguage } from "@/lib/i18n";
 
 dayjs.extend(relativeTime);
 
@@ -28,6 +32,9 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
   const lastCompatibleUsersFetch = useRef(0);
   const searchTimeoutRef = useRef(null);
   const debouncedSearchText = useRef("");
+  const { t } = useLanguage();
+  const queryClient = useQueryClient();
+  const router = useRouter();
 
   // Debounced search implementation
   const debouncedSetSearchText = useCallback((text) => {
@@ -383,21 +390,21 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
               type="secondary"
               style={{ fontStyle: 'italic' }}
             >
-              Compatible • Click to start chatting
+              {t('messages.compatibleClickToChat')}
             </Typography.Text>
           </div>
         </div>
       </div>
     );
-  }, [handleStartConversation]);
+  }, [handleStartConversation, t]);
 
   // Memoized tab items
   const tabItems = useMemo(() => [
     {
       key: 'conversations',
       label: searchText.trim() ? 
-        `Messages (${filteredConversations.length}/${conversations.length})` : 
-        `Messages (${conversations.length})`,
+        `${t('messages.messagesTab')} (${filteredConversations.length}/${conversations.length})` : 
+        `${t('messages.messagesTab')} (${conversations.length})`,
       children: (
         <div className={css.conversationsContainer}>
           {filteredConversations.length === 0 ? (
@@ -413,8 +420,8 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 description={
                   <Typography.Text type="secondary">
                     {searchText.trim() ? 
-                      `No conversations found for "${searchText}"` : 
-                      "No conversations yet"
+                      `${t('messages.noConversationsFound')} "${searchText}"` : 
+                      t('messages.noConversationsYet')
                     }
                   </Typography.Text>
                 }
@@ -429,13 +436,13 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
     {
       key: 'compatible',
       label: searchText.trim() ? 
-        `Compatible (${filteredCompatibleUsers.length}/${compatibleUsers.length})` : 
-        `Compatible (${compatibleUsers.length})`,
+        `${t('messages.compatibleTab')} (${filteredCompatibleUsers.length}/${compatibleUsers.length})` : 
+        `${t('messages.compatibleTab')} (${compatibleUsers.length})`,
       children: (
         <div className={css.conversationsContainer}>
           {loading ? (
             <div style={{ padding: '20px', textAlign: 'center' }}>
-              <Typography.Text type="secondary">Loading compatible users...</Typography.Text>
+              <Typography.Text type="secondary">{t('messages.loadingCompatibleUsers')}</Typography.Text>
             </div>
           ) : filteredCompatibleUsers.length === 0 ? (
             <div style={{ 
@@ -450,8 +457,8 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                 description={
                   <Typography.Text type="secondary">
                     {searchText.trim() ? 
-                      `No compatible users found for "${searchText}"` : 
-                      "No new compatible users.\nCheck your matches page!"
+                      `${t('messages.noCompatibleUsersFound')} "${searchText}"` : 
+                      t('messages.noCompatibleUsers')
                     }
                   </Typography.Text>
                 }
@@ -463,14 +470,14 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         </div>
       )
     }
-  ], [searchText, filteredConversations, conversations.length, loading, filteredCompatibleUsers, compatibleUsers.length, renderConversationItem, renderCompatibleUserItem]);
+  ], [searchText, filteredConversations, conversations.length, loading, filteredCompatibleUsers, compatibleUsers.length, renderConversationItem, renderCompatibleUserItem, t]);
 
   return (
     <div className={css.wrapper}>
       {/* Search Bar */}
       <div className={css.searchContainer}>
         <Input
-          placeholder="Search conversations and compatible users..."
+          placeholder={t('messages.search')}
           prefix={<Iconify icon="eva:search-fill" width="18px" style={{ color: '#000000' }} />}
           className={css.searchInput}
           style={searchInputStyle}

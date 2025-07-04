@@ -8,6 +8,7 @@ import { useUser } from "@/hooks/useFirebaseAuth";
 import { useQuery } from "@tanstack/react-query";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getDisplayName } from "@/utils/profileHelpers";
+import { useLanguage } from "@/lib/i18n";
 import Iconify from "./Iconify";
 import Link from "next/link";
 import dayjs from "dayjs";
@@ -18,6 +19,7 @@ dayjs.extend(relativeTime);
 
 const OnlineCompatibleUsers = () => {
   const { user: currentUser } = useUser();
+  const { t } = useLanguage();
   
   // Stable query key
   const queryKey = useMemo(() => ["user", "onlineCompatibleUsers", currentUser?.id], [currentUser?.id]);
@@ -98,13 +100,14 @@ const OnlineCompatibleUsers = () => {
           <div className={css.title}>
             <Flex align="center" justify="space-between">
               <Typography className={"typoSubtitle1"}>
-                Utilizatori Compatibili Online
+                {t('compatibleUsers.title')}
               </Typography>
               <Iconify 
                 icon="material-symbols:refresh" 
                 width={18} 
                 style={{ cursor: 'pointer', opacity: 0.7 }}
                 onClick={handleRefresh}
+                title={t('compatibleUsers.refreshUsers')}
               />
             </Flex>
           </div>
@@ -117,8 +120,8 @@ const OnlineCompatibleUsers = () => {
 
           {isError && (
             <Alert
-              message="Error"
-              description="Unable to fetch online users. Try again later"
+              message={t('compatibleUsers.errorLoadingUsers')}
+              description={t('compatibleUsers.errorDescription')}
               type="error"
               showIcon
             />
@@ -220,9 +223,23 @@ const OnlineCompatibleUsers = () => {
             </Flex>
           ) : (
             !isLoading && !isError && (
-              <Flex vertical align="center" gap={"large"} style={{ padding: '1rem' }}>
-                <Typography.Text type="secondary" style={{ textAlign: 'center' }}>
-                  Nu sunt utilizatori compatibili online în acest moment.
+              <Flex vertical align="center" gap={"small"} style={{ padding: '1.5rem 1rem' }}>
+                <Iconify 
+                  icon="material-symbols:people-outline" 
+                  width={48} 
+                  style={{ color: '#d9d9d9', marginBottom: '8px' }}
+                />
+                <Typography.Text 
+                  type="secondary" 
+                  style={{ textAlign: 'center', fontSize: '14px', fontWeight: 500 }}
+                >
+                  {t('compatibleUsers.noUsersOnline')}
+                </Typography.Text>
+                <Typography.Text 
+                  type="secondary" 
+                  style={{ textAlign: 'center', fontSize: '12px', opacity: 0.7 }}
+                >
+                  {t('compatibleUsers.checkBackLater')}
                 </Typography.Text>
               </Flex>
             )

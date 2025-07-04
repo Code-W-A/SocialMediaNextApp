@@ -21,7 +21,7 @@ const EXPAND_ICONS = {
   false: "ic:outline-expand-more",
 };
 
-const CommentSection = ({ comments: initialComments, postId, queryId }) => {
+const CommentSection = ({ comments: initialComments, postId, queryId, postAuthorId }) => {
   const [expanded, setExpanded] = useState(false);
   const [parent] = useAutoAnimate();
   
@@ -68,6 +68,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
                 data={comments[comments?.length - 1]}
                 postId={postId}
                 queryId={queryId}
+                postAuthorId={postAuthorId}
               />
             ) : (
               comments?.map((comment, index) => (
@@ -76,6 +77,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
                   data={comment}
                   postId={postId}
                   queryId={queryId}
+                  postAuthorId={postAuthorId}
                 />
               ))
             )}
@@ -93,6 +95,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
         queryId={queryId}
         postId={postId}
         setExpanded={setExpanded}
+        postAuthorId={postAuthorId}
       />
     </Flex>
   );
@@ -100,7 +103,7 @@ const CommentSection = ({ comments: initialComments, postId, queryId }) => {
 
 export default CommentSection;
 
-const Comment = React.memo(function Comment({ data, postId, queryId }) {
+const Comment = React.memo(function Comment({ data, postId, queryId, postAuthorId }) {
   const {
     settings: { theme },
   } = useContext(SettingsContext);
@@ -248,33 +251,51 @@ const Comment = React.memo(function Comment({ data, postId, queryId }) {
   }, [editText, data?.comment, data?.id, editMutate]);
 
   const isOwnComment = data?.authorId === currentUser?.id;
+  const isPostAuthor = postAuthorId === currentUser?.id;
+  const canModerateComment = isOwnComment || isPostAuthor;
 
   // Memoize dropdown items to prevent recreation
-  const dropdownItems = useMemo(() => [
-    {
-      key: "edit",
-      label: "Edit",
-      icon: <Iconify icon="ph:pencil" />,
-      onClick: handleEdit,
-    },
-    {
-      key: "delete",
-      label: (
-        <Popconfirm
-          title="Delete comment"
-          description="Are you sure you want to delete this comment?"
-          onConfirm={handleDelete}
-          okText="Yes"
-          cancelText="No"
-          placement="left"
-        >
-          <span style={{ color: "red" }}>Delete</span>
-        </Popconfirm>
-      ),
-      icon: <Iconify icon="ph:trash" style={{ color: "red" }} />,
-      danger: true,
-    },
-  ], [handleEdit, handleDelete]);
+  const dropdownItems = useMemo(() => {
+    const items = [];
+    
+    // Only comment author can edit
+    if (isOwnComment) {
+      items.push({
+        key: "edit",
+        label: "Edit",
+        icon: <Iconify icon="ph:pencil" />,
+        onClick: handleEdit,
+      });
+    }
+    
+    // Both comment author and post author can delete
+    if (canModerateComment) {
+      items.push({
+        key: "delete",
+        label: (
+          <Popconfirm
+            title="Delete comment"
+            description={isPostAuthor && !isOwnComment 
+              ? "As the post author, you can moderate this comment. Are you sure you want to delete it?"
+              : "Are you sure you want to delete this comment?"
+            }
+            onConfirm={handleDelete}
+            okText="Yes"
+            cancelText="No"
+            placement="left"
+          >
+            <span style={{ color: "red" }}>
+              {isPostAuthor && !isOwnComment ? "Moderate (Delete)" : "Delete"}
+            </span>
+          </Popconfirm>
+        ),
+        icon: <Iconify icon="ph:trash" style={{ color: "red" }} />,
+        danger: true,
+      });
+    }
+    
+    return items;
+  }, [handleEdit, handleDelete, isOwnComment, isPostAuthor, canModerateComment]);
 
   return (
     <Box
@@ -363,8 +384,8 @@ const Comment = React.memo(function Comment({ data, postId, queryId }) {
               )}
             </Flex>
 
-            {/* dropdown menu for owner */}
-            {isOwnComment && !isEditing && (
+            {/* dropdown menu for comment/post author */}
+            {canModerateComment && !isEditing && dropdownItems.length > 0 && (
               <Dropdown
                 menu={{ items: dropdownItems }}
                 trigger={["click"]}
@@ -375,6 +396,7 @@ const Comment = React.memo(function Comment({ data, postId, queryId }) {
                   size="small" 
                   icon={<Iconify icon="ph:dots-three-vertical" />}
                   disabled={isDeletePending}
+                  title={isPostAuthor && !isOwnComment ? "Moderate comment" : "Manage comment"}
                 />
               </Dropdown>
             )}

@@ -10,6 +10,7 @@ import { Button, Typography, Alert, Tabs, Spin } from "antd";
 import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import Posts from "@/components/Post/Posts";
+import IncompatibilityDialog from "@/components/IncompatibilityDialog";
 import { 
   getDisplayName, 
   getUsername 
@@ -22,6 +23,7 @@ const UserProfileView = ({ userId }) => {
   const { user: currentUser } = useUser();
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState("1");
+  const [showIncompatibilityDialog, setShowIncompatibilityDialog] = useState(false);
 
   // Fetch user data
   const { data, isLoading, isError } = useQuery({
@@ -30,10 +32,16 @@ const UserProfileView = ({ userId }) => {
   });
 
   // Check if users are compatible
-  const { data: isCompatible } = useQuery({
+  const { data: isCompatible, isLoading: isCompatibilityLoading } = useQuery({
     queryKey: ["compatibility", currentUser?.id, userId],
     queryFn: () => areUsersCompatible(currentUser?.id, userId),
     enabled: !!currentUser?.id && !!userId && currentUser?.id !== userId,
+    onSuccess: (compatible) => {
+      // Show dialog if not compatible and we have user data
+      if (compatible === false && data?.data) {
+        setShowIncompatibilityDialog(true);
+      }
+    }
   });
 
   // Redirect if user tries to view their own profile
@@ -64,7 +72,7 @@ const UserProfileView = ({ userId }) => {
   }
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || isCompatibilityLoading) {
     return (
       <div className={css.wrapper}>
         <div className={css.container}>
@@ -79,27 +87,6 @@ const UserProfileView = ({ userId }) => {
             <Spin size="large" />
             <Typography.Text type="secondary">Loading profile...</Typography.Text>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Not compatible warning
-  if (isCompatible === false && data?.data) {
-    return (
-      <div className={css.wrapper}>
-        <div style={{ padding: "2rem", textAlign: "center" }}>
-          <Alert
-            message="Not Compatible"
-            description="You and this user are not marked as compatible. You can only view profiles of users you're compatible with."
-            type="warning"
-            showIcon
-            action={
-              <Button onClick={() => router.push('/matches')}>
-                Back to Matches
-              </Button>
-            }
-          />
         </div>
       </div>
     );
@@ -162,35 +149,45 @@ const UserProfileView = ({ userId }) => {
   ];
 
   return (
-    <div className={css.wrapper} style={{ minHeight: '100vh', paddingBottom: '2rem' }}>
-      <div className={css.container}>
-        {/* Profile Head */}
-        <UserProfileHead
-          userData={userData}
-          currentUser={currentUser}
-          isLoading={isLoading}
-          userId={userId}
-          getDisplayName={getDisplayName}
-          getUsername={getUsername}
-        />
-
-        {/* Profile Content with Tabs */}
-        <div style={{ marginTop: '1rem' }}>
-          <Tabs
-            activeKey={selectedTab}
-            onChange={setSelectedTab}
-            items={tabItems}
-            size="large"
-            tabBarStyle={{ 
-              background: 'white', 
-              borderRadius: '8px', 
-              padding: '0 1rem',
-              marginBottom: '1rem'
-            }}
+    <>
+      <div className={css.wrapper} style={{ minHeight: '100vh', paddingBottom: '2rem' }}>
+        <div className={css.container}>
+          {/* Profile Head */}
+          <UserProfileHead
+            userData={userData}
+            currentUser={currentUser}
+            isLoading={isLoading}
+            userId={userId}
+            getDisplayName={getDisplayName}
+            getUsername={getUsername}
           />
+
+          {/* Profile Content with Tabs */}
+          <div style={{ marginTop: '1rem' }}>
+            <Tabs
+              activeKey={selectedTab}
+              onChange={setSelectedTab}
+              items={tabItems}
+              size="large"
+              tabBarStyle={{ 
+                background: 'white', 
+                borderRadius: '8px', 
+                padding: '0 1rem',
+                marginBottom: '1rem'
+              }}
+            />
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Incompatibility Dialog */}
+      <IncompatibilityDialog
+        visible={showIncompatibilityDialog}
+        onClose={() => setShowIncompatibilityDialog(false)}
+        userProfileData={userData}
+        currentUser={currentUser}
+      />
+    </>
   );
 };
 

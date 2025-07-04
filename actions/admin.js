@@ -8,7 +8,12 @@ import {
   addDoc,
   query,
   where,
-  updateDoc
+  updateDoc,
+  orderBy,
+  limit,
+  startAfter,
+  serverTimestamp,
+  writeBatch
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -419,6 +424,281 @@ export const getOnlineCompatibleUsers = async (userId) => {
   } catch (error) {
     console.error("❌ Error fetching online compatible users:", error);
     return [];
+  }
+};
+
+// Get all posts for admin moderation
+export const getAllPostsForAdmin = async (limitCount = 20, lastCursor = null) => {
+  try {
+    console.log("🔥 getAllPostsForAdmin called:", { limitCount, lastCursor });
+    
+    const postsRef = collection(db, "Posts");
+    let lastDocSnapshot = null;
+
+    // If we have a cursor, get the document snapshot for proper pagination
+    if (lastCursor) {
+      try {
+        const lastDocRef = doc(db, "Posts", lastCursor);
+        lastDocSnapshot = await getDoc(lastDocRef);
+        if (!lastDocSnapshot.exists()) {
+          console.warn("⚠️ Last cursor document not found, starting from beginning");
+          lastDocSnapshot = null;
+        }
+      } catch (error) {
+        console.error("Error getting last document:", error);
+        lastDocSnapshot = null;
+      }
+    }
+
+    // Query all posts ordered by creation date
+    const postsQuery = query(
+      postsRef,
+      orderBy("createdAt", "desc"),
+      ...(lastDocSnapshot ? [startAfter(lastDocSnapshot)] : []),
+      limit(limitCount)
+    );
+
+    const snapshot = await getDocs(postsQuery);
+    console.log("📄 Raw posts retrieved:", snapshot.docs.length);
+
+    if (snapshot.docs.length === 0) {
+      return {
+        data: [],
+        metaData: {
+          lastCursor: null,
+          hasNextPage: false,
+          totalCount: 0
+        }
+      };
+    }
+
+    // Get all author IDs
+    const authorIds = [...new Set(snapshot.docs.map(doc => doc.data().authorId))];
+    
+    // Import user functions
+    const { getUser } = await import('./user');
+    const { serializeFirebaseData, toSerializableDate } = await import('../utils/firebaseHelpers');
+    
+    // Batch get authors
+    const authorsMap = {};
+    for (const authorId of authorIds) {
+      try {
+        const authorData = await getUser(authorId);
+        if (authorData?.data) {
+          authorsMap[authorId] = authorData.data;
+        }
+      } catch (error) {
+        console.error(`Error fetching author ${authorId}:`, error);
+        authorsMap[authorId] = {
+          id: authorId,
+          firstName: 'Unknown',
+          lastName: 'User',
+          username: 'unknown'
+        };
+      }
+    }
+
+    // Process posts with author data and comments
+    const postsWithAuthors = await Promise.all(
+      snapshot.docs.map(async (postDoc) => {
+        const postData = postDoc.data();
+        const authorData = authorsMap[postData.authorId];
+
+        // Get comments for this post
+        let comments = [];
+        try {
+          const commentsSnapshot = await getDocs(
+            query(
+              collection(db, "Posts", postDoc.id, "Comments"),
+              orderBy("createdAt", "desc"),
+              limit(5) // Get latest 5 comments for preview
+            )
+          );
+
+          // Get comment authors
+          const commentAuthorIds = [...new Set(commentsSnapshot.docs.map(doc => doc.data().authorId))];
+          const commentAuthorsMap = {};
+          
+          for (const commentAuthorId of commentAuthorIds) {
+            try {
+              const commentAuthorData = await getUser(commentAuthorId);
+              if (commentAuthorData?.data) {
+                commentAuthorsMap[commentAuthorId] = commentAuthorData.data;
+              }
+            } catch (error) {
+              commentAuthorsMap[commentAuthorId] = {
+                id: commentAuthorId,
+                firstName: 'Unknown',
+                lastName: 'User',
+                username: 'unknown'
+              };
+            }
+          }
+
+          comments = commentsSnapshot.docs.map(commentDoc => ({
+            id: commentDoc.id,
+            ...serializeFirebaseData(commentDoc.data()),
+            createdAt: toSerializableDate(commentDoc.data().createdAt),
+            author: commentAuthorsMap[commentDoc.data().authorId]
+          }));
+
+        } catch (commentsError) {
+          console.error(`Error fetching comments for post ${postDoc.id}:`, commentsError);
+        }
+
+        return {
+          id: postDoc.id,
+          ...serializeFirebaseData(postData),
+          createdAt: toSerializableDate(postData.createdAt),
+          author: authorData,
+          comments: comments,
+          commentsCount: postData.commentsCount || 0
+        };
+      })
+    );
+
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    const hasNextPage = snapshot.docs.length === limitCount;
+
+    console.log("✅ Processed posts for admin:", postsWithAuthors.length);
+
+    return {
+      data: postsWithAuthors,
+      metaData: {
+        lastCursor: lastDoc?.id || null,
+        hasNextPage,
+        totalCount: postsWithAuthors.length
+      }
+    };
+
+  } catch (error) {
+    console.error("❌ Error in getAllPostsForAdmin:", error);
+    throw new Error(`Failed to fetch posts for admin: ${error.message}`);
+  }
+};
+
+// Delete post as admin
+export const deletePostAsAdmin = async (postId, adminUserId) => {
+  try {
+    console.log("🗑️ deletePostAsAdmin called:", { postId, adminUserId });
+    
+    if (!postId || !adminUserId) {
+      throw new Error("Post ID and admin user ID are required");
+    }
+
+    // Get post data first for logging
+    const postRef = doc(db, "Posts", postId);
+    const postDoc = await getDoc(postRef);
+    
+    if (!postDoc.exists()) {
+      throw new Error("Post not found");
+    }
+
+    const postData = postDoc.data();
+    console.log("📝 Deleting post:", {
+      postId,
+      authorId: postData.authorId,
+      deletedBy: adminUserId
+    });
+
+    // Use batch for atomic operations
+    const batch = writeBatch(db);
+    
+    // Delete the post
+    batch.delete(postRef);
+
+    // Delete all comments in the post
+    try {
+      const commentsSnapshot = await getDocs(collection(db, "Posts", postId, "Comments"));
+      commentsSnapshot.docs.forEach((commentDoc) => {
+        batch.delete(commentDoc.ref);
+      });
+      console.log(`🗑️ Deleting ${commentsSnapshot.docs.length} comments`);
+    } catch (commentsError) {
+      console.error("Error deleting comments:", commentsError);
+    }
+
+    // Commit the batch
+    await batch.commit();
+    
+    console.log("✅ Post and comments deleted successfully");
+    
+    return { 
+      success: true, 
+      message: `Post deleted successfully by admin`,
+      deletedPostId: postId,
+      deletedBy: adminUserId
+    };
+
+  } catch (error) {
+    console.error("❌ Error deleting post as admin:", error);
+    throw new Error(`Failed to delete post: ${error.message}`);
+  }
+};
+
+// Delete comment as admin
+export const deleteCommentAsAdmin = async (postId, commentId, adminUserId) => {
+  try {
+    console.log("🗑️ deleteCommentAsAdmin called:", { postId, commentId, adminUserId });
+    
+    if (!postId || !commentId || !adminUserId) {
+      throw new Error("Post ID, comment ID and admin user ID are required");
+    }
+
+    // Get comment data first for logging
+    const commentRef = doc(db, "Posts", postId, "Comments", commentId);
+    const commentDoc = await getDoc(commentRef);
+    
+    if (!commentDoc.exists()) {
+      throw new Error("Comment not found");
+    }
+
+    const commentData = commentDoc.data();
+    console.log("💬 Deleting comment:", {
+      commentId,
+      postId,
+      authorId: commentData.authorId,
+      deletedBy: adminUserId
+    });
+
+    // Use batch for atomic operations
+    const batch = writeBatch(db);
+    
+    // Delete the comment
+    batch.delete(commentRef);
+
+    // Update post's comments count
+    const postRef = doc(db, "Posts", postId);
+    const postDoc = await getDoc(postRef);
+    
+    if (postDoc.exists()) {
+      const currentData = postDoc.data();
+      const newCount = Math.max(0, (currentData.commentsCount || 0) - 1);
+      
+      batch.update(postRef, {
+        commentsCount: newCount,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log("📊 Updated post comments count:", newCount);
+    }
+
+    // Commit the batch
+    await batch.commit();
+    
+    console.log("✅ Comment deleted successfully by admin");
+    
+    return { 
+      success: true, 
+      message: `Comment deleted successfully by admin`,
+      deletedCommentId: commentId,
+      postId: postId,
+      deletedBy: adminUserId
+    };
+
+  } catch (error) {
+    console.error("❌ Error deleting comment as admin:", error);
+    throw new Error(`Failed to delete comment: ${error.message}`);
   }
 };
 

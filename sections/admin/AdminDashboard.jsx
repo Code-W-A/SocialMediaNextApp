@@ -23,11 +23,12 @@ import {
   Form,
   DatePicker,
   Radio,
-  Popconfirm
+  Popconfirm,
+  Spin
 } from "antd";
-import { UserOutlined, HeartOutlined, SearchOutlined, CrownOutlined, MessageOutlined } from "@ant-design/icons";
+import { UserOutlined, HeartOutlined, SearchOutlined, CrownOutlined, MessageOutlined, DeleteOutlined, EyeOutlined, WarningOutlined } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser } from "@/actions/admin";
+import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser, getAllPostsForAdmin, deletePostAsAdmin, deleteCommentAsAdmin } from "@/actions/admin";
 // Removed admin settings import - simplified feed system
 import { getMainProfileImage } from "@/utils/imageHelpers";
 
@@ -51,13 +52,22 @@ const AdminDashboard = () => {
   const [bulkMode, setBulkMode] = useState(false);
   const [sortBy, setSortBy] = useState('lastActive'); // 'name', 'age', 'lastActive'
   const [compatibilitySearchText, setCompatibilitySearchText] = useState("");
-  const [activeTab, setActiveTab] = useState('users'); // 'users' or 'chats'
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'moderation' or 'chats'
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [postDetailsModalVisible, setPostDetailsModalVisible] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch all users
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: getAllUsers,
+  });
+
+  // Fetch all posts for moderation
+  const { data: postsData, isLoading: postsLoading, refetch: refetchPosts } = useQuery({
+    queryKey: ["admin-posts"],
+    queryFn: () => getAllPostsForAdmin(50), // Get 50 posts at a time
+    enabled: activeTab === 'moderation', // Only fetch when on moderation tab
   });
 
   // Removed admin settings query - simplified feed system
@@ -153,6 +163,33 @@ const AdminDashboard = () => {
 
   // Removed compatibility filter mutation - simplified feed system
 
+  // Delete post mutation
+  const deletePostMutation = useMutation({
+    mutationFn: ({ postId }) => deletePostAsAdmin(postId, 'admin'),
+    onSuccess: (data) => {
+      message.success(data.message);
+      queryClient.invalidateQueries(["admin-posts"]);
+      setPostDetailsModalVisible(false);
+    },
+    onError: (error) => {
+      message.error("Failed to delete post!");
+      console.error(error);
+    },
+  });
+
+  // Delete comment mutation
+  const deleteCommentMutation = useMutation({
+    mutationFn: ({ postId, commentId }) => deleteCommentAsAdmin(postId, commentId, 'admin'),
+    onSuccess: (data) => {
+      message.success(data.message);
+      queryClient.invalidateQueries(["admin-posts"]);
+    },
+    onError: (error) => {
+      message.error("Failed to delete comment!");
+      console.error(error);
+    },
+  });
+
   const openCompatibilityModal = (user) => {
     setSelectedUser(user);
     setCompatibilityModalVisible(true);
@@ -168,6 +205,19 @@ const AdminDashboard = () => {
     setSelectedUserForPremium(user);
     setPremiumModalVisible(true);
     premiumForm.resetFields();
+  };
+
+  const openPostDetailsModal = (post) => {
+    setSelectedPost(post);
+    setPostDetailsModalVisible(true);
+  };
+
+  const handleDeletePost = (postId) => {
+    deletePostMutation.mutate({ postId });
+  };
+
+  const handleDeleteComment = (postId, commentId) => {
+    deleteCommentMutation.mutate({ postId, commentId });
   };
 
   const getProfileImage = (user) => {
@@ -761,6 +811,217 @@ const AdminDashboard = () => {
         </div>
       )
     },
+    {
+      key: 'moderation',
+      label: (
+        <span>
+          <WarningOutlined />
+          Content Moderation
+        </span>
+      ),
+      children: (
+        <div>
+          <Card>
+            <Title level={3}>Posts & Comments Moderation</Title>
+            <Text type="secondary">
+              Supervise user behavior and manage inappropriate content. Delete posts or comments that violate community guidelines.
+            </Text>
+            
+            <Divider />
+
+            {postsLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <Spin size="large" />
+                <Typography style={{ marginTop: '1rem' }}>Loading posts...</Typography>
+              </div>
+            ) : (
+              <div>
+                {/* Stats */}
+                <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card size="small">
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
+                          {postsData?.data?.length || 0}
+                        </div>
+                        <div style={{ color: '#666' }}>Recent Posts</div>
+                      </div>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card size="small">
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1' }}>
+                          {postsData?.data?.reduce((sum, post) => sum + (post.commentsCount || 0), 0) || 0}
+                        </div>
+                        <div style={{ color: '#666' }}>Total Comments</div>
+                      </div>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card size="small">
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff4d4f' }}>
+                          <DeleteOutlined style={{ marginRight: '4px' }} />
+                          0
+                        </div>
+                        <div style={{ color: '#666' }}>Deleted Today</div>
+                      </div>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={6}>
+                    <Card size="small">
+                      <div style={{ textAlign: 'center' }}>
+                        <Button 
+                          type="primary" 
+                          icon={<EyeOutlined />}
+                          onClick={() => refetchPosts()}
+                          loading={postsLoading}
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                    </Card>
+                  </Col>
+                </Row>
+
+                {/* Posts List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {postsData?.data?.map((post) => (
+                    <Card 
+                      key={post.id}
+                      size="small"
+                      style={{ borderLeft: '4px solid #1890ff' }}
+                      actions={[
+                        <Button 
+                          key="view"
+                          type="text" 
+                          icon={<EyeOutlined />}
+                          onClick={() => openPostDetailsModal(post)}
+                        >
+                          View Details
+                        </Button>,
+                        <Popconfirm
+                          key="delete"
+                          title="Delete this post?"
+                          description="This will permanently delete the post and all its comments. Are you sure?"
+                          onConfirm={() => handleDeletePost(post.id)}
+                          okText="Yes, Delete"
+                          cancelText="Cancel"
+                          okButtonProps={{ danger: true }}
+                        >
+                          <Button 
+                            type="text" 
+                            danger
+                            icon={<DeleteOutlined />}
+                            loading={deletePostMutation.isPending}
+                          >
+                            Delete Post
+                          </Button>
+                        </Popconfirm>
+                      ]}
+                    >
+                      <Row gutter={[16, 8]}>
+                        <Col span={2}>
+                          <Avatar 
+                            src={getProfileImage(post.author)} 
+                            icon={<UserOutlined />}
+                            size="large"
+                          />
+                        </Col>
+                        <Col span={22}>
+                          <div>
+                            <Text strong>
+                              {post.author ? 
+                                `${post.author.firstName || ''} ${post.author.lastName || ''}`.trim() || 
+                                post.author.username || 'Unknown User' 
+                                : 'Unknown User'}
+                            </Text>
+                            <Text type="secondary" style={{ marginLeft: '8px', fontSize: '12px' }}>
+                              {new Date(post.createdAt).toLocaleString()}
+                            </Text>
+                          </div>
+                          
+                          <div style={{ marginTop: '8px', marginBottom: '12px' }}>
+                            <Text>{post.content?.substring(0, 200)}{post.content?.length > 200 ? '...' : ''}</Text>
+                          </div>
+
+                          {post.images && post.images.length > 0 && (
+                            <div style={{ marginBottom: '12px' }}>
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                📷 {post.images.length} image(s) attached
+                              </Text>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '16px' }}>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              💬 {post.commentsCount || 0} comments
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>
+                              👍 {post.likesCount || 0} likes
+                            </Text>
+                          </div>
+
+                          {/* Recent Comments Preview */}
+                          {post.comments && post.comments.length > 0 && (
+                            <div style={{ marginTop: '12px', padding: '8px', background: '#fafafa', borderRadius: '4px' }}>
+                              <Text strong style={{ fontSize: '12px', color: '#666' }}>Recent Comments:</Text>
+                              {post.comments.slice(0, 2).map((comment) => (
+                                <div key={comment.id} style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: '11px' }}>
+                                      <Text strong>
+                                        {comment.author ? 
+                                          `${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || 
+                                          comment.author.username || 'Unknown User' 
+                                          : 'Unknown User'}:
+                                      </Text> {comment.comment?.substring(0, 100)}{comment.comment?.length > 100 ? '...' : ''}
+                                    </Text>
+                                  </div>
+                                  <Popconfirm
+                                    title="Delete comment?"
+                                    description="Are you sure you want to delete this comment?"
+                                    onConfirm={() => handleDeleteComment(post.id, comment.id)}
+                                    okText="Delete"
+                                    cancelText="Cancel"
+                                    okButtonProps={{ danger: true, size: 'small' }}
+                                  >
+                                    <Button 
+                                      type="text" 
+                                      danger 
+                                      size="small"
+                                      icon={<DeleteOutlined />}
+                                      style={{ padding: '2px 4px', height: 'auto', marginLeft: '8px' }}
+                                      loading={deleteCommentMutation.isPending}
+                                    />
+                                  </Popconfirm>
+                                </div>
+                              ))}
+                              {post.comments.length > 2 && (
+                                <Text type="secondary" style={{ fontSize: '11px' }}>
+                                  +{post.comments.length - 2} more comments
+                                </Text>
+                              )}
+                            </div>
+                          )}
+                        </Col>
+                      </Row>
+                    </Card>
+                  ))}
+
+                  {postsData?.data?.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '2rem' }}>
+                      <Text type="secondary">No posts found.</Text>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )
+    },
     // Removed settings tab - simplified feed system without admin controls
     {
       key: 'chats',
@@ -779,7 +1040,7 @@ const AdminDashboard = () => {
       <Card>
         <Title level={2}>Admin Dashboard</Title>
         <Text type="secondary">
-          Manage users, compatibilities, premium subscriptions, and support chats.
+          Manage users, compatibilities, premium subscriptions, content moderation, and support chats.
         </Text>
         
         <Divider />
@@ -1342,6 +1603,195 @@ const AdminDashboard = () => {
               </Space>
             </div>
           </Form>
+        )}
+      </Modal>
+
+      {/* Post Details Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <EyeOutlined style={{ color: '#1890ff', fontSize: '20px' }} />
+            <div>
+              <span style={{ fontSize: '16px', fontWeight: 600 }}>Post Details</span>
+            </div>
+          </div>
+        }
+        open={postDetailsModalVisible}
+        onCancel={() => setPostDetailsModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setPostDetailsModalVisible(false)}>
+            Close
+          </Button>,
+          <Popconfirm
+            key="delete"
+            title="Delete this post?"
+            description="This will permanently delete the post and all its comments. Are you sure?"
+            onConfirm={() => handleDeletePost(selectedPost?.id)}
+            okText="Yes, Delete"
+            cancelText="Cancel"
+            okButtonProps={{ danger: true }}
+          >
+            <Button 
+              danger
+              icon={<DeleteOutlined />}
+              loading={deletePostMutation.isPending}
+            >
+              Delete Post
+            </Button>
+          </Popconfirm>
+        ]}
+        width={800}
+      >
+        {selectedPost && (
+          <div>
+            {/* Post Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', padding: '12px', background: '#fafafa', borderRadius: '8px' }}>
+              <Avatar 
+                src={getProfileImage(selectedPost.author)} 
+                icon={<UserOutlined />}
+                size="large"
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '16px', fontWeight: 500 }}>
+                  {selectedPost.author ? 
+                    `${selectedPost.author.firstName || ''} ${selectedPost.author.lastName || ''}`.trim() || 
+                    selectedPost.author.username || 'Unknown User' 
+                    : 'Unknown User'}
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Posted: {new Date(selectedPost.createdAt).toLocaleString()}
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  Post ID: {selectedPost.id}
+                </div>
+              </div>
+            </div>
+
+            {/* Post Content */}
+            <Card title="Post Content" size="small" style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '14px', lineHeight: '1.6', marginBottom: '12px' }}>
+                {selectedPost.content || <Text type="secondary">No text content</Text>}
+              </div>
+
+              {/* Post Images */}
+              {selectedPost.images && selectedPost.images.length > 0 && (
+                <div>
+                  <Text strong style={{ fontSize: '12px', color: '#666', marginBottom: '8px', display: 'block' }}>
+                    Images ({selectedPost.images.length}):
+                  </Text>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', 
+                    gap: '8px',
+                    marginTop: '8px'
+                  }}>
+                    {selectedPost.images.map((image, index) => (
+                      <div key={index} style={{ position: 'relative' }}>
+                        <img 
+                          src={image.fileUri || image.url || image}
+                          alt={`Post image ${index + 1}`}
+                          style={{ 
+                            width: '100%', 
+                            height: '120px', 
+                            objectFit: 'cover', 
+                            borderRadius: '4px',
+                            border: '1px solid #f0f0f0'
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Post Stats */}
+              <div style={{ marginTop: '16px', display: 'flex', gap: '16px', padding: '8px', background: '#f9f9f9', borderRadius: '4px' }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  💬 {selectedPost.commentsCount || 0} comments
+                </Text>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  👍 {selectedPost.likesCount || 0} likes
+                </Text>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  👁️ {selectedPost.viewsCount || 0} views
+                </Text>
+              </div>
+            </Card>
+
+            {/* Comments Section */}
+            <Card 
+              title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Comments ({selectedPost.commentsCount || 0})</span>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    Click delete button to remove inappropriate comments
+                  </Text>
+                </div>
+              } 
+              size="small"
+            >
+              {selectedPost.comments && selectedPost.comments.length > 0 ? (
+                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {selectedPost.comments.map((comment) => (
+                    <div key={comment.id} style={{ 
+                      padding: '12px', 
+                      border: '1px solid #f0f0f0', 
+                      borderRadius: '6px', 
+                      marginBottom: '8px',
+                      background: '#fff'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <Avatar 
+                              src={getProfileImage(comment.author)} 
+                              icon={<UserOutlined />}
+                              size="small"
+                            />
+                            <Text strong style={{ fontSize: '13px' }}>
+                              {comment.author ? 
+                                `${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || 
+                                comment.author.username || 'Unknown User' 
+                                : 'Unknown User'}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: '11px' }}>
+                              {new Date(comment.createdAt).toLocaleString()}
+                            </Text>
+                          </div>
+                          <div style={{ fontSize: '13px', marginTop: '4px' }}>
+                            {comment.comment}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                            Comment ID: {comment.id}
+                          </div>
+                        </div>
+                        <Popconfirm
+                          title="Delete comment?"
+                          description="Are you sure you want to delete this comment?"
+                          onConfirm={() => handleDeleteComment(selectedPost.id, comment.id)}
+                          okText="Delete"
+                          cancelText="Cancel"
+                          okButtonProps={{ danger: true }}
+                        >
+                          <Button 
+                            type="text" 
+                            danger 
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            loading={deleteCommentMutation.isPending}
+                          />
+                        </Popconfirm>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <Text type="secondary">No comments on this post</Text>
+                </div>
+              )}
+            </Card>
+          </div>
         )}
       </Modal>
     </div>

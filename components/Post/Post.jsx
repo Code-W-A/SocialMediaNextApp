@@ -400,6 +400,7 @@ const Post = ({ data, queryId }) => {
             expanded={false}
             postId={data?.id}
             queryId={queryId}
+            postAuthorId={data?.authorId}
           />
         </div>
       </Box>

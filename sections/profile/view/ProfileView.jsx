@@ -117,8 +117,8 @@ const ProfileView = ({ userId }) => {
         setIsCompatible(isCompatible);
         setCompatibilityChecked(true);
         
-        // If not compatible and user is not premium, show modal
-        if (!isCompatible && !isPremium) {
+        // If not compatible, show modal (for both premium and non-premium users)
+        if (!isCompatible) {
           setShowIncompatibilityModal(true);
         }
       } catch (error) {

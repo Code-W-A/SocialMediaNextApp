@@ -11,7 +11,7 @@ import { PREMIUM_FEATURES_DESCRIPTIONS, isPremiumUser } from '@/utils/premiumHel
 import PremiumBadge from '@/components/PremiumBadge';
 import { formatDate } from '@/utils/dateHelpers';
 import BottomNavbarPaddingWrapper from '@/components/BottomNavbarPaddingWrapper';
-import OblioInvoiceInfo from '@/components/Billing/OblioInvoiceInfo';
+
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -239,9 +239,10 @@ const PremiumPage = () => {
                   </div>
                 </div>
               </Space>
-
-              {/* Add Oblio Invoice Information for Premium Users */}
-              <OblioInvoiceInfo />
+              
+              <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: '1rem' }}>
+                {t('premium.thankYouSupport')}
+              </Paragraph>
 
             </div>
           </Card>

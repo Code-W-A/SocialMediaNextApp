@@ -732,7 +732,7 @@ const ProfileView = ({ userId }) => {
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text'
             }}>
-              {t('premium.removeCompatibilityDialog.title') || `Remove Compatibility with ${getDisplayName(data?.data)}?`}
+              {t('premium.removeCompatibilityDialog.title', { name: getDisplayName(data?.data) }) || `Remove Compatibility with ${getDisplayName(data?.data)}?`}
             </Typography.Title>
             
             <Typography.Paragraph style={{ 

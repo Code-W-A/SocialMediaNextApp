@@ -19,13 +19,6 @@ const ImageUpload = ({ conversation, currentUser, onImageSent }) => {
       return false;
     }
 
-    // Validate file size (max 5MB)
-    const isLt5M = file.size / 1024 / 1024 < 5;
-    if (!isLt5M) {
-      message.error('Image must be smaller than 5MB!');
-      return false;
-    }
-
     setSelectedFile(file);
     
     // Create preview

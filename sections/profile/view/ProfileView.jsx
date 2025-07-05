@@ -10,7 +10,7 @@ import ProfileBody from "../ProfileBody";
 import ProfileEditSection from "../ProfileEditSection";
 import AccountSettings from "../AccountSettings";
 import { useUser } from "@/hooks/useFirebaseAuth";
-import { Button, Typography, Alert, Tabs, Dropdown, Menu } from "antd";
+import { Button, Typography, Alert, Tabs, Dropdown, Menu, Modal, message } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import PWAInstallSection from "@/components/PWAInstallSection";
@@ -22,6 +22,10 @@ import {
 } from "@/utils/profileHelpers";
 import { checkProfileCompleteness } from "@/utils/onboardingHelpers";
 import { useLanguage } from "@/lib/i18n";
+import { useSubscription } from "@/hooks/useSubscription";
+import { ExclamationCircleOutlined, CrownOutlined, HeartFilled } from "@ant-design/icons";
+import { areUsersCompatible, saveResonanceRequest } from "@/actions/admin";
+import { getMainProfileImage } from "@/utils/imageHelpers";
 
 const { Title, Text } = Typography;
 
@@ -30,12 +34,18 @@ const ProfileView = ({ userId }) => {
   
   const { user: currentUser } = useUser();
   const { t } = useLanguage();
+  const { isPremium } = useSubscription();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState("1");
   const [showEditSection, setShowEditSection] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showIncompatibilityModal, setShowIncompatibilityModal] = useState(false);
+  const [isCompatible, setIsCompatible] = useState(true);
+  const [compatibilityChecked, setCompatibilityChecked] = useState(false);
+  const [isResonating, setIsResonating] = useState(false);
+  const [resonanceSuccess, setResonanceSuccess] = useState(false);
   
   // Check if redirected from OnboardingGuard for profile completion
   const forceComplete = searchParams.get('complete') === 'true';
@@ -88,6 +98,40 @@ const ProfileView = ({ userId }) => {
   // Check if user is forced to complete profile (can't navigate away)
   const isProfileCompletionForced = needsProfileCompletion() && isCurrentUserProfile;
 
+  // Check compatibility for other users
+  useEffect(() => {
+    const checkUserCompatibility = async () => {
+      if (!currentUser?.id || !userId || isCurrentUserProfile || compatibilityChecked) {
+        return;
+      }
+
+      try {
+        console.log('🔍 [ProfileView] Checking compatibility between users:', {
+          currentUserId: currentUser.id,
+          profileUserId: userId
+        });
+        
+        const isCompatible = await areUsersCompatible(currentUser.id, userId);
+        console.log('🔍 [ProfileView] Compatibility result:', isCompatible);
+        
+        setIsCompatible(isCompatible);
+        setCompatibilityChecked(true);
+        
+        // If not compatible and user is not premium, show modal
+        if (!isCompatible && !isPremium) {
+          setShowIncompatibilityModal(true);
+        }
+      } catch (error) {
+        console.error('❌ [ProfileView] Error checking compatibility:', error);
+        // On error, assume compatible to not block legitimate access
+        setIsCompatible(true);
+        setCompatibilityChecked(true);
+      }
+    };
+
+    checkUserCompatibility();
+  }, [currentUser?.id, userId, isCurrentUserProfile, isPremium, compatibilityChecked]);
+
   // Handle userId changes - ensure fresh data
   useEffect(() => {
     console.log('🔄 [ProfileView] userId changed, ensuring fresh data');
@@ -96,6 +140,13 @@ const ProfileView = ({ userId }) => {
     // Reset tab when switching profiles
     setSelectedTab("1");
     setShowEditSection(false);
+    
+    // Reset compatibility state
+    setIsCompatible(true);
+    setCompatibilityChecked(false);
+    setShowIncompatibilityModal(false);
+    setIsResonating(false);
+    setResonanceSuccess(false);
     
     // Force refresh for the new user
     queryClient.invalidateQueries(['user', userId]);
@@ -153,6 +204,34 @@ const ProfileView = ({ userId }) => {
   const handleEditProfile = () => {
     setShowEditSection(true);
     setSelectedTab("edit");
+  };
+
+  // Handle incompatibility modal actions
+  const handleBackToFeed = () => {
+    setShowIncompatibilityModal(false);
+    setResonanceSuccess(false); // Reset success state
+    router.push('/home');
+  };
+
+  const handleSubscribeToPremium = () => {
+    setShowIncompatibilityModal(false);
+    router.push('/premium');
+  };
+
+  // Handle resonance request for premium users
+  const handleResonate = async () => {
+    if (!currentUser?.id || !userId) return;
+    
+    try {
+      setIsResonating(true);
+      await saveResonanceRequest(currentUser.id, userId);
+      setResonanceSuccess(true); // Show success state instead of closing modal
+    } catch (error) {
+      console.error('Error saving resonance request:', error);
+      message.error(t('premium.notCompatibleDialog.resonateError'));
+    } finally {
+      setIsResonating(false);
+    }
   };
 
   // Check for mobile screen size
@@ -319,6 +398,248 @@ const ProfileView = ({ userId }) => {
   return (
     <div className={css.wrapper}>
       <div className={css.container}>
+        {/* Cosmic Incompatibility Modal */}
+        <Modal
+          open={showIncompatibilityModal}
+          onCancel={handleBackToFeed}
+          footer={null}
+          centered
+          width={450}
+          maskClosable={false}
+          closable={false}
+          styles={{
+            mask: {
+              backdropFilter: 'blur(8px)',
+              background: 'rgba(0, 0, 0, 0.6)'
+            }
+          }}
+        >
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '30px 20px',
+            background: 'linear-gradient(135deg, #f8f9ff 0%, #fff5f8 100%)',
+            borderRadius: '20px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Background cosmic pattern */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23667eea" fill-opacity="0.05"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+              opacity: 0.3
+            }} />
+            
+            {/* Person's profile image */}
+            <div style={{ 
+              position: 'relative',
+              zIndex: 1,
+              marginBottom: '20px' 
+            }}>
+              <div style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                margin: '0 auto',
+                border: '4px solid #667eea',
+                overflow: 'hidden',
+                boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)',
+                background: 'white'
+              }}>
+                <img 
+                  src={getMainProfileImage(data?.data?.images) || data?.data?.image_url || "/images/placeholder-avatar.png"}
+                  alt={getDisplayName(data?.data) || "Profile"}
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover' 
+                  }}
+                />
+              </div>
+              
+              {/* Cosmic sparkles around image */}
+              <div style={{ position: 'absolute', top: '-10px', right: '20px', fontSize: '20px' }}>✨</div>
+              <div style={{ position: 'absolute', bottom: '10px', left: '15px', fontSize: '16px' }}>💫</div>
+              <div style={{ position: 'absolute', top: '20px', left: '10px', fontSize: '14px' }}>🌟</div>
+            </div>
+            
+            {/* Show success message or regular dialog */}
+            {resonanceSuccess ? (
+              // Success state
+              <>
+                <Typography.Title level={3} style={{ 
+                  marginBottom: '12px',
+                  background: 'linear-gradient(135deg, #52c41a, #73d13d)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
+                  {t('premium.notCompatibleDialog.resonanceSuccessTitle')}
+                </Typography.Title>
+                
+                <Typography.Paragraph style={{ 
+                  fontSize: '15px', 
+                  marginBottom: '16px',
+                  color: '#666',
+                  lineHeight: '1.5'
+                }}>
+                  {t('premium.notCompatibleDialog.resonanceSuccessMessage', { 
+                    name: getDisplayName(data?.data) || t('common.thisPerson')
+                  })}
+                </Typography.Paragraph>
+                
+                <Typography.Paragraph style={{ 
+                  fontSize: '14px', 
+                  marginBottom: '24px',
+                  color: '#52c41a',
+                  lineHeight: '1.4',
+                  fontStyle: 'italic'
+                }}>
+                  {t('premium.notCompatibleDialog.resonanceSuccessAdvice')}
+                </Typography.Paragraph>
+                
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
+                  <Button 
+                    type="primary"
+                    onClick={handleBackToFeed}
+                    style={{ 
+                      height: '44px',
+                      borderRadius: '22px',
+                      background: 'linear-gradient(135deg, #52c41a, #73d13d)',
+                      border: 'none',
+                      fontWeight: '600',
+                      fontSize: '15px',
+                      paddingLeft: '32px',
+                      paddingRight: '32px'
+                    }}
+                  >
+                    {t('premium.notCompatibleDialog.backToFeed')}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              // Regular dialog
+              <>
+                <Typography.Title level={3} style={{ 
+                  marginBottom: '12px',
+                  background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
+                  {t('premium.notCompatibleDialog.title', { 
+                    name: getDisplayName(data?.data) || t('common.thisPerson')
+                  })}
+                </Typography.Title>
+                
+                <Typography.Paragraph style={{ 
+                  fontSize: '15px', 
+                  marginBottom: '20px',
+                  color: '#666',
+                  lineHeight: '1.5'
+                }}>
+                  {t('premium.notCompatibleDialog.subtitle')}
+                </Typography.Paragraph>
+                
+                {/* Message differs based on premium status */}
+                {isPremium ? (
+                  <div style={{ 
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)', 
+                    padding: '20px', 
+                    borderRadius: '12px',
+                    marginBottom: '24px',
+                    color: 'white',
+                    position: 'relative'
+                  }}>
+                    <HeartFilled style={{ fontSize: '24px', marginBottom: '8px', color: '#FFB6C1' }} />
+                    <Typography.Text style={{ color: 'white', fontSize: '15px', display: 'block', lineHeight: '1.5' }}>
+                      {t('premium.notCompatibleDialog.resonateMessage', { 
+                        name: getDisplayName(data?.data) || t('common.thisPerson')
+                      })}
+                    </Typography.Text>
+                  </div>
+                ) : (
+                  <div style={{ 
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)', 
+                    padding: '20px', 
+                    borderRadius: '12px',
+                    marginBottom: '8px',
+                    color: 'white',
+                    position: 'relative'
+                  }}>
+                    <CrownOutlined style={{ fontSize: '24px', marginBottom: '8px', color: '#FFD700' }} />
+                    <Typography.Text style={{ color: 'white', fontSize: '15px', display: 'block', lineHeight: '1.5', marginBottom: '8px' }}>
+                      {t('premium.notCompatibleDialog.premiumMessage', { 
+                        name: getDisplayName(data?.data) || t('common.thisPerson')
+                      })}
+                    </Typography.Text>
+                    <Typography.Text style={{ color: '#FFD700', fontSize: '14px', display: 'block', fontWeight: 'bold' }}>
+                      {t('premium.notCompatibleDialog.premiumCta')}
+                    </Typography.Text>
+                  </div>
+                )}
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', marginTop: '20px' }}>
+                  <Button 
+                    onClick={handleBackToFeed}
+                    style={{ 
+                      width: '100%',
+                      height: '44px',
+                      borderRadius: '22px',
+                      border: '2px solid #ddd',
+                      fontWeight: '500'
+                    }}
+                  >
+                    {t('premium.notCompatibleDialog.takeMeBackToFeed')}
+                  </Button>
+                  
+                  {isPremium ? (
+                    <Button 
+                      type="primary"
+                      onClick={handleResonate}
+                      loading={isResonating}
+                      style={{ 
+                        width: '100%',
+                        height: '44px',
+                        borderRadius: '22px',
+                        background: 'linear-gradient(135deg, #ff6b6b, #ee5a52)',
+                        border: 'none',
+                        fontWeight: '600',
+                        fontSize: '15px'
+                      }}
+                      icon={<HeartFilled />}
+                    >
+                      {t('premium.notCompatibleDialog.resonate', { 
+                        name: getDisplayName(data?.data) || t('common.thisPerson')
+                      })}
+                    </Button>
+                  ) : (
+                    <Button 
+                      type="primary"
+                      onClick={handleSubscribeToPremium}
+                      style={{ 
+                        width: '100%',
+                        height: '44px',
+                        borderRadius: '22px',
+                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                        border: 'none',
+                        fontWeight: '600',
+                        fontSize: '15px'
+                      }}
+                      icon={<CrownOutlined />}
+                    >
+                      {t('premium.notCompatibleDialog.subscribeToPremium')}
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+
         {/* Forced Profile Completion Alert */}
         {isProfileCompletionForced && selectedTab !== "edit" && (
           <Alert

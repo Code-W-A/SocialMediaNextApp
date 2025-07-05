@@ -142,11 +142,6 @@ export default function PhotosPage() {
         message.error('You can only upload image files!');
         return false;
       }
-      const isLt5M = file.size / 1024 / 1024 < 5;
-      if (!isLt5M) {
-        message.error('Image must be smaller than 5MB!');
-        return false;
-      }
       return false; // Prevent automatic upload
     },
     onChange: (info) => {
@@ -396,14 +391,9 @@ export default function PhotosPage() {
                       // Validate each file
                       const validFiles = files.filter(file => {
                         const isImage = file.type.startsWith('image/');
-                        const isLt5M = file.size / 1024 / 1024 < 5;
                         
                         if (!isImage) {
                           message.error(`${file.name} is not an image file`);
-                          return false;
-                        }
-                        if (!isLt5M) {
-                          message.error(`${file.name} is larger than 5MB`);
                           return false;
                         }
                         return true;

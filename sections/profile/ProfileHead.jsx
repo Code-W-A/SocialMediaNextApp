@@ -111,13 +111,6 @@ const ProfileHead = ({
       size: file.size,
       type: file.type
     });
-    
-    // put a limit of 5mb file size
-    if (file.size > 5 * 1024 * 1024) {
-      console.error('❌ [ProfileHead] File too large:', file.size);
-      toast.error("Image size is greater than 5 MB");
-      return;
-    }
 
     if (file && file.type.startsWith("image/")) {
       console.log('✅ [ProfileHead] Valid image file, processing...');

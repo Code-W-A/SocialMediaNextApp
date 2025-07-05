@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { now } from "@/utils/dateHelpers";
+import { useLanguage } from "@/lib/i18n";
 
 const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
   const [value, setValue] = useState("");
@@ -15,6 +16,7 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
   const [commentPermission, setCommentPermission] = useState({ canComment: true, reason: "" });
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
   const { user } = useUser();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const textAreaRef = useRef(null);
 
@@ -383,10 +385,15 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
         {/* Show restriction message if user cannot comment */}
         {!isCheckingPermission && !commentPermission.canComment && (
           <Alert
-            message="Nu poți comenta la această postare"
+            message={t('comments.cannotComment')}
             description={
               commentPermission.reason === "You can only comment on posts from people you're compatible with" 
-                ? "Poți comenta doar la postările persoanelor cu care ești compatibil(ă). Pentru a deveni compatibil cu cineva, contactează administratorul."
+                ? (
+                  <>
+                    <div>{t('comments.compatibilityRequired')}</div>
+                    <div style={{ marginTop: '8px' }}>{t('comments.likeToGetCompatible')}</div>
+                  </>
+                )
                 : commentPermission.reason
             }
             type="warning"
@@ -397,7 +404,7 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
         {/* Show loading while checking permissions */}
         {isCheckingPermission && (
           <Alert
-            message="Se verifică permisiunile..."
+            message={t('comments.checkingPermissions')}
             type="info"
             showIcon
           />
@@ -409,9 +416,9 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
            disabled={isPending || isSubmitting || isCheckingPermission || !commentPermission.canComment}
            placeholder={
              isCheckingPermission 
-               ? "Se verifică permisiunile..." 
+               ? t('comments.checkingPermissions')
                : !commentPermission.canComment 
-                 ? "Nu poți comenta la această postare"
+                 ? t('comments.cannotComment')
                  : "Scrie comentariul tău..."
            }
            value={value}

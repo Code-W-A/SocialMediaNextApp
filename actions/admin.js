@@ -236,6 +236,94 @@ export const areUsersCompatible = async (userId1, userId2) => {
   }
 };
 
+// Save resonance request for admin review
+export const saveResonanceRequest = async (requesterId, targetUserId) => {
+  try {
+    if (!requesterId || !targetUserId) {
+      throw new Error("Both requesterId and targetUserId are required");
+    }
+
+    if (requesterId === targetUserId) {
+      throw new Error("Cannot resonate with yourself");
+    }
+
+    // Check if request already exists
+    const resonanceRequestsRef = collection(db, "ResonanceRequests");
+    const existingQuery = query(
+      resonanceRequestsRef,
+      where("requesterId", "==", requesterId),
+      where("targetUserId", "==", targetUserId)
+    );
+    const existingSnapshot = await getDocs(existingQuery);
+
+    if (!existingSnapshot.empty) {
+      // Update existing request with new timestamp
+      const existingDoc = existingSnapshot.docs[0];
+      await updateDoc(doc(db, "ResonanceRequests", existingDoc.id), {
+        updatedAt: serverTimestamp(),
+        status: 'pending'
+      });
+      return { success: true, message: 'Existing request updated' };
+    }
+
+    // Create new resonance request
+    await addDoc(resonanceRequestsRef, {
+      requesterId: requesterId,
+      targetUserId: targetUserId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      status: 'pending',
+      type: 'resonance'
+    });
+
+    console.log(`✨ Resonance request created: ${requesterId} wants to resonate with ${targetUserId}`);
+    return { success: true, message: 'Resonance request saved' };
+  } catch (error) {
+    console.error("Error saving resonance request:", error);
+    throw error;
+  }
+};
+
+// Get all resonance requests for admin dashboard
+export const getAllResonanceRequests = async () => {
+  try {
+    const resonanceRequestsRef = collection(db, "ResonanceRequests");
+    const q = query(resonanceRequestsRef, orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+
+    const requests = [];
+    for (const docSnapshot of snapshot.docs) {
+      const data = docSnapshot.data();
+      
+      // Get requester and target user data
+      const [requesterDoc, targetDoc] = await Promise.all([
+        getDoc(doc(db, "Users", data.requesterId)),
+        getDoc(doc(db, "Users", data.targetUserId))
+      ]);
+
+      if (requesterDoc.exists() && targetDoc.exists()) {
+        requests.push({
+          id: docSnapshot.id,
+          ...data,
+          requester: {
+            id: requesterDoc.id,
+            ...requesterDoc.data()
+          },
+          target: {
+            id: targetDoc.id,
+            ...targetDoc.data()
+          }
+        });
+      }
+    }
+
+    return requests;
+  } catch (error) {
+    console.error("Error fetching resonance requests:", error);
+    throw error;
+  }
+};
+
 // Bulk add compatibilities between opposite genders with similar age ranges
 export const addOppositeGenderCompatibilities = async () => {
   try {

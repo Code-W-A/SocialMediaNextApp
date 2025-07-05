@@ -5,12 +5,14 @@ import { useUser } from "@/hooks/useFirebaseAuth";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import CommentDialog from "./CommentDialog";
 import { canUserComment } from "@/actions/post";
+import { useLanguage } from "@/lib/i18n";
 
 const CommentInput = ({ postId, setExpanded, queryId, postAuthorId }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [commentPermission, setCommentPermission] = useState({ canComment: true, reason: "" });
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
   const { user } = useUser();
+  const { t } = useLanguage();
   
   // Memoized user profile image to prevent recalculation
   const userProfileImage = useMemo(() => getMainProfileImage(user?.images), [user?.images]);
@@ -65,7 +67,7 @@ const CommentInput = ({ postId, setExpanded, queryId, postAuthorId }) => {
           {user?.firstName?.[0] || user?.username?.[0] || user?.email?.[0]}
         </Avatar>
         <Input
-          placeholder="Checking permissions..."
+          placeholder={t('comments.checkingPermissions')}
           disabled
           style={{ 
             flex: 1, 
@@ -80,10 +82,15 @@ const CommentInput = ({ postId, setExpanded, queryId, postAuthorId }) => {
   if (!commentPermission.canComment) {
     return (
       <Alert
-        message="Nu poți comenta la această postare"
+        message={t('comments.cannotComment')}
         description={
           commentPermission.reason === "You can only comment on posts from people you're compatible with" 
-            ? "Poți comenta doar la postările persoanelor cu care ești compatibil(ă). Pentru a deveni compatibil cu cineva, contactează administratorul."
+            ? (
+              <>
+                <div>{t('comments.compatibilityRequired')}</div>
+                <div style={{ marginTop: '8px' }}>{t('comments.likeToGetCompatible')}</div>
+              </>
+            )
             : commentPermission.reason
         }
         type="info"

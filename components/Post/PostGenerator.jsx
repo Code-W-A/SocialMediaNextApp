@@ -1,5 +1,5 @@
 "use client";
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import css from "@/styles/PostGenerator.module.css";
 import Box from "../Box";
 import { Avatar, Button, Flex, Image, Input, Spin, Typography, Divider, Card, Modal } from "antd";
@@ -17,6 +17,7 @@ import { hasReachedDailyLimit, canPerformAction } from "@/utils/premiumHelpers";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import { getUserLimits } from "@/utils/premiumHelpers";
 import { now } from "@/utils/dateHelpers";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const PostGenerator = () => {
   const { t } = useLanguage();
@@ -28,6 +29,7 @@ const PostGenerator = () => {
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [showPrompts, setShowPrompts] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const queryClient = useQueryClient();
   const { user } = useUser();
   const { subscription, isPremium } = useSubscription();
@@ -47,6 +49,15 @@ const PostGenerator = () => {
     t('posts.prompts.partner'),
     t('posts.prompts.relationship')
   ];
+
+  // Clean up object URL when component unmounts
+  useEffect(() => {
+    return () => {
+      if (selectedFile?.preview) {
+        URL.revokeObjectURL(selectedFile.preview);
+      }
+    };
+  }, [selectedFile?.preview]);
 
   const { mutate: execute, isPending } = useMutation({
     mutationFn: (data) => {
@@ -85,7 +96,7 @@ const PostGenerator = () => {
         const optimisticPost = {
           id: `temp-${Date.now()}`,
           postText: newPost.postText || '',
-          media: newPost.media,
+          media: newPost.media, // This will be the Firebase Storage URL now
           authorId: user?.id,
           createdAt: now(),
           updatedAt: now(),
@@ -165,6 +176,10 @@ const PostGenerator = () => {
 
   const handleSuccess = () => {
     console.log("🎉 PostGenerator: handleSuccess called - cleaning up form");
+    // Clean up the object URL to prevent memory leaks
+    if (selectedFile?.preview) {
+      URL.revokeObjectURL(selectedFile.preview);
+    }
     setSelectedFile(null);
     setFileType(null);
     setPostText("");
@@ -205,29 +220,33 @@ const PostGenerator = () => {
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    // put a limit of 5mb file size
-    if (file && file.size > 5 * 1024 * 1024) {
-      console.log("File size is too big");
-      return;
-    }
 
     if (
       file &&
       (file.type.startsWith("image/") || file.type.startsWith("video/"))
     ) {
+      // Check file size (warn if larger than 10MB)
+      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+      if (file.size > maxSize) {
+        showError("Image is too large. Please choose an image smaller than 10MB.");
+        return;
+      }
+      
       setFileType(file.type.split("/")[0]);
-
-      const reader = new FileReader();
-
-      reader.readAsDataURL(file);
-
-      reader.onload = () => {
-        setSelectedFile(reader.result);
-      };
+      
+      // Store the actual file object instead of converting to base64
+      setSelectedFile({
+        file: file,
+        preview: URL.createObjectURL(file)
+      });
     }
   };
 
   const handleRemoveFile = () => {
+    // Clean up the object URL to prevent memory leaks
+    if (selectedFile?.preview) {
+      URL.revokeObjectURL(selectedFile.preview);
+    }
     setSelectedFile(null);
     setFileType(null);
   };
@@ -236,7 +255,7 @@ const PostGenerator = () => {
     toast.error(content);
   };
 
-  function handleSubmitPost() {
+  async function handleSubmitPost() {
     console.log("🚀 PostGenerator: handleSubmitPost called", {
       postText: postText?.substring(0, 50) + "...",
       hasSelectedFile: !!selectedFile,
@@ -262,18 +281,45 @@ const PostGenerator = () => {
       return;
     }
 
+    let mediaUrl = null;
+    
+    // Upload image to Firebase Storage if there's a selected file
+    if (selectedFile && selectedFile.file) {
+      try {
+        console.log("📤 Uploading image to Firebase Storage...");
+        setIsUploadingImage(true);
+        
+        const storage = getStorage();
+        const timestamp = Date.now();
+        const fileExtension = selectedFile.file.name.split('.').pop();
+        const fileName = `post_${timestamp}.${fileExtension}`;
+        const filePath = `posts/${user?.id}/${fileName}`;
+        
+        const storageRef = ref(storage, filePath);
+        const snapshot = await uploadBytes(storageRef, selectedFile.file);
+        mediaUrl = await getDownloadURL(snapshot.ref);
+        
+        console.log("✅ Image uploaded successfully:", mediaUrl);
+        setIsUploadingImage(false);
+      } catch (error) {
+        console.error("❌ Error uploading image:", error);
+        setIsUploadingImage(false);
+        showError("Failed to upload image. Please try again.");
+        return;
+      }
+    }
+
     console.log("🎯 Executing post creation...");
-    // don't forget to tell about the next.config.js file where we have set the limit of 5mb
-    execute({ postText, media: selectedFile });
+    execute({ postText, media: mediaUrl });
   }
 
   return (
     <>
       <Spin
-        spinning={isPending}
+        spinning={isPending || isUploadingImage}
         tip={
           <Typography className="typoBody1" style={{ marginTop: "1rem" }}>
-            {t('posts.publishingOnDestinyPath')}
+            {isUploadingImage ? (t('posts.uploadingImage') || 'Uploading image...') : t('posts.publishingOnDestinyPath')}
           </Typography>
         }
       >
@@ -323,7 +369,7 @@ const PostGenerator = () => {
                   value={postText}
                   onChange={(e) => setPostText(e.target.value)}
                   onFocus={handleTextAreaFocus}
-                  disabled={!canPost.canPerform}
+                  disabled={!canPost.canPerform || isUploadingImage || isPending}
                 />
               </Flex>
 
@@ -338,7 +384,7 @@ const PostGenerator = () => {
                     borderRadius: '8px',
                     background: showPrompts ? '#667eea15' : 'transparent'
                   }}
-                  disabled={!canPost.canPerform}
+                  disabled={!canPost.canPerform || isUploadingImage || isPending}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify icon="eva:bulb-fill" width="16px" style={{ color: '#667eea' }} />
@@ -420,7 +466,7 @@ const PostGenerator = () => {
                   {/* media preview */}
                   {fileType === "image" && (
                     <Image
-                      src={selectedFile}
+                      src={selectedFile?.preview}
                       className={css.preview}
                       alt="preview"
                       height={"350px"}
@@ -431,7 +477,7 @@ const PostGenerator = () => {
                     <video
                       className={css.preview}
                       controls
-                      src={selectedFile}
+                      src={selectedFile?.preview}
                     />
                   )}
                 </div>
@@ -444,7 +490,7 @@ const PostGenerator = () => {
                   type="text"
                   className={css.photoButton}
                   onClick={() => imgInputRef.current.click()}
-                  disabled={!canPost.canPerform}
+                  disabled={!canPost.canPerform || isUploadingImage || isPending}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify
@@ -459,7 +505,7 @@ const PostGenerator = () => {
                 <Button
                   className={css.shareButton}
                   onClick={handleSubmitPost}
-                  disabled={!canPost.canPerform}
+                  disabled={!canPost.canPerform || isUploadingImage || isPending}
                 >
                   <Flex align="center" gap={".5rem"}>
                     <Iconify icon="eva:star-fill" width="1.2rem" style={{ color: "white" }} />

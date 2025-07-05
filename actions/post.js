@@ -254,12 +254,29 @@ export const createPost = async (post) => {
     let mediaUrl = null;
     let mediaFileName = null;
 
-    // Upload media if provided
+    // Handle media if provided
     if (media) {
-      console.log("📷 Uploading media for post...", { mediaType: typeof media, mediaLength: media?.length });
+      console.log("📷 Processing media for post...", { mediaType: typeof media, mediaLength: media?.length });
       try {
-        // Convert base64 to file if needed
-        if (typeof media === 'string' && media.startsWith('data:')) {
+        // Check if media is already a Firebase Storage URL (new approach)
+        if (typeof media === 'string' && media.startsWith('https://firebasestorage.googleapis.com')) {
+          // Media is already uploaded to Firebase Storage
+          mediaUrl = media;
+          // Extract filename from URL if possible
+          try {
+            const urlObj = new URL(media);
+            const pathParts = urlObj.pathname.split('/');
+            const filename = pathParts[pathParts.length - 1];
+            if (filename) {
+              mediaFileName = filename;
+            }
+          } catch (urlError) {
+            console.warn("Could not extract filename from URL:", urlError);
+          }
+          console.log("✅ Using pre-uploaded media:", { mediaUrl, mediaFileName });
+        }
+        // Legacy support: Convert base64 to file if needed (for backward compatibility)
+        else if (typeof media === 'string' && media.startsWith('data:')) {
           const base64Data = media.split(',')[1];
           const mimeType = media.split(',')[0].split(':')[1].split(';')[0];
           const fileExtension = mimeType.split('/')[1];
@@ -286,7 +303,7 @@ export const createPost = async (post) => {
           console.log("✅ Media uploaded successfully:", { mediaUrl, mediaFileName });
         }
       } catch (uploadError) {
-        console.error("❌ Error uploading media:", uploadError);
+        console.error("❌ Error processing media:", uploadError);
         console.log("⚠️ Continuing without media...");
         // Continue without media if upload fails
       }

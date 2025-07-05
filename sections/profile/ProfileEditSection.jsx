@@ -264,11 +264,6 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         message.error(t('profileEdit.onlyImageFiles'));
         return false;
       }
-      const isLt5M = file.size / 1024 / 1024 < 5;
-      if (!isLt5M) {
-        message.error(t('profileEdit.imageTooLarge'));
-        return false;
-      }
       return false;
     },
     onChange: (info) => {
@@ -321,14 +316,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     // Validate each file
     const validFiles = files.filter(file => {
       const isImage = file.type.startsWith('image/');
-      const isLt5M = file.size / 1024 / 1024 < 5;
       
       if (!isImage) {
         message.error(t('profileEdit.notImageFile', { fileName: file.name }));
-        return false;
-      }
-      if (!isLt5M) {
-        message.error(t('profileEdit.fileTooLarge', { fileName: file.name }));
         return false;
       }
       return true;

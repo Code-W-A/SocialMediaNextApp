@@ -26,9 +26,9 @@ import {
   Popconfirm,
   Spin
 } from "antd";
-import { UserOutlined, HeartOutlined, SearchOutlined, CrownOutlined, MessageOutlined, DeleteOutlined, EyeOutlined, WarningOutlined } from "@ant-design/icons";
+import { UserOutlined, HeartOutlined, SearchOutlined, CrownOutlined, MessageOutlined, DeleteOutlined, EyeOutlined, WarningOutlined, HeartFilled } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser, getAllPostsForAdmin, deletePostAsAdmin, deleteCommentAsAdmin } from "@/actions/admin";
+import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser, getAllPostsForAdmin, deletePostAsAdmin, deleteCommentAsAdmin, getAllResonanceRequests } from "@/actions/admin";
 // Removed admin settings import - simplified feed system
 import { getMainProfileImage } from "@/utils/imageHelpers";
 
@@ -68,6 +68,13 @@ const AdminDashboard = () => {
     queryKey: ["admin-posts"],
     queryFn: () => getAllPostsForAdmin(50), // Get 50 posts at a time
     enabled: activeTab === 'moderation', // Only fetch when on moderation tab
+  });
+
+  // Fetch all resonance requests
+  const { data: resonanceRequests, isLoading: resonanceLoading, refetch: refetchResonanceRequests } = useQuery({
+    queryKey: ["admin-resonance-requests"],
+    queryFn: getAllResonanceRequests,
+    enabled: activeTab === 'resonance', // Only fetch when on resonance tab
   });
 
   // Removed admin settings query - simplified feed system
@@ -190,6 +197,20 @@ const AdminDashboard = () => {
     },
   });
 
+  // Approve resonance request mutation (creates compatibility)
+  const approveResonanceMutation = useMutation({
+    mutationFn: ({ requesterId, targetUserId }) => addCompatibility({ userId: requesterId, targetUserId }),
+    onSuccess: () => {
+      message.success("Resonance approved! Compatibility created successfully! ✨");
+      queryClient.invalidateQueries(["admin-resonance-requests"]);
+      queryClient.invalidateQueries(["user-compatibilities"]);
+    },
+    onError: (error) => {
+      message.error("Failed to approve resonance request!");
+      console.error(error);
+    },
+  });
+
   const openCompatibilityModal = (user) => {
     setSelectedUser(user);
     setCompatibilityModalVisible(true);
@@ -218,6 +239,10 @@ const AdminDashboard = () => {
 
   const handleDeleteComment = (postId, commentId) => {
     deleteCommentMutation.mutate({ postId, commentId });
+  };
+
+  const handleApproveResonance = (requesterId, targetUserId) => {
+    approveResonanceMutation.mutate({ requesterId, targetUserId });
   };
 
   const getProfileImage = (user) => {
@@ -1013,6 +1038,251 @@ const AdminDashboard = () => {
                   {postsData?.data?.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '2rem' }}>
                       <Text type="secondary">No posts found.</Text>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )
+    },
+    {
+      key: 'resonance',
+      label: (
+        <span>
+          <HeartFilled />
+          Resonance Requests
+        </span>
+      ),
+      children: (
+        <div>
+          <Card>
+            <Title level={3}>Cosmic Resonance Requests ✨</Title>
+            <Text type="secondary">
+              Premium users who feel a special connection with someone can send resonance requests. Review and approve these cosmic connections to create new compatibilities.
+            </Text>
+            
+            <Divider />
+
+            {resonanceLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem' }}>
+                <Spin size="large" />
+                <Typography style={{ marginTop: '1rem' }}>Loading resonance requests...</Typography>
+              </div>
+            ) : (
+              <div>
+                {/* Stats */}
+                <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+                  <Col xs={24} sm={12} md={8}>
+                    <Card size="small">
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff6b6b' }}>
+                          <HeartFilled style={{ marginRight: '4px' }} />
+                          {resonanceRequests?.length || 0}
+                        </div>
+                        <div style={{ color: '#666' }}>Total Requests</div>
+                      </div>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={8}>
+                    <Card size="small">
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                          {resonanceRequests?.filter(req => req.status === 'pending')?.length || 0}
+                        </div>
+                        <div style={{ color: '#666' }}>Pending</div>
+                      </div>
+                    </Card>
+                  </Col>
+                  <Col xs={24} sm={12} md={8}>
+                    <Card size="small">
+                      <div style={{ textAlign: 'center' }}>
+                        <Button 
+                          type="primary" 
+                          icon={<HeartFilled />}
+                          onClick={() => refetchResonanceRequests()}
+                          loading={resonanceLoading}
+                          style={{ background: 'linear-gradient(135deg, #ff6b6b, #ee5a52)', border: 'none' }}
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                    </Card>
+                  </Col>
+                </Row>
+
+                {/* Resonance Requests List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {resonanceRequests && resonanceRequests.length > 0 ? (
+                    resonanceRequests.map((request) => (
+                      <Card 
+                        key={request.id}
+                        size="small"
+                        style={{ 
+                          borderLeft: '4px solid #ff6b6b',
+                          background: 'linear-gradient(135deg, #fff5f5 0%, #fff9f9 100%)'
+                        }}
+                        actions={[
+                          <Button 
+                            key="approve"
+                            type="primary"
+                            icon={<HeartFilled />}
+                            onClick={() => handleApproveResonance(request.requesterId, request.targetUserId)}
+                            loading={approveResonanceMutation.isPending}
+                            style={{ background: 'linear-gradient(135deg, #52c41a, #389e0d)', border: 'none' }}
+                          >
+                            Approve & Create Compatibility ✨
+                          </Button>,
+                          <Button 
+                            key="view-requester"
+                            type="text" 
+                            icon={<UserOutlined />}
+                            onClick={() => openProfileModal(request.requester)}
+                          >
+                            View Requester
+                          </Button>,
+                          <Button 
+                            key="view-target"
+                            type="text" 
+                            icon={<UserOutlined />}
+                            onClick={() => openProfileModal(request.target)}
+                          >
+                            View Target
+                          </Button>
+                        ]}
+                      >
+                        <Row gutter={[16, 8]} align="middle">
+                          {/* Requester */}
+                          <Col span={10}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '12px',
+                              padding: '12px',
+                              background: 'white',
+                              borderRadius: '8px',
+                              border: '1px solid #f0f0f0'
+                            }}>
+                              <Avatar 
+                                src={getProfileImage(request.requester)} 
+                                icon={<UserOutlined />}
+                                size="large"
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                                  {request.requester ? 
+                                    `${request.requester.firstName || ''} ${request.requester.lastName || ''}`.trim() || 
+                                    request.requester.username || 'Unknown User' 
+                                    : 'Unknown User'}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#666' }}>
+                                  @{request.requester?.username || 'no-username'}
+                                </div>
+                                <div style={{ marginTop: '4px' }}>
+                                  {request.requester?.gender && (
+                                    <Tag color={request.requester.gender === 'male' ? 'blue' : 'pink'} size="small">
+                                      {request.requester.gender}
+                                    </Tag>
+                                  )}
+                                  {request.requester?.age && (
+                                    <Tag color="green" size="small">{request.requester.age}y</Tag>
+                                  )}
+                                  <Tag color="purple" size="small" icon={<CrownOutlined />}>Premium</Tag>
+                                </div>
+                              </div>
+                            </div>
+                          </Col>
+
+                          {/* Resonance Arrow */}
+                          <Col span={4} style={{ textAlign: 'center' }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <div style={{ fontSize: '24px' }}>💫</div>
+                              <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#ff6b6b' }}>
+                                RESONATES
+                              </div>
+                              <div style={{ fontSize: '16px' }}>✨</div>
+                            </div>
+                          </Col>
+
+                          {/* Target */}
+                          <Col span={10}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '12px',
+                              padding: '12px',
+                              background: 'white',
+                              borderRadius: '8px',
+                              border: '1px solid #f0f0f0'
+                            }}>
+                              <Avatar 
+                                src={getProfileImage(request.target)} 
+                                icon={<UserOutlined />}
+                                size="large"
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                                  {request.target ? 
+                                    `${request.target.firstName || ''} ${request.target.lastName || ''}`.trim() || 
+                                    request.target.username || 'Unknown User' 
+                                    : 'Unknown User'}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#666' }}>
+                                  @{request.target?.username || 'no-username'}
+                                </div>
+                                <div style={{ marginTop: '4px' }}>
+                                  {request.target?.gender && (
+                                    <Tag color={request.target.gender === 'male' ? 'blue' : 'pink'} size="small">
+                                      {request.target.gender}
+                                    </Tag>
+                                  )}
+                                  {request.target?.age && (
+                                    <Tag color="green" size="small">{request.target.age}y</Tag>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </Col>
+                        </Row>
+
+                        {/* Request Info */}
+                        <div style={{ 
+                          marginTop: '12px', 
+                          padding: '8px 12px', 
+                          background: 'rgba(255, 107, 107, 0.1)', 
+                          borderRadius: '6px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <Text style={{ fontSize: '12px', color: '#666' }}>
+                                Request sent: {new Date(request.createdAt?.seconds ? request.createdAt.seconds * 1000 : request.createdAt).toLocaleString()}
+                              </Text>
+                            </div>
+                            <div>
+                              <Tag color="orange" size="small">
+                                {request.status || 'pending'}
+                              </Tag>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>
+                            Request ID: {request.id}
+                          </div>
+                        </div>
+                      </Card>
+                    ))
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '3rem' }}>
+                      <div style={{ fontSize: '48px', marginBottom: '16px' }}>💫</div>
+                      <Title level={4} style={{ color: '#666' }}>No Resonance Requests Yet</Title>
+                      <Text type="secondary">
+                        When premium users feel a cosmic connection with someone, their requests will appear here for your review.
+                      </Text>
                     </div>
                   )}
                 </div>

@@ -46,6 +46,12 @@ const IncompatibilityDialog = ({
       bodyStyle={{
         padding: 0
       }}
+      styles={{
+        mask: {
+          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)'
+        }
+      }}
     >
       {/* Header with gradient background */}
       <div style={{

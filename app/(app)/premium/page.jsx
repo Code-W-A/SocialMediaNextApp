@@ -282,7 +282,7 @@ const PremiumPage = () => {
                     fontSize: 'clamp(1.75rem, 5vw, 2.5rem)',
                     textAlign: 'center'
                   }}>
-                    Devino Premium
+                    {t('premium.becomePremium')}
                   </Title>
                   <Paragraph style={{ 
                     fontSize: 'clamp(14px, 3vw, 18px)', 
@@ -290,7 +290,7 @@ const PremiumPage = () => {
                     textAlign: 'center',
                     margin: '1rem 0'
                   }}>
-                    Pentru doar <strong>5€/lună</strong>, primești prioritate în compatibilități și multe alte beneficii exclusive!
+                    {t('premium.monthlyPrice')}
                   </Paragraph>
                   <div style={{ textAlign: 'center', width: '100%' }}>
                     <Button
@@ -311,9 +311,9 @@ const PremiumPage = () => {
                         paddingRight: 'clamp(16px, 4vw, 32px)',
                         minWidth: '200px'
                       }}
-                    >
-                      Activează Premium
-                    </Button>
+                                          >
+                        {t('premium.activatePremium')}
+                      </Button>
                   </div>
                 </Space>
               </Col>
@@ -342,7 +342,7 @@ const PremiumPage = () => {
             marginBottom: '2rem',
             fontSize: 'clamp(1.5rem, 4vw, 2rem)'
           }}>
-            Ce primești cu Premium?
+            {t('premium.whatYouGetWithPremium')}
           </Title>
           
           <Row gutter={[24, 24]} justify="center">
@@ -391,10 +391,10 @@ const PremiumPage = () => {
           >
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
               <Title level={3} style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)' }}>
-                Gata să primești mai multe compatibilități?
+                {t('premium.readyForMoreCompatibility')}
               </Title>
               <Paragraph style={{ fontSize: 'clamp(14px, 3vw, 16px)' }}>
-                Alătură-te comunității noastre Premium și bucură-te de toate beneficiile!
+                {t('premium.joinPremiumCommunity')}
               </Paragraph>
               <Button
                 type="primary"
@@ -413,10 +413,10 @@ const PremiumPage = () => {
                   minWidth: '200px'
                 }}
               >
-                Activează Premium Acum
+                {t('premium.activatePremiumNow')}
               </Button>
               <Text type="secondary" style={{ fontSize: 'clamp(12px, 2.5vw, 14px)' }}>
-                Anulează oricând • Fără taxe ascunse • Plată securizată
+                {t('premium.cancelAnytime')}
               </Text>
             </Space>
           </Card>

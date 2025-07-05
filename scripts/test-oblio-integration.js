@@ -35,8 +35,8 @@ const TEST_CONFIG = {
     city: 'Bucharest',
     country: 'Romania',
   },
-  testAmount: 1999, // 19.99 RON in cents
-  testCurrency: 'ron'
+  testAmount: 500, // 5.00 EUR in cents
+  testCurrency: 'eur'
 };
 
 /**

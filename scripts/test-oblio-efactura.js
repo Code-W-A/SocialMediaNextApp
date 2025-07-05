@@ -35,8 +35,8 @@ const mockCompanyData = {
 
 const mockSubscriptionData = {
   subscriptionId: 'sub_test_123456789',
-  amount: 1999, // 19.99 RON în cents
-  currency: 'ron',
+      amount: 500, // 5.00 EUR în cents
+    currency: 'eur',
 };
 
 async function testOblioAuthentication() {
@@ -66,7 +66,7 @@ function testDataConversion() {
   
   try {
     console.log('📝 Testare client individual...');
-    const individualData = convertStripeToOblioData(mockUserData, mockSubscriptionData, 1999);
+    const individualData = convertStripeToOblioData(mockUserData, mockSubscriptionData, 500);
     
     console.log('✅ Date client individual convertite:');
     console.log('   👤 Nume:', individualData.clientName);
@@ -79,7 +79,7 @@ function testDataConversion() {
     console.log('   💼 Tip facturare:', individualData.billingType);
     
     console.log('\n📝 Testare client corporativ...');
-    const corporateData = convertStripeToOblioData(mockCompanyData, mockSubscriptionData, 1999);
+    const corporateData = convertStripeToOblioData(mockCompanyData, mockSubscriptionData, 500);
     
     console.log('✅ Date client corporativ convertite:');
     console.log('   🏢 Companie:', corporateData.company);
@@ -102,7 +102,7 @@ async function testInvoiceCreation() {
   try {
     // Test client individual
     console.log('📝 Testare factură client individual...');
-    const individualInvoiceData = convertStripeToOblioData(mockUserData, mockSubscriptionData, 1999);
+    const individualInvoiceData = convertStripeToOblioData(mockUserData, mockSubscriptionData, 500);
     
     console.log('📋 Date trimise către Oblio:', {
       clientName: individualInvoiceData.clientName,
@@ -141,7 +141,7 @@ async function testInvoiceCreation() {
 function testEFacturaCompliance() {
   console.log('\n📋 ===== VERIFICARE CONFORMITATE E-FACTURA =====');
   
-  const individualData = convertStripeToOblioData(mockUserData, mockSubscriptionData, 1999);
+  const individualData = convertStripeToOblioData(mockUserData, mockSubscriptionData, 500);
   
   // Verificări obligatorii pentru e-factura România
   const requiredFields = [

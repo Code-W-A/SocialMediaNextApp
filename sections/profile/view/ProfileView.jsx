@@ -24,7 +24,7 @@ import { checkProfileCompleteness } from "@/utils/onboardingHelpers";
 import { useLanguage } from "@/lib/i18n";
 import { useSubscription } from "@/hooks/useSubscription";
 import { ExclamationCircleOutlined, CrownOutlined, HeartFilled } from "@ant-design/icons";
-import { areUsersCompatible, saveResonanceRequest } from "@/actions/admin";
+import { areUsersCompatible, saveResonanceRequest, removeCompatibility } from "@/actions/admin";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 
 const { Title, Text } = Typography;
@@ -46,6 +46,8 @@ const ProfileView = ({ userId }) => {
   const [compatibilityChecked, setCompatibilityChecked] = useState(false);
   const [isResonating, setIsResonating] = useState(false);
   const [resonanceSuccess, setResonanceSuccess] = useState(false);
+  const [isRemovingCompatibility, setIsRemovingCompatibility] = useState(false);
+  const [showRemoveCompatibilityModal, setShowRemoveCompatibilityModal] = useState(false);
   
   // Check if redirected from OnboardingGuard for profile completion
   const forceComplete = searchParams.get('complete') === 'true';
@@ -232,6 +234,37 @@ const ProfileView = ({ userId }) => {
     } finally {
       setIsResonating(false);
     }
+  };
+
+  // Handle removing compatibility
+  const handleRemoveCompatibility = async () => {
+    if (!currentUser?.id || !userId) return;
+    
+    try {
+      setIsRemovingCompatibility(true);
+      await removeCompatibility({ userId: currentUser.id, targetUserId: userId });
+      
+      // Update compatibility state
+      setIsCompatible(false);
+      setCompatibilityChecked(true);
+      setShowRemoveCompatibilityModal(false);
+      
+      message.success(t('premium.compatibilityRemoved') || 'Compatibility removed successfully');
+      
+      // Refresh any related queries
+      queryClient.invalidateQueries(['user', userId]);
+      queryClient.invalidateQueries(['compatibilities']);
+      
+    } catch (error) {
+      console.error('Error removing compatibility:', error);
+      message.error(t('premium.compatibilityRemoveError') || 'Failed to remove compatibility');
+    } finally {
+      setIsRemovingCompatibility(false);
+    }
+  };
+
+  const showRemoveCompatibilityConfirm = () => {
+    setShowRemoveCompatibilityModal(true);
   };
 
   // Check for mobile screen size
@@ -639,6 +672,143 @@ const ProfileView = ({ userId }) => {
             )}
           </div>
         </Modal>
+
+        {/* Remove Compatibility Modal */}
+        <Modal
+          open={showRemoveCompatibilityModal}
+          onCancel={() => setShowRemoveCompatibilityModal(false)}
+          footer={null}
+          centered
+          width={400}
+          maskClosable={true}
+          closable={true}
+          styles={{
+            mask: {
+              backdropFilter: 'blur(8px)',
+              background: 'rgba(0, 0, 0, 0.6)'
+            }
+          }}
+        >
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '30px 20px',
+            background: 'linear-gradient(135deg, #fff5f5 0%, #fff9f9 100%)',
+            borderRadius: '20px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Person's profile image */}
+            <div style={{ 
+              position: 'relative',
+              zIndex: 1,
+              marginBottom: '20px' 
+            }}>
+              <div style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                margin: '0 auto',
+                border: '4px solid #ff4d4f',
+                overflow: 'hidden',
+                boxShadow: '0 8px 32px rgba(255, 77, 79, 0.3)',
+                background: 'white'
+              }}>
+                <img 
+                  src={getMainProfileImage(data?.data?.images) || data?.data?.image_url || "/images/placeholder-avatar.png"}
+                  alt={getDisplayName(data?.data) || "Profile"}
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover' 
+                  }}
+                />
+              </div>
+            </div>
+            
+            <Typography.Title level={3} style={{ 
+              marginBottom: '12px',
+              background: 'linear-gradient(135deg, #ff4d4f, #ff7875)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
+              {t('premium.removeCompatibilityDialog.title') || `Remove Compatibility with ${getDisplayName(data?.data)}?`}
+            </Typography.Title>
+            
+            <Typography.Paragraph style={{ 
+              fontSize: '15px', 
+              marginBottom: '20px',
+              color: '#666',
+              lineHeight: '1.5'
+            }}>
+              {t('premium.removeCompatibilityDialog.message') || 'Are you sure you want to remove your compatibility? You will no longer be able to see each other\'s posts or send messages.'}
+            </Typography.Paragraph>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+              <Button 
+                onClick={() => setShowRemoveCompatibilityModal(false)}
+                style={{ 
+                  width: '100%',
+                  height: '44px',
+                  borderRadius: '22px',
+                  border: '2px solid #ddd',
+                  fontWeight: '500'
+                }}
+              >
+                {t('common.cancel') || 'Cancel'}
+              </Button>
+              
+              <Button 
+                danger
+                onClick={handleRemoveCompatibility}
+                loading={isRemovingCompatibility}
+                style={{ 
+                  width: '100%',
+                  height: '44px',
+                  borderRadius: '22px',
+                  background: 'linear-gradient(135deg, #ff4d4f, #ff7875)',
+                  border: 'none',
+                  fontWeight: '600',
+                  fontSize: '15px',
+                  color: 'white'
+                }}
+                icon={<ExclamationCircleOutlined />}
+              >
+                {t('premium.removeCompatibilityDialog.confirm') || 'Remove Compatibility'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Floating Remove Compatibility Button - Only show when compatible with someone else */}
+        {!isCurrentUserProfile && isCompatible && compatibilityChecked && (
+          <div style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 1000
+          }}>
+            <Button
+              type="primary"
+              danger
+              size="large"
+              onClick={showRemoveCompatibilityConfirm}
+              style={{
+                borderRadius: '50px',
+                height: '50px',
+                paddingLeft: '20px',
+                paddingRight: '20px',
+                background: 'linear-gradient(135deg, #ff4d4f, #ff7875)',
+                border: 'none',
+                boxShadow: '0 4px 16px rgba(255, 77, 79, 0.3)',
+                fontWeight: '600'
+              }}
+              icon={<HeartFilled />}
+            >
+              Remove Compatibility
+            </Button>
+          </div>
+        )}
 
         {/* Forced Profile Completion Alert */}
         {isProfileCompletionForced && selectedTab !== "edit" && (

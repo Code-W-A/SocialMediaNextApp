@@ -211,6 +211,44 @@ const AdminDashboard = () => {
     },
   });
 
+  // Remove compatibility mutation for resonance requests
+  const removeResonanceCompatibilityMutation = useMutation({
+    mutationFn: ({ requesterId, targetUserId }) => removeCompatibility({ userId: requesterId, targetUserId }),
+    onSuccess: () => {
+      message.success("Compatibility removed successfully! The cosmic connection has been dissolved. 💫");
+      queryClient.invalidateQueries(["admin-resonance-requests"]);
+      queryClient.invalidateQueries(["user-compatibilities"]);
+    },
+    onError: (error) => {
+      message.error("Failed to remove compatibility!");
+      console.error(error);
+    },
+  });
+
+  // Check compatibility status for resonance requests
+  const [compatibilityStatuses, setCompatibilityStatuses] = useState({});
+  
+  useEffect(() => {
+    const checkCompatibilityStatuses = async () => {
+      if (!resonanceRequests || resonanceRequests.length === 0) return;
+      
+      const statuses = {};
+      for (const request of resonanceRequests) {
+        try {
+          const { areUsersCompatible } = await import('@/actions/admin');
+          const isCompatible = await areUsersCompatible(request.requesterId, request.targetUserId);
+          statuses[request.id] = isCompatible;
+        } catch (error) {
+          console.error('Error checking compatibility:', error);
+          statuses[request.id] = false;
+        }
+      }
+      setCompatibilityStatuses(statuses);
+    };
+
+    checkCompatibilityStatuses();
+  }, [resonanceRequests]);
+
   const openCompatibilityModal = (user) => {
     setSelectedUser(user);
     setCompatibilityModalVisible(true);
@@ -243,6 +281,10 @@ const AdminDashboard = () => {
 
   const handleApproveResonance = (requesterId, targetUserId) => {
     approveResonanceMutation.mutate({ requesterId, targetUserId });
+  };
+
+  const handleRemoveResonanceCompatibility = (requesterId, targetUserId) => {
+    removeResonanceCompatibilityMutation.mutate({ requesterId, targetUserId });
   };
 
   const getProfileImage = (user) => {
@@ -1124,16 +1166,30 @@ const AdminDashboard = () => {
                           background: 'linear-gradient(135deg, #fff5f5 0%, #fff9f9 100%)'
                         }}
                         actions={[
-                          <Button 
-                            key="approve"
-                            type="primary"
-                            icon={<HeartFilled />}
-                            onClick={() => handleApproveResonance(request.requesterId, request.targetUserId)}
-                            loading={approveResonanceMutation.isPending}
-                            style={{ background: 'linear-gradient(135deg, #52c41a, #389e0d)', border: 'none' }}
-                          >
-                            Approve & Create Compatibility ✨
-                          </Button>,
+                          // Show different actions based on compatibility status
+                          compatibilityStatuses[request.id] ? (
+                            <Button 
+                              key="remove-compatibility"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => handleRemoveResonanceCompatibility(request.requesterId, request.targetUserId)}
+                              loading={removeResonanceCompatibilityMutation.isPending}
+                              style={{ background: 'linear-gradient(135deg, #ff4d4f, #ff7875)', border: 'none', color: 'white' }}
+                            >
+                              Remove Compatibility 💔
+                            </Button>
+                          ) : (
+                            <Button 
+                              key="approve"
+                              type="primary"
+                              icon={<HeartFilled />}
+                              onClick={() => handleApproveResonance(request.requesterId, request.targetUserId)}
+                              loading={approveResonanceMutation.isPending}
+                              style={{ background: 'linear-gradient(135deg, #52c41a, #389e0d)', border: 'none' }}
+                            >
+                              Approve & Create Compatibility ✨
+                            </Button>
+                          ),
                           <Button 
                             key="view-requester"
                             type="text" 
@@ -1202,11 +1258,23 @@ const AdminDashboard = () => {
                               alignItems: 'center',
                               gap: '4px'
                             }}>
-                              <div style={{ fontSize: '24px' }}>💫</div>
-                              <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#ff6b6b' }}>
-                                RESONATES
-                              </div>
-                              <div style={{ fontSize: '16px' }}>✨</div>
+                              {compatibilityStatuses[request.id] ? (
+                                <>
+                                  <div style={{ fontSize: '24px' }}>💖</div>
+                                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#52c41a' }}>
+                                    COMPATIBLE
+                                  </div>
+                                  <div style={{ fontSize: '16px' }}>✨</div>
+                                </>
+                              ) : (
+                                <>
+                                  <div style={{ fontSize: '24px' }}>💫</div>
+                                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#ff6b6b' }}>
+                                    RESONATES
+                                  </div>
+                                  <div style={{ fontSize: '16px' }}>✨</div>
+                                </>
+                              )}
                             </div>
                           </Col>
 
@@ -1265,9 +1333,15 @@ const AdminDashboard = () => {
                               </Text>
                             </div>
                             <div>
-                              <Tag color="orange" size="small">
-                                {request.status || 'pending'}
-                              </Tag>
+                              {compatibilityStatuses[request.id] ? (
+                                <Tag color="green" size="small" icon={<HeartFilled />}>
+                                  Compatible ✨
+                                </Tag>
+                              ) : (
+                                <Tag color="orange" size="small">
+                                  {request.status || 'pending'}
+                                </Tag>
+                              )}
                             </div>
                           </div>
                           <div style={{ fontSize: '12px', color: '#999', marginTop: '4px' }}>

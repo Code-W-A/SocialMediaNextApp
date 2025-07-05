@@ -8,11 +8,22 @@ import { toSerializableDate } from '@/utils/dateHelpers';
 
 // Create checkout session for premium subscription
 export const createCheckoutSession = async (userId, customerEmail) => {
+  console.log('\n🛒 ===== CREATING STRIPE CHECKOUT SESSION =====');
+  console.log('📅 Timestamp:', new Date().toISOString());
+  console.log('👤 User ID:', userId);
+  console.log('📧 Customer Email:', customerEmail);
+  console.log('🔧 Stripe Config:', {
+    priceId: STRIPE_CONFIG.PREMIUM_PRICE_ID,
+    currency: STRIPE_CONFIG.CURRENCY,
+    premiumPrice: STRIPE_CONFIG.PREMIUM_PRICE
+  });
+  
   try {
     if (!userId) {
       throw new Error('User ID is required');
     }
 
+    console.log('🌐 Sending request to Stripe API...');
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -40,14 +51,29 @@ export const createCheckoutSession = async (userId, customerEmail) => {
       phone_number_collection: {
         enabled: true,
       },
-      
-      // Ensure customer data is collected properly
-      customer_creation: 'always',
     });
 
+    console.log('✅ Checkout session created successfully:', {
+      sessionId: session.id,
+      url: session.url,
+      customerId: session.customer,
+      mode: session.mode,
+      paymentStatus: session.payment_status,
+      subscriptionId: session.subscription
+    });
+    
+    console.log('🛒 ===== CHECKOUT SESSION CREATION COMPLETED =====\n');
     return { sessionId: session.id, url: session.url };
   } catch (error) {
-    console.error('Error creating checkout session:', error);
+    console.error('❌ Error creating checkout session:', {
+      errorMessage: error.message,
+      errorType: error.type,
+      errorCode: error.code,
+      requestId: error.requestId,
+      userId: userId,
+      customerEmail: customerEmail
+    });
+    console.log('🛒 ===== CHECKOUT SESSION CREATION FAILED =====\n');
     throw error;
   }
 };

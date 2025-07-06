@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from "react";
 import css from "@/styles/Post.module.css";
 import Box from "../Box";
+import PostSkeleton from "./PostSkeleton";
 import {
   Avatar,
   Button,
@@ -11,6 +12,7 @@ import {
   Popconfirm,
   Typography,
   Input,
+  message,
 } from "antd";
 // import Image from "next/image";
 import CommentButton from "./CommentButton";
@@ -26,12 +28,15 @@ import { getUserDisplayName, getDisplayName } from "@/utils/profileHelpers";
 import LikeButton from "./LikeButton";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import PremiumBadge from "../PremiumBadge";
+import { useLanguage } from "@/lib/i18n";
 
 const Post = ({ data, queryId }) => {
   const { user: currentUser } = useUser();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(data?.postText || "");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Create the correct query key that matches Posts.jsx
   const queryKey = useMemo(() => ["posts", queryId, currentUser?.id], [queryId, currentUser?.id]);
@@ -49,48 +54,16 @@ const Post = ({ data, queryId }) => {
       return deletePost(data?.id, currentUser?.id);
     },
 
-    // This function will be run just before the mutation function
+    // Remove optimistic updates to prevent UI disappearing before Firebase deletion
     onMutate: async () => {
-      console.log("🔄 Post component: onMutate - Starting optimistic update");
-      console.log("🔑 Using query key:", queryKey);
-      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
-      await queryClient.cancelQueries(queryKey);
-
-      // Snapshot the previous value
-      const previousPosts = queryClient.getQueryData(queryKey);
-      console.log("📊 Previous posts data:", { 
-        exists: !!previousPosts, 
-        hasPages: !!previousPosts?.pages,
-        pagesCount: previousPosts?.pages?.length 
-      });
-
-      // Only update if we have existing data
-      if (previousPosts && previousPosts.pages) {
-        // Optimistically update to the new value
-        queryClient.setQueryData(queryKey, (old) => {
-          if (!old || !old.pages) {
-            console.warn("⚠️ Old data is missing, skipping optimistic update");
-            return old;
-          }
-          
-          return {
-            ...old,
-            pages: old.pages.map((page) => {
-              return {
-                ...page,
-                data: page.data.filter((post) => post.id !== data?.id),
-              };
-            }),
-          };
-        });
-        console.log("✅ Post component: Optimistic update completed");
-      } else {
-        console.log("⚠️ No existing posts data found, skipping optimistic update");
-      }
-
-      // Return a context object with the snapshotted value
-      return { previousPosts };
+      console.log("🔄 Post component: Starting delete - setting loading state");
+      setIsDeleting(true); // Set loading state immediately
+      
+      // Don't do optimistic updates anymore to prevent the issue
+      // where UI disappears before Firebase deletion completes
+      return null;
     },
+
     onError: (err, variables, context) => {
       console.error("❌ Post component: Delete mutation failed", {
         error: err,
@@ -99,25 +72,32 @@ const Post = ({ data, queryId }) => {
         postId: data?.id
       });
       
-      // Only restore previous state if we have it
-      if (context?.previousPosts) {
-        queryClient.setQueryData(queryKey, context.previousPosts);
-        console.log("🔄 Restored previous posts data after error");
-      } else {
-        console.log("⚠️ No previous posts data to restore");
-      }
+      // Reset loading state
+      setIsDeleting(false);
+      
+      // Show error message
+      message.error(t('posts.postDeleteFailed'));
     },
+
     onSuccess: (result) => {
       console.log("✅ Post component: Delete mutation successful", {
         result,
         postId: data?.id
       });
+      
+      // Show success message
+      message.success(t('posts.postDeleted'));
+      
+      // Reset loading state (though component will unmount)
+      setIsDeleting(false);
+      
+      // Invalidate queries to refresh the feed
+      queryClient.invalidateQueries(queryKey);
     },
 
-    // // Always refetch after error or success:
     onSettled: () => {
-      console.log("🔄 Post component: onSettled - Invalidating queries");
-      queryClient.invalidateQueries(queryKey);
+      console.log("🔄 Post component: onSettled - cleaning up");
+      setIsDeleting(false);
     },
   });
 
@@ -175,7 +155,7 @@ const Post = ({ data, queryId }) => {
   const items = [
     {
       key: "1",
-      label: "Edit Post",
+      label: t('posts.editPost'),
       icon: <Iconify icon="eva:edit-fill" width="16px" />,
       onClick: () => setIsEditing(true),
     },
@@ -184,11 +164,14 @@ const Post = ({ data, queryId }) => {
       danger: true,
       label: (
         <Popconfirm
-          title="Delete the post"
-          description="Are you sure to delete this post?"
+          title={t('posts.deletePostConfirmTitle')}
+          description={t('posts.deletePostConfirmDescription')}
           onConfirm={handleDelete}
+          okText={t('posts.delete')}
+          cancelText={t('posts.cancel')}
+          okButtonProps={{ danger: true }}
         >
-          Delete Post
+          {t('posts.deletePost')}
         </Popconfirm>
       ),
     },
@@ -198,6 +181,16 @@ const Post = ({ data, queryId }) => {
   const getAuthorDisplayName = (author) => {
     return getUserDisplayName(author);
   };
+
+  // Show skeleton when deleting
+  if (isDeleting) {
+    return (
+      <PostSkeleton 
+        isDeleting={true} 
+        isDeletingWithImage={!!data?.media} 
+      />
+    );
+  }
 
   return (
     <div className={css.wrapper}>

@@ -18,6 +18,7 @@ import { useUser } from '@/hooks/useFirebaseAuth';
 import { useRouter } from 'next/navigation';
 import Iconify from '@/components/Iconify';
 import { useLanguage } from '@/lib/i18n';
+import PWAInstallSection from '@/components/PWAInstallSection';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -249,6 +250,9 @@ const AccountSettings = () => {
           )}
         />
       </Card>
+
+      {/* PWA Install Section */}
+      <PWAInstallSection />
 
       {/* Delete Account Modal */}
       <Modal

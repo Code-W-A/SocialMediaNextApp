@@ -13,7 +13,6 @@ import { useUser } from "@/hooks/useFirebaseAuth";
 import { Button, Typography, Alert, Tabs, Dropdown, Menu, Modal, message } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import Iconify from "@/components/Iconify";
-import PWAInstallSection from "@/components/PWAInstallSection";
 import { 
   checkProfileCompletion, 
   getDisplayName, 
@@ -893,11 +892,6 @@ const ProfileView = ({ userId }) => {
           onEditProfile={handleEditProfile}
           isCurrentUserProfile={isCurrentUserProfile}
         />
-
-        {/* PWA Install Section - only for current user */}
-        {isCurrentUserProfile && !isProfileCompletionForced && (
-          <PWAInstallSection />
-        )}
 
         {/* Profile Content with Tabs */}
         <div style={{ marginTop: '1rem' }}>

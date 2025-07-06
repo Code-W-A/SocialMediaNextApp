@@ -20,13 +20,40 @@ export default function ProfilePage() {
   console.log('🚀 [COMPONENT] ProfilePage component rendering/mounting');
   
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
   
-  // Onboarding simplificat - doar interests
-  
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Handle logout and redirect to login
+  const handleGoBackToLogin = async () => {
+    try {
+      const result = await signOut();
+      if (result.success) {
+        router.push('/sign-in');
+      } else {
+        console.error('Logout failed:', result.error);
+        router.push('/sign-in');
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+      router.push('/sign-in');
+    }
+  };
+
   console.log('🚀 [COMPONENT] Initial state - user:', user);
   console.log('🚀 [COMPONENT] Initial state - selectedInterests:', selectedInterests);
 
@@ -249,6 +276,37 @@ export default function ProfilePage() {
 
   return (
     <div className={layoutCss.singleColumnLayout}>
+      {/* Go Back to Login Button */}
+      <div style={{ 
+        position: 'absolute', 
+        top: '1rem', 
+        left: '1rem', 
+        zIndex: 10 
+      }}>
+        <Button
+          type="text"
+          onClick={handleGoBackToLogin}
+          icon={<Iconify icon="eva:arrow-back-fill" width="16px" />}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: '#666',
+            fontSize: '14px',
+            fontWeight: '500',
+            padding: '8px 12px',
+            borderRadius: '8px',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <span style={{ 
+            display: isMobile ? 'none' : 'inline' 
+          }}>
+            {t('onboarding.goBackToLogin')}
+          </span>
+        </Button>
+      </div>
+
       {/* Language Selector */}
       <div style={{ 
         position: 'absolute', 

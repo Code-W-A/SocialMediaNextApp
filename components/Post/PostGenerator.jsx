@@ -18,6 +18,7 @@ import { useSettingsContext } from "@/context/settings/settings-context";
 import { getUserLimits } from "@/utils/premiumHelpers";
 import { now } from "@/utils/dateHelpers";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { message } from "antd";
 
 const PostGenerator = () => {
   const { t } = useLanguage();
@@ -170,7 +171,7 @@ const PostGenerator = () => {
         queryClient.setQueryData(["posts", "all", user?.id], context.previousPosts);
         console.log("🔄 PostGenerator: Restored previous posts data");
       }
-      showError("Something wrong happened. Try again!");
+      showError(t('posts.postCreationError'));
     },
   });
 
@@ -184,7 +185,7 @@ const PostGenerator = () => {
     setFileType(null);
     setPostText("");
     setSelectedPrompt(null);
-    toast.success(t('posts.postSharedSuccess'));
+    showSuccess(t('posts.postSharedSuccess'));
     console.log("✅ PostGenerator: Form cleaned up and success message shown");
   };
 
@@ -228,7 +229,7 @@ const PostGenerator = () => {
       // Check file size (warn if larger than 10MB)
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
-        showError("Image is too large. Please choose an image smaller than 10MB.");
+        showError(t('posts.imageSizeError'));
         return;
       }
       
@@ -251,8 +252,14 @@ const PostGenerator = () => {
     setFileType(null);
   };
 
-  const showError = (content = "Something went wrong! Try again.") => {
-    toast.error(content);
+  const showError = (errorMessage) => {
+    console.error("PostGenerator Error:", errorMessage);
+    message.error(errorMessage);
+  };
+
+  const showSuccess = (successMessage) => {
+    console.log("PostGenerator Success:", successMessage);
+    message.success(successMessage);
   };
 
   async function handleSubmitPost() {
@@ -304,7 +311,7 @@ const PostGenerator = () => {
       } catch (error) {
         console.error("❌ Error uploading image:", error);
         setIsUploadingImage(false);
-        showError("Failed to upload image. Please try again.");
+        showError(t('posts.imageUploadError'));
         return;
       }
     }

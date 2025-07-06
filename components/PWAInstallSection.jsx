@@ -1,17 +1,36 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, Typography, Space, Button } from "antd";
 import Iconify from "./Iconify";
 import PWAInstallButton from "./PWAInstallButton";
 import { usePWA } from "@/hooks/usePWA";
+import { useLanguage } from "@/lib/i18n";
 
 const { Title, Text, Paragraph } = Typography;
 
 const PWAInstallSection = () => {
   const { canInstall, isInstalled, isOnline } = usePWA();
+  const { t } = useLanguage();
+  const [isAndroid, setIsAndroid] = useState(false);
 
-  // Don't show if PWA is already installed or not installable
-  if (isInstalled || !canInstall) {
+  // Detect Android device
+  useEffect(() => {
+    const checkAndroid = () => {
+      if (typeof window !== 'undefined') {
+        const userAgent = window.navigator.userAgent.toLowerCase();
+        const isAndroidDevice = userAgent.includes('android');
+        setIsAndroid(isAndroidDevice);
+      }
+    };
+
+    checkAndroid();
+  }, []);
+
+  // Don't show if:
+  // - PWA is already installed
+  // - Not installable
+  // - Not Android device
+  if (isInstalled || !canInstall || !isAndroid) {
     return null;
   }
 
@@ -69,10 +88,10 @@ const PWAInstallSection = () => {
           
           <div>
             <Title level={4} style={{ margin: 0, color: '#1890ff', fontSize: '18px' }}>
-              Instalează YDestiny App
+              {t('pwa.installTitle')}
             </Title>
             <Text type="secondary" style={{ fontSize: '13px' }}>
-              Pentru o experiență mai bună pe mobil
+              {t('pwa.installSubtitle')}
             </Text>
           </div>
         </div>
@@ -81,22 +100,22 @@ const PWAInstallSection = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Iconify icon="eva:flash-fill" width="16px" style={{ color: '#52c41a' }} />
-            <Text style={{ fontSize: '13px', color: '#666' }}>Acces rapid de pe ecranul principal</Text>
+            <Text style={{ fontSize: '13px', color: '#666' }}>{t('pwa.benefits.quickAccess')}</Text>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Iconify icon="eva:bell-fill" width="16px" style={{ color: '#fa8c16' }} />
-            <Text style={{ fontSize: '13px', color: '#666' }}>Notificări push în timp real</Text>
+            <Text style={{ fontSize: '13px', color: '#666' }}>{t('pwa.benefits.pushNotifications')}</Text>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Iconify icon="eva:wifi-off-fill" width="16px" style={{ color: '#722ed1' }} />
-            <Text style={{ fontSize: '13px', color: '#666' }}>Funcționează offline</Text>
+            <Text style={{ fontSize: '13px', color: '#666' }}>{t('pwa.benefits.worksOffline')}</Text>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Iconify icon="eva:smartphone-fill" width="16px" style={{ color: '#1890ff' }} />
-            <Text style={{ fontSize: '13px', color: '#666' }}>Experiență nativă</Text>
+            <Text style={{ fontSize: '13px', color: '#666' }}>{t('pwa.benefits.nativeExperience')}</Text>
           </div>
         </div>
 
@@ -107,8 +126,7 @@ const PWAInstallSection = () => {
           color: '#666',
           lineHeight: '1.5'
         }}>
-          Instalează aplicația YDestiny pentru a avea acces instant la toate funcționalitățile, 
-          notificări push pentru mesaje noi și o experiență optimizată pentru dispozitivele mobile.
+          {t('pwa.description')}
         </Paragraph>
 
         {/* Install button */}
@@ -126,7 +144,7 @@ const PWAInstallSection = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Iconify icon="eva:android-fill" width="16px" style={{ color: '#a0d911' }} />
             <Text style={{ fontSize: '12px', color: '#999' }}>
-              Disponibil pentru Android
+              {t('pwa.availableForAndroid')}
             </Text>
           </div>
         </div>
@@ -144,7 +162,7 @@ const PWAInstallSection = () => {
           }}>
             <Iconify icon="eva:wifi-off-fill" width="14px" style={{ color: '#fa8c16' }} />
             <Text style={{ fontSize: '12px', color: '#fa8c16', margin: 0 }}>
-              Momentan ești offline - aplicația va funcționa și fără internet!
+              {t('pwa.offlineMessage')}
             </Text>
           </div>
         )}

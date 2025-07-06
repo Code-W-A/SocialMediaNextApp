@@ -2,14 +2,17 @@
 import { Flex, Spin, Typography } from "antd";
 import React, { useEffect, useMemo, useCallback } from "react";
 import Post from "./Post";
+import PostSkeleton from "./PostSkeleton";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getMyPostsFeed, getPosts } from "@/actions/post";
 import { useInView } from "react-intersection-observer";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
+import { useLanguage } from "@/lib/i18n";
 
 const Posts = ({ id = "all" }) => {
   const { user: currentUser } = useUser();
+  const { t } = useLanguage();
   
   // Stable query key
   const queryKey = useMemo(() => ["posts", id, currentUser?.id], [id, currentUser?.id]);
@@ -118,9 +121,10 @@ const Posts = ({ id = "all" }) => {
 
   if (isLoading) {
     return (
-      <Flex vertical align="center" gap={"large"}>
-        <Spin size="large" />
-        <Typography>Loading posts...</Typography>
+      <Flex vertical gap="large">
+        {[1, 2, 3].map((index) => (
+          <PostSkeleton key={index} />
+        ))}
       </Flex>
     );
   }
@@ -144,9 +148,10 @@ const Posts = ({ id = "all" }) => {
         )}
 
         {(isFetchingNextPage) && (
-          <Flex vertical align="center" gap={"large"} style={{ padding: '1rem' }}>
-            <Spin />
-            <Typography>Loading more posts...</Typography>
+          <Flex vertical gap="large" style={{ padding: '1rem 0' }}>
+            {[1, 2].map((index) => (
+              <PostSkeleton key={`loading-more-${index}`} />
+            ))}
           </Flex>
         )}
 
@@ -155,7 +160,7 @@ const Posts = ({ id = "all" }) => {
           <Flex vertical align="center" gap={"large"} style={{ padding: '2rem' }}>
             <Typography.Text type="secondary" style={{ textAlign: 'center' }}>
               {id === "all" 
-                ? "Nu sunt postări disponibile încă. Începe să postezi și să interacționezi cu comunitatea!" 
+                ? t('posts.noPostsAvailable')
                 : "Nu sunt postări disponibile."}
             </Typography.Text>
           </Flex>

@@ -1,8 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, Typography, message } from "antd";
 import Iconify from "./Iconify";
 import { usePWA } from "@/hooks/usePWA";
+import { useLanguage } from "@/lib/i18n";
 
 const { Text } = Typography;
 
@@ -14,10 +15,25 @@ const PWAInstallButton = ({
   className = ""
 }) => {
   const { canInstall, installApp, isInstalled } = usePWA();
+  const { t } = useLanguage();
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
 
-  // Don't show button if PWA is already installed or not installable
-  if (isInstalled || !canInstall) {
+  // Detect Android device
+  useEffect(() => {
+    const checkAndroid = () => {
+      if (typeof window !== 'undefined') {
+        const userAgent = window.navigator.userAgent.toLowerCase();
+        const isAndroidDevice = userAgent.includes('android');
+        setIsAndroid(isAndroidDevice);
+      }
+    };
+
+    checkAndroid();
+  }, []);
+
+  // Don't show button if PWA is already installed, not installable, or not Android
+  if (isInstalled || !canInstall || !isAndroid) {
     return null;
   }
 
@@ -29,13 +45,13 @@ const PWAInstallButton = ({
       
       if (success) {
         message.success({
-          content: "App instalată cu succes! O vei găsi pe ecranul principal.",
+          content: t('pwa.installSuccess'),
           duration: 5,
           icon: <Iconify icon="eva:checkmark-circle-fill" style={{ color: '#52c41a' }} />
         });
       } else {
         message.info({
-          content: "Instalarea a fost anulată. Poți încerca din nou oricând!",
+          content: t('pwa.installCancelled'),
           duration: 3,
           icon: <Iconify icon="eva:info-fill" style={{ color: '#1890ff' }} />
         });
@@ -43,7 +59,7 @@ const PWAInstallButton = ({
     } catch (error) {
       console.error('PWA install error:', error);
       message.error({
-        content: "A apărut o eroare la instalare. Te rugăm să încerci din nou.",
+        content: t('pwa.installError'),
         duration: 4,
         icon: <Iconify icon="eva:alert-triangle-fill" style={{ color: '#ff4d4f' }} />
       });
@@ -107,7 +123,7 @@ const PWAInstallButton = ({
           fontSize: size === 'large' ? '16px' : size === 'small' ? '12px' : '14px',
           lineHeight: 1 
         }}>
-          Instalează App
+          {t('pwa.installApp')}
         </span>
       )}
     </Button>

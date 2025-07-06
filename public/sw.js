@@ -6,7 +6,7 @@ const DYNAMIC_CACHE_NAME = 'destiny-dynamic-v1';
 const STATIC_ASSETS = [
   '/',
   '/offline',
-  '/images/destiny-logo.svg',
+  '/images/sigla-512.png',
   '/images/logo.png',
   '/images/sigla-512.png',
   '/images/auth.png',
@@ -156,8 +156,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: event.data ? event.data.text() : 'Ai primit o notificare nouă!',
-    icon: '/images/destiny-logo.svg',
-    badge: '/images/logo.png',
+    icon: '/images/sigla-512.png',
+    badge: '/images/sigla-512.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),
@@ -167,12 +167,12 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore',
         title: 'Vezi',
-        icon: '/images/destiny-logo.svg'
+        icon: '/images/sigla-512.png'
       },
       {
         action: 'close',
         title: 'Închide',
-        icon: '/images/destiny-logo.svg'
+        icon: '/images/sigla-512.png'
       }
     ]
   };

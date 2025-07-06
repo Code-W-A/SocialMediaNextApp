@@ -137,8 +137,8 @@ export function usePWA() {
     }
 
     const defaultOptions = {
-      icon: '/images/destiny-logo.svg',
-      badge: '/images/logo.png',
+      icon: '/images/sigla-512.png',
+      badge: '/images/sigla-512.png',
       vibrate: [100, 50, 100],
       ...options
     };

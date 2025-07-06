@@ -58,6 +58,24 @@ export default function OnboardingPage() {
     }
   };
 
+  // Handle go back to landing page
+  const handleGoBackToLandingPage = async () => {
+    try {
+      const result = await signOut();
+      if (result.success) {
+        router.push('/');
+      } else {
+        console.error('Logout failed:', result.error);
+        // Still redirect even if logout fails
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Still redirect even if logout fails
+      router.push('/');
+    }
+  };
+
   // Get real onboarding progress
   const progress = user ? getOnboardingProgress(user) : { 
     completedSteps: 0, 
@@ -100,7 +118,7 @@ export default function OnboardingPage() {
 
   return (
     <div className={layoutCss.singleColumnLayout}>
-      {/* Go Back to Login Button */}
+      {/* Go Back to Landing Page Button */}
       <div style={{ 
         position: 'absolute', 
         top: '1rem', 
@@ -109,7 +127,7 @@ export default function OnboardingPage() {
       }}>
         <Button
           type="text"
-          onClick={handleGoBackToLogin}
+          onClick={handleGoBackToLandingPage}
           icon={<Iconify icon="eva:arrow-back-fill" width="16px" />}
           style={{
             display: 'flex',
@@ -130,7 +148,7 @@ export default function OnboardingPage() {
           <span style={{ 
             display: isMobile ? 'none' : 'inline' 
           }}>
-            {t('onboarding.goBackToLogin')}
+            {t('onboarding.goBackToLandingPage')}
           </span>
         </Button>
       </div>
@@ -142,7 +160,7 @@ export default function OnboardingPage() {
         right: '1rem', 
         zIndex: 10 
       }}>
-        <LanguageSelector size="small" showIcon={false} />
+        <LanguageSelector size="small" showIcon={false} showText={false} />
       </div>
 
       {/* Header Section */}
@@ -240,7 +258,7 @@ export default function OnboardingPage() {
 
       {/* Footer Section */}
       <div className={layoutCss.footerSection}>
-        <div style={{ display: "flex", justifyContent: "center" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
           <Button
             type="primary"
             size="large"
@@ -257,6 +275,22 @@ export default function OnboardingPage() {
             {progress.completedSteps === 0 ? t('onboarding.startSetup') : 
              progress.completedSteps === progress.totalSteps ? t('onboarding.reviewProfile') : 
              t('onboarding.continueSetup')}
+          </Button>
+          
+          <Button
+            type="text"
+            size="middle"
+            onClick={handleGoBackToLogin}
+            style={{ 
+              color: '#666',
+              fontSize: '14px',
+              fontWeight: '500',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            {t('onboarding.goBackToLogin')}
           </Button>
         </div>
       </div>

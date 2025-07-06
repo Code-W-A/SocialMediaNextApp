@@ -10,6 +10,7 @@ const LanguageSelector = ({
   size = "middle", 
   style = {}, 
   showIcon = true,
+  showText = true,
   placement = "bottomRight"
 }) => {
   const { language, changeLanguage, t } = useLanguage();
@@ -27,17 +28,27 @@ const LanguageSelector = ({
     }
   ];
 
+  const currentLanguage = languages.find(lang => lang.code === language);
+
   return (
     <Select
       value={language}
       onChange={changeLanguage}
       size={size}
-      style={{ minWidth: '140px', ...style }}
+      style={{ 
+        minWidth: showText ? '140px' : '50px', 
+        ...style 
+      }}
       placement={placement}
       suffixIcon={showIcon && <Iconify icon="eva:globe-2-fill" width="16px" />}
+      optionLabelProp={showText ? "label" : "value"}
     >
       {languages.map(lang => (
-        <Option key={lang.code} value={lang.code}>
+        <Option 
+          key={lang.code} 
+          value={lang.code}
+          label={showText ? `${lang.flag} ${lang.name}` : lang.flag}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span>{lang.flag}</span>
             <span>{lang.name}</span>

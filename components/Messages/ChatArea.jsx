@@ -80,6 +80,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const wrapperRef = useRef(null);
+  const textareaRef = useRef(null);
   const otherUser = conversation?.otherUser;
 
   // Dynamic height adjustment for mobile
@@ -213,10 +214,27 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     }
   };
 
+  const handleMoveCursorToEnd = () => {
+    if (textareaRef.current) {
+      const textLength = newMessage.length;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(textLength, textLength);
+    }
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      // Insert a new line instead of sending the message
+      const cursorPosition = e.target.selectionStart;
+      const textBefore = newMessage.substring(0, cursorPosition);
+      const textAfter = newMessage.substring(e.target.selectionEnd);
+      setNewMessage(textBefore + '\n' + textAfter);
+      
+      // Set cursor position after the new line
+      setTimeout(() => {
+        e.target.selectionStart = e.target.selectionEnd = cursorPosition + 1;
+      }, 0);
     }
   };
 
@@ -405,6 +423,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
             type="text" 
             icon={<Iconify icon="eva:phone-fill" width="20px" />}
             className={css.actionButton}
+            onClick={handleMoveCursorToEnd}
           />
           <Button 
             type="text" 
@@ -651,6 +670,7 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
               e.target.style.height = 'auto';
               e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
             }}
+            ref={textareaRef}
           />
           
           <Button 

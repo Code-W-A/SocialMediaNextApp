@@ -239,7 +239,7 @@ const PremiumPage = () => {
                   </div>
                 </div>
               </Space>
-              
+
               <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: '1rem' }}>
                 {t('premium.thankYouSupport')}
               </Paragraph>
@@ -312,9 +312,9 @@ const PremiumPage = () => {
                         paddingRight: 'clamp(16px, 4vw, 32px)',
                         minWidth: '200px'
                       }}
-                                          >
+                    >
                         {t('premium.activatePremium')}
-                      </Button>
+                    </Button>
                   </div>
                 </Space>
               </Col>

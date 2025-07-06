@@ -58,154 +58,39 @@ export async function POST(request) {
         break;
 
       case 'checkout.session.completed':
-        // Handle successful checkout - FIRST payment confirmation
+        // Initial subscription setup - DON'T generate invoice here to avoid duplicates
         const session = event.data.object;
-        console.log('\n🎉 ===== CHECKOUT SESSION COMPLETED =====');
+        console.log('\n🛒 ===== CHECKOUT SESSION COMPLETED =====');
         console.log('🛒 Session ID:', session.id);
-        console.log('👤 Customer ID:', session.customer);
-        console.log('💰 Amount Total:', session.amount_total);
-        console.log('💵 Currency:', session.currency);
-        console.log('📋 Payment Status:', session.payment_status);
+        console.log('💵 Amount Total:', session.amount_total);
+        console.log('💴 Currency:', session.currency);
+        console.log('💳 Payment Status:', session.payment_status);
         console.log('🔗 Subscription ID:', session.subscription);
-        console.log('📊 Metadata:', session.metadata);
-        
+        console.log('👤 Customer ID:', session.customer);
+        console.log('📧 Customer Email:', session.customer_details?.email);
+        console.log('📅 Created:', new Date(session.created * 1000));
+
         try {
-          // Get user ID from metadata
-          const userId = session.metadata?.userId;
-          console.log('🔍 Extracted User ID:', userId);
-          
-          if (userId) {
-            console.log('📝 Writing to Firestore...');
-            const firestoreData = {
-              'subscription.checkoutCompleted': true,
-              'subscription.checkoutCompletedAt': new Date(),
-              'subscription.stripeCustomerId': session.customer,
-              'subscription.lastPaymentStatus': 'completed',
-              'subscription.updatedAt': new Date()
-            };
-            console.log('📦 Firestore Data:', firestoreData);
-            
-            // Update user's payment status immediately
-            await updateDoc(doc(db, 'Users', userId), firestoreData);
-            
-            console.log('✅ Successfully updated checkout status for user:', userId);
-            
-            // Verify the update by reading back
-            const userDoc = await getDoc(doc(db, 'Users', userId));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              console.log('🔄 Verification - User subscription data:', userData.subscription);
-            } else {
-              console.error('❌ User document not found after update!');
-            }
-          } else {
-            console.error('❌ No userId found in session metadata!');
-          }
-          
-          // Retrieve and update subscription if exists
           if (session.subscription) {
-            console.log('🔄 Processing subscription:', session.subscription);
+            console.log('💡 Subscription-based checkout detected');
+            
+            // Get subscription details
             const subscription = await stripe.subscriptions.retrieve(session.subscription);
-            console.log('📋 Subscription details:', {
+            console.log('📋 Subscription Details:', {
               id: subscription.id,
               status: subscription.status,
-              current_period_start: new Date(subscription.current_period_start * 1000),
-              current_period_end: new Date(subscription.current_period_end * 1000),
-              metadata: subscription.metadata
+              userId: subscription.metadata?.userId,
+              priceId: subscription.items?.data?.[0]?.price?.id,
+              amount: subscription.items?.data?.[0]?.price?.unit_amount,
+              currency: subscription.currency
             });
-            await handleSubscriptionChange(subscription);
-            console.log('✅ Subscription change handled');
 
-            // 🆕 OBLIO INVOICE GENERATION - First payment
-            console.log('\n📋 ===== GENERATING OBLIO INVOICE (CHECKOUT) =====');
-            try {
-              if (session.payment_status === 'paid' && session.amount_total > 0) {
-                // Get user data for invoice
-                const userDoc = await getDoc(doc(db, 'Users', userId));
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  
-                  // Get Stripe customer details WITH expand for billing address
-                  const stripeCustomer = await stripe.customers.retrieve(session.customer);
-                  
-                  // Get the checkout session with full customer details including billing address
-                  const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
-                    expand: ['customer', 'customer.address']
-                  });
-                  
-                  console.log('📍 Session customer details:', {
-                    name: fullSession.customer_details?.name,
-                    email: fullSession.customer_details?.email,
-                    phone: fullSession.customer_details?.phone,
-                    address: fullSession.customer_details?.address
-                  });
-                  
-                  // Prepare customer data with complete billing address from checkout
-                  const customerData = {
-                    firstName: userData.firstName || fullSession.customer_details?.name?.split(' ')[0] || 'Client',
-                    lastName: userData.lastName || fullSession.customer_details?.name?.split(' ').slice(1).join(' ') || 'YDestiny',
-                    email: fullSession.customer_details?.email || userData.email,
-                    phone: fullSession.customer_details?.phone || userData.phone,
-                    address: fullSession.customer_details?.address?.line1 || '',
-                    city: fullSession.customer_details?.address?.city || '',
-                    state: fullSession.customer_details?.address?.state || '',
-                    country: fullSession.customer_details?.address?.country || 'Romania',
-                    company: userData.company || '',
-                    companyVat: userData.companyVat || '',
-                    companyReg: userData.companyReg || '',
-                  };
-                  
-                  const subscriptionData = {
-                    subscriptionId: subscription.id,
-                    priceId: subscription.items?.data?.[0]?.price?.id,
-                    amount: session.amount_total,
-                    currency: session.currency,
-                  };
-                  
-                  // Convert to Oblio format
-                  const oblioInvoiceData = convertStripeToOblioData(customerData, subscriptionData, session.amount_total);
-                  
-                  console.log('📋 Creating Oblio invoice for checkout payment...', {
-                    customer: oblioInvoiceData.clientEmail,
-                    amount: session.amount_total,
-                    currency: session.currency,
-                    billingAddress: {
-                      address: oblioInvoiceData.clientAddress,
-                      city: oblioInvoiceData.clientCity,
-                      state: oblioInvoiceData.clientCounty,
-                      country: oblioInvoiceData.clientCountry
-                    }
-                  });
-                  
-                  const oblioResult = await oblioService.generateInvoice(oblioInvoiceData);
-                  
-                  if (oblioResult.success) {
-                    console.log('✅ Oblio invoice created successfully:', oblioResult);
-                    
-                    // Save Oblio invoice details to user record
-                    await updateDoc(doc(db, 'Users', userId), {
-                      'subscription.oblioInvoiceNumber': oblioResult.invoiceNumber,
-                      'subscription.oblioInvoiceUrl': oblioResult.invoiceUrl,
-                      'subscription.lastOblioInvoiceDate': new Date(),
-                      'subscription.updatedAt': new Date()
-                    });
-                    
-                    console.log('✅ Oblio invoice details saved to user record');
-                  } else {
-                    console.error('❌ Failed to create Oblio invoice:', oblioResult.error);
-                    // Don't fail the webhook if Oblio fails - just log it
-                  }
-                } else {
-                  console.error('❌ User document not found for Oblio invoice generation');
-                }
-              } else {
-                console.log('ℹ️ Skipping Oblio invoice - payment not completed or zero amount');
-              }
-            } catch (oblioError) {
-              console.error('❌ Error generating Oblio invoice for checkout:', oblioError);
-              // Don't fail the webhook if Oblio fails - premium system should still work
-            }
-            console.log('📋 ===== OBLIO INVOICE GENERATION COMPLETED =====\n');
+            // Process subscription change (for user status updates)
+            console.log('🔄 Processing subscription change...');
+            await handleSubscriptionChange(subscription);
+            console.log('✅ Subscription change processed successfully');
+
+            console.log('ℹ️ Oblio invoice will be generated when payment is confirmed (invoice.payment_succeeded)');
           } else {
             console.log('ℹ️ No subscription attached to this session');
           }
@@ -260,8 +145,10 @@ export async function POST(request) {
                 console.log('🔄 Verification - Updated subscription data:', userData.subscription);
               }
 
-              // 🆕 OBLIO INVOICE GENERATION - Recurring payment
-              console.log('\n📋 ===== GENERATING OBLIO INVOICE (RECURRING) =====');
+              // 🆕 OBLIO INVOICE GENERATION 
+              // NOTE: Invoices are generated ONLY here (invoice.payment_succeeded) to avoid duplicates
+              // We do NOT generate invoices in checkout.session.completed to prevent double invoicing
+              console.log('\n�� ===== GENERATING OBLIO INVOICE (PAYMENT CONFIRMED) =====');
               try {
                 if (invoice.status === 'paid' && invoice.amount_paid > 0) {
                   // Get user data for invoice

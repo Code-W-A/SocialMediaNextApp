@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Iconify from "@/components/Iconify";
 import css from "@/styles/AuthPages.module.css";
 import { signUp } from "@/lib/firebaseAuth";
+import { useLanguage } from "@/lib/i18n";
 
 const { Title, Text, Link } = Typography;
 
@@ -12,6 +13,7 @@ export default function SignUpPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+  const { t } = useLanguage();
 
   const handleSubmit = async (values) => {
     setLoading(true);
@@ -30,13 +32,13 @@ export default function SignUpPage() {
       });
       
       if (result.success) {
-        message.success("Account created successfully! 🎉");
+        message.success(t('auth.accountCreatedSuccess'));
         router.push("/onboarding");
       } else {
-        message.error(result.error || "Registration failed");
+        message.error(result.error || t('auth.registrationFailed'));
       }
     } catch (error) {
-      message.error("Something went wrong. Please try again.");
+      message.error(t('auth.registrationFailed'));
     } finally {
       setLoading(false);
     }
@@ -46,10 +48,10 @@ export default function SignUpPage() {
     <div className={css.authContainer}>
       <div className={css.authHeader}>
         <Title level={2} className={css.authTitle}>
-          Create Account 🚀
+          {t('auth.createAccount')}
         </Title>
         <Text type="secondary" className={css.authSubtitle}>
-          Join our community and start sharing your moments
+          {t('auth.joinCommunity')}
         </Text>
       </div>
 
@@ -66,34 +68,34 @@ export default function SignUpPage() {
             <div className={css.nameFields}>
               <Form.Item
                 name="firstName"
-                label="First Name"
+                label={t('auth.firstName')}
                 rules={[
-                  { required: true, message: "Please enter your first name" },
-                  { min: 2, message: "First name must be at least 2 characters" }
+                  { required: true, message: t('auth.pleaseEnterFirstName') },
+                  { min: 2, message: t('auth.firstNameMinLength') }
                 ]}
                 className={css.halfField}
               >
                 <Input
                   size="large"
                   prefix={<Iconify icon="eva:person-fill" width="20px" />}
-                  placeholder="First name"
+                  placeholder={t('auth.firstName')}
                   className={css.authInput}
                 />
               </Form.Item>
 
               <Form.Item
                 name="lastName"
-                label="Last Name"
+                label={t('auth.lastName')}
                 rules={[
-                  { required: true, message: "Please enter your last name" },
-                  { min: 2, message: "Last name must be at least 2 characters" }
+                  { required: true, message: t('auth.pleaseEnterLastName') },
+                  { min: 2, message: t('auth.lastNameMinLength') }
                 ]}
                 className={css.halfField}
               >
                 <Input
                   size="large"
                   prefix={<Iconify icon="eva:person-fill" width="20px" />}
-                  placeholder="Last name"
+                  placeholder={t('auth.lastName')}
                   className={css.authInput}
                 />
               </Form.Item>
@@ -101,36 +103,36 @@ export default function SignUpPage() {
 
             <Form.Item
               name="username"
-              label="Username"
+              label={t('auth.username')}
               rules={[
-                { required: true, message: "Please enter a username" },
-                { min: 3, message: "Username must be at least 3 characters" },
-                { max: 20, message: "Username must be less than 20 characters" }
+                { required: true, message: t('auth.pleaseEnterUsername') },
+                { min: 3, message: t('auth.usernameMinLength') },
+                { max: 20, message: t('auth.usernameMaxLength') }
               ]}
             >
               <Input
                 size="large"
                 prefix={<Iconify icon="eva:at-fill" width="20px" />}
-                placeholder="Choose a username"
+                placeholder={t('auth.chooseUsername')}
                 className={css.authInput}
               />
             </Form.Item>
 
             <Form.Item
               name="gender"
-              label="Gender"
+              label={t('auth.gender')}
               rules={[
-                { required: true, message: "Please select your gender" }
+                { required: true, message: t('auth.pleaseSelectGender') }
               ]}
             >
               <Select
                 size="large"
-                placeholder="Select your gender"
+                placeholder={t('auth.selectGender')}
                 className={css.authInput}
               >
-                <Select.Option value="male">Male</Select.Option>
-                <Select.Option value="female">Female</Select.Option>
-                <Select.Option value="other">Other</Select.Option>
+                <Select.Option value="male">{t('auth.male')}</Select.Option>
+                <Select.Option value="female">{t('auth.female')}</Select.Option>
+                <Select.Option value="other">{t('auth.other')}</Select.Option>
               </Select>
             </Form.Item>
           </div>
@@ -139,29 +141,29 @@ export default function SignUpPage() {
           <div>
             <Form.Item
               name="email"
-              label="Email Address"
+              label={t('auth.emailAddress')}
               rules={[
-                { required: true, message: "Please enter your email" },
-                { type: "email", message: "Please enter a valid email" }
+                { required: true, message: t('auth.pleaseEnterEmail') },
+                { type: "email", message: t('auth.pleaseEnterValidEmail') }
               ]}
             >
               <Input
                 size="large"
                 prefix={<Iconify icon="eva:email-fill" width="20px" />}
-                placeholder="Enter your email"
+                placeholder={t('auth.enterEmail')}
                 className={css.authInput}
               />
             </Form.Item>
 
             <Form.Item
               name="password"
-              label="Password"
+              label={t('auth.password')}
               rules={[
-                { required: true, message: "Please enter your password" },
-                { min: 8, message: "Password must be at least 8 characters" },
+                { required: true, message: t('auth.pleaseEnterPassword') },
+                { min: 8, message: t('auth.passwordMinLength') },
                 {
                   pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-                  message: "Password must contain uppercase, lowercase and number"
+                  message: t('auth.passwordPattern')
                 }
               ]}
               hasFeedback
@@ -169,23 +171,23 @@ export default function SignUpPage() {
               <Input.Password
                 size="large"
                 prefix={<Iconify icon="eva:lock-fill" width="20px" />}
-                placeholder="Create a strong password"
+                placeholder={t('auth.createStrongPassword')}
                 className={css.authInput}
               />
             </Form.Item>
 
             <Form.Item
               name="confirmPassword"
-              label="Confirm Password"
+              label={t('auth.confirmPassword')}
               dependencies={['password']}
               rules={[
-                { required: true, message: "Please confirm your password" },
+                { required: true, message: t('auth.pleaseConfirmPassword') },
                 ({ getFieldValue }) => ({
                   validator(_, value) {
                     if (!value || getFieldValue('password') === value) {
                       return Promise.resolve();
                     }
-                    return Promise.reject(new Error('Passwords do not match'));
+                    return Promise.reject(new Error(t('auth.passwordsDoNotMatch')));
                   },
                 }),
               ]}
@@ -194,7 +196,7 @@ export default function SignUpPage() {
               <Input.Password
                 size="large"
                 prefix={<Iconify icon="eva:lock-fill" width="20px" />}
-                placeholder="Confirm your password"
+                placeholder={t('auth.confirmYourPassword')}
                 className={css.authInput}
               />
             </Form.Item>
@@ -205,17 +207,17 @@ export default function SignUpPage() {
           name="terms"
           valuePropName="checked"
           rules={[
-            { required: true, message: "Please accept the terms and conditions" }
+            { required: true, message: t('auth.pleaseAcceptTerms') }
           ]}
         >
           <Checkbox className={css.termsCheckbox}>
-            I agree to the{" "}
+            {t('auth.agreeToTerms')}{" "}
             <Link href="/terms" className={css.authLink}>
-              Terms of Service
+              {t('auth.termsOfService')}
             </Link>{" "}
-            and{" "}
+            {t('auth.and')}{" "}
             <Link href="/privacy" className={css.authLink}>
-              Privacy Policy
+              {t('auth.privacyPolicy')}
             </Link>
           </Checkbox>
         </Form.Item>
@@ -229,16 +231,16 @@ export default function SignUpPage() {
             className={css.authButton}
             block
           >
-            {loading ? "Creating Account..." : "Create Account"}
+            {loading ? t('auth.creatingAccount') : t('auth.createAccount')}
           </Button>
         </Form.Item>
       </Form>
 
       <div className={css.authFooter}>
         <Text type="secondary">
-          Already have an account?{" "}
+          {t('auth.alreadyHaveAccount')}{" "}
           <Link href="/sign-in" className={css.authLink}>
-            Sign in here
+            {t('auth.signInHere')}
           </Link>
         </Text>
       </div>

@@ -233,7 +233,7 @@ const PostGenerator = () => {
       }
       
       setFileType(file.type.split("/")[0]);
-      
+
       // Store the actual file object instead of converting to base64
       setSelectedFile({
         file: file,

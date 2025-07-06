@@ -285,7 +285,7 @@ const Comment = React.memo(function Comment({ data, postId, queryId, postAuthorI
             placement="left"
           >
             <span style={{ color: "red" }}>
-              {isPostAuthor && !isOwnComment ? "Moderate (Delete)" : "Delete"}
+              Delete
             </span>
           </Popconfirm>
         ),

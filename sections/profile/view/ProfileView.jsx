@@ -784,7 +784,7 @@ const ProfileView = ({ userId }) => {
         {!isCurrentUserProfile && isCompatible && compatibilityChecked && (
           <div style={{
             position: 'fixed',
-            bottom: '20px',
+            bottom: isMobile ? '100px' : '20px', // Higher on mobile to avoid bottom navbar
             right: '20px',
             zIndex: 1000
           }}>

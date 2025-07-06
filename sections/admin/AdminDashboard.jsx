@@ -199,9 +199,18 @@ const AdminDashboard = () => {
 
   // Approve resonance request mutation (creates compatibility)
   const approveResonanceMutation = useMutation({
-    mutationFn: ({ requesterId, targetUserId }) => addCompatibility({ userId: requesterId, targetUserId }),
-    onSuccess: () => {
+    mutationFn: ({ requesterId, targetUserId, requestId }) => addCompatibility({ userId: requesterId, targetUserId }),
+    onSuccess: (data, variables) => {
       message.success("Resonance approved! Compatibility created successfully! ✨");
+      
+      // Update compatibility status immediately
+      if (variables.requestId) {
+        setCompatibilityStatuses(prev => ({
+          ...prev,
+          [variables.requestId]: true
+        }));
+      }
+      
       queryClient.invalidateQueries(["admin-resonance-requests"]);
       queryClient.invalidateQueries(["user-compatibilities"]);
     },
@@ -213,9 +222,18 @@ const AdminDashboard = () => {
 
   // Remove compatibility mutation for resonance requests
   const removeResonanceCompatibilityMutation = useMutation({
-    mutationFn: ({ requesterId, targetUserId }) => removeCompatibility({ userId: requesterId, targetUserId }),
-    onSuccess: () => {
+    mutationFn: ({ requesterId, targetUserId, requestId }) => removeCompatibility({ userId: requesterId, targetUserId }),
+    onSuccess: (data, variables) => {
       message.success("Compatibility removed successfully! The cosmic connection has been dissolved. 💫");
+      
+      // Update compatibility status immediately
+      if (variables.requestId) {
+        setCompatibilityStatuses(prev => ({
+          ...prev,
+          [variables.requestId]: false
+        }));
+      }
+      
       queryClient.invalidateQueries(["admin-resonance-requests"]);
       queryClient.invalidateQueries(["user-compatibilities"]);
     },
@@ -279,12 +297,12 @@ const AdminDashboard = () => {
     deleteCommentMutation.mutate({ postId, commentId });
   };
 
-  const handleApproveResonance = (requesterId, targetUserId) => {
-    approveResonanceMutation.mutate({ requesterId, targetUserId });
+  const handleApproveResonance = (requesterId, targetUserId, requestId) => {
+    approveResonanceMutation.mutate({ requesterId, targetUserId, requestId });
   };
 
-  const handleRemoveResonanceCompatibility = (requesterId, targetUserId) => {
-    removeResonanceCompatibilityMutation.mutate({ requesterId, targetUserId });
+  const handleRemoveResonanceCompatibility = (requesterId, targetUserId, requestId) => {
+    removeResonanceCompatibilityMutation.mutate({ requesterId, targetUserId, requestId });
   };
 
   const getProfileImage = (user) => {
@@ -1172,7 +1190,7 @@ const AdminDashboard = () => {
                               key="remove-compatibility"
                               danger
                               icon={<DeleteOutlined />}
-                              onClick={() => handleRemoveResonanceCompatibility(request.requesterId, request.targetUserId)}
+                              onClick={() => handleRemoveResonanceCompatibility(request.requesterId, request.targetUserId, request.id)}
                               loading={removeResonanceCompatibilityMutation.isPending}
                               style={{ background: 'linear-gradient(135deg, #ff4d4f, #ff7875)', border: 'none', color: 'white' }}
                             >
@@ -1183,7 +1201,7 @@ const AdminDashboard = () => {
                               key="approve"
                               type="primary"
                               icon={<HeartFilled />}
-                              onClick={() => handleApproveResonance(request.requesterId, request.targetUserId)}
+                              onClick={() => handleApproveResonance(request.requesterId, request.targetUserId, request.id)}
                               loading={approveResonanceMutation.isPending}
                               style={{ background: 'linear-gradient(135deg, #52c41a, #389e0d)', border: 'none' }}
                             >

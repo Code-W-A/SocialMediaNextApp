@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import Iconify from '@/components/Iconify';
 import { useLanguage } from '@/lib/i18n';
 import PWAInstallSection from '@/components/PWAInstallSection';
+import PWAInstallButtonAlways from '@/components/PWAInstallButtonAlways';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -129,6 +130,18 @@ const AccountSettings = () => {
       )
     },
     {
+      icon: 'eva:smartphone-fill',
+      title: t('accountSettings.installPWA'),
+      description: t('accountSettings.installPWADesc'),
+      action: (
+        <PWAInstallButtonAlways
+          variant="secondary"
+          size={isMobile ? 'large' : 'default'}
+          style={{ width: isMobile ? '100%' : 'auto' }}
+        />
+      )
+    },
+    {
       icon: 'eva:trash-2-fill',
       title: t('accountSettings.deleteAccount'),
       description: t('accountSettings.deleteAccountDesc'),
@@ -195,60 +208,87 @@ const AccountSettings = () => {
         }
         style={{ marginBottom: '1.5rem' }}
       >
-        <List
-          dataSource={securityItems}
-          renderItem={(item) => (
-            <List.Item
-              actions={isMobile ? [] : [item.action]}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {securityItems.map((item, index) => (
+            <div
+              key={index}
               style={{ 
-                borderColor: item.danger ? '#ff4d4f' : undefined,
-                backgroundColor: item.danger ? '#fff2f0' : undefined,
-                borderRadius: item.danger ? '8px' : undefined,
-                padding: item.danger ? '16px' : undefined,
-                marginBottom: item.danger ? '8px' : undefined,
-                flexDirection: isMobile ? 'column' : 'row',
-                alignItems: isMobile ? 'flex-start' : 'center'
+                border: item.danger ? '1px solid #ff4d4f' : '1px solid #f0f0f0',
+                backgroundColor: item.danger ? '#fff2f0' : '#fafafa',
+                borderRadius: '12px',
+                padding: isMobile ? '16px' : '20px',
+                transition: 'all 0.2s ease'
               }}
             >
-              <List.Item.Meta
-                avatar={
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: isMobile ? 'column' : 'row',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                gap: '16px'
+              }}>
+                {/* Icon and Text Section */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '12px',
+                  flex: 1,
+                  minWidth: 0 // Important for text wrapping
+                }}>
                   <div style={{
-                    width: '40px',
-                    height: '40px',
+                    width: '48px',
+                    height: '48px',
                     borderRadius: '50%',
                     background: item.danger ? '#ff4d4f' : '#1890ff',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    flexShrink: 0
                   }}>
                     <Iconify 
                       icon={item.icon} 
-                      width="20px" 
+                      width="24px" 
                       color="white" 
                     />
                   </div>
-                }
-                title={
-                  <Text strong style={{ color: item.danger ? '#ff4d4f' : undefined }}>
-                    {item.title}
-                  </Text>
-                }
-                description={
-                  <div>
-                    <div style={{ marginBottom: isMobile ? '12px' : '0' }}>
+                  
+                  <div style={{ 
+                    flex: 1,
+                    minWidth: 0, // Important for text wrapping
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: item.danger ? '#ff4d4f' : '#262626',
+                      marginBottom: '4px',
+                      lineHeight: '1.4',
+                      wordBreak: 'break-word'
+                    }}>
+                      {item.title}
+                    </div>
+                    <div style={{ 
+                      fontSize: '14px', 
+                      color: '#666',
+                      lineHeight: '1.5',
+                      wordBreak: 'break-word'
+                    }}>
                       {item.description}
                     </div>
-                    {isMobile && (
-                      <div style={{ marginTop: '12px' }}>
-                        {item.action}
-                      </div>
-                    )}
                   </div>
-                }
-              />
-            </List.Item>
-          )}
-        />
+                </div>
+                
+                {/* Action Button Section */}
+                <div style={{ 
+                  width: isMobile ? '100%' : 'auto',
+                  flexShrink: 0,
+                  marginTop: isMobile ? '12px' : '0'
+                }}>
+                  {item.action}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </Card>
 
       {/* PWA Install Section */}

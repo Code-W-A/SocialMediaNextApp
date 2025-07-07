@@ -26,13 +26,25 @@ const PWAInstallButtonAlways = ({
       return;
     }
 
-    // If can't install (not available), show info message
+    // If can't install, check if it's because installation is not supported or already dismissed
     if (!canInstall) {
-      message.info({
-        content: "PWA installation is not available in this browser. Try using Chrome on Android for the best experience.",
-        duration: 4,
-        icon: <Iconify icon="eva:info-fill" style={{ color: '#1890ff' }} />
-      });
+      // Check if we're in a PWA-capable browser
+      const isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
+      
+      if (!isSupported) {
+        message.info({
+          content: t('pwa.installNotSupported'),
+          duration: 4,
+          icon: <Iconify icon="eva:info-fill" style={{ color: '#1890ff' }} />
+        });
+      } else {
+        // PWA is supported but prompt may have been dismissed or already used
+        message.info({
+          content: t('pwa.installPromptUnavailable'),
+          duration: 5,
+          icon: <Iconify icon="eva:info-fill" style={{ color: '#1890ff' }} />
+        });
+      }
       return;
     }
 

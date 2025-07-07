@@ -1,61 +1,58 @@
-const CACHE_NAME = 'destiny-pwa-v1';
-const STATIC_CACHE_NAME = 'destiny-static-v1';
-const DYNAMIC_CACHE_NAME = 'destiny-dynamic-v1';
+// Simplified versioning - minimal caching for instant updates
+const APP_VERSION = '20250103-3';
+const OFFLINE_CACHE = `destiny-offline-${APP_VERSION}`;
+const IMAGES_CACHE = `destiny-images-${APP_VERSION}`;
 
-// Files to cache immediately
-const STATIC_ASSETS = [
-  '/',
+// Only cache essentials for offline - no HTML/JS/CSS caching for instant updates
+const OFFLINE_ESSENTIALS = [
   '/offline',
   '/images/sigla-512.png',
-  '/images/auth.png',
-  '/images/comunity.jpg',
-  '/images/landing-page.jpg',
   '/images/placeholder-avatar.png',
   '/manifest.json'
 ];
 
-// Install event - cache static assets
+// Install event - cache only offline essentials
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...');
+  console.log('🚀 Service Worker: Installing with instant update strategy...');
   event.waitUntil(
-    caches.open(STATIC_CACHE_NAME)
+    caches.open(OFFLINE_CACHE)
       .then((cache) => {
-        console.log('Service Worker: Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
+        console.log('📦 Service Worker: Caching offline essentials only');
+        return cache.addAll(OFFLINE_ESSENTIALS);
       })
       .then(() => {
-        console.log('Service Worker: Skip waiting');
+        console.log('⚡ Service Worker: Skip waiting for instant activation');
         return self.skipWaiting();
       })
       .catch((error) => {
-        console.error('Service Worker: Cache failed', error);
+        console.error('❌ Service Worker: Cache failed', error);
       })
   );
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches and claim clients immediately
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating...');
+  console.log('🔥 Service Worker: Activating with instant takeover...');
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE_NAME && cacheName !== DYNAMIC_CACHE_NAME) {
-              console.log('Service Worker: Deleting old cache', cacheName);
+            if (cacheName !== OFFLINE_CACHE && cacheName !== IMAGES_CACHE) {
+              console.log('🗑️ Service Worker: Deleting old cache', cacheName);
               return caches.delete(cacheName);
             }
           })
         );
       })
       .then(() => {
-        console.log('Service Worker: Claiming clients');
+        console.log('👑 Service Worker: Taking control immediately');
         return self.clients.claim();
       })
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - NETWORK FIRST strategy for instant updates
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -65,73 +62,53 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle API requests
-  if (url.pathname.startsWith('/api/')) {
+  // Special handling for images - cache for performance
+  if (request.destination === 'image') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Clone response for caching
-          const responseClone = response.clone();
-          
-          // Cache successful GET requests
-          if (request.method === 'GET' && response.status === 200) {
-            caches.open(DYNAMIC_CACHE_NAME)
+          // Cache images for better performance
+          if (response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(IMAGES_CACHE)
               .then((cache) => {
                 cache.put(request, responseClone);
               });
           }
-          
           return response;
         })
         .catch(() => {
-          // Return cached version if available
-          return caches.match(request);
+          // Fallback to cached image or placeholder
+          return caches.match(request)
+            .then((cachedResponse) => {
+              return cachedResponse || caches.match('/images/placeholder-avatar.png');
+            });
         })
     );
     return;
   }
 
-  // Handle static assets and pages
+  // NETWORK FIRST for all other requests (HTML, JS, CSS, API)
   event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
+    fetch(request)
+      .then((response) => {
+        // Always return fresh network response
+        console.log(`🌐 Fresh from network: ${url.pathname}`);
+        return response;
+      })
+      .catch(() => {
+        console.log(`📱 Network failed, trying cache: ${url.pathname}`);
+        
+        // Only fallback to cache for critical offline resources
+        if (request.destination === 'document') {
+          return caches.match('/offline') || new Response('Offline - please check your connection');
         }
-
-        return fetch(request)
-          .then((response) => {
-            // Don't cache non-successful responses
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Only cache GET requests
-            if (request.method !== 'GET') {
-              return response;
-            }
-
-            // Clone response for caching
-            const responseToCache = response.clone();
-
-            caches.open(DYNAMIC_CACHE_NAME)
-              .then((cache) => {
-                cache.put(request, responseToCache);
-              });
-
-            return response;
-          })
-          .catch(() => {
-            // Return offline page for navigation requests
-            if (request.destination === 'document') {
-              return caches.match('/offline');
-            }
-            
-            // Return placeholder for images
-            if (request.destination === 'image') {
-              return caches.match('/images/placeholder-avatar.png');
-            }
-          });
+        
+        // For other resources, return a minimal fallback
+        return new Response('Network unavailable', { 
+          status: 503,
+          statusText: 'Service Unavailable' 
+        });
       })
   );
 });

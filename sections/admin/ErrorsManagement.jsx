@@ -392,6 +392,36 @@ const ErrorsManagement = () => {
         </Row>
       )}
 
+      {/* Test Error Boundary Card */}
+      <Card style={{ marginBottom: '24px', background: '#fff7e6', borderColor: '#ffec3d' }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col span={18}>
+            <div>
+              <Title level={4} style={{ margin: 0, color: '#fa8c16' }}>
+                <BugOutlined /> Test Error Boundary
+              </Title>
+              <Text type="secondary">
+                Testează cum funcționează error boundary-ul prin declanșarea unei erori controlate
+              </Text>
+            </div>
+          </Col>
+          <Col span={6} style={{ textAlign: 'right' }}>
+            <Button 
+              type="primary" 
+              danger
+              size="large"
+              icon={<WarningOutlined />}
+              onClick={() => {
+                // Trigger a controlled error to test the error boundary
+                throw new Error('Eroare de test pentru Error Boundary - aceasta este o eroare intenționată pentru testare!');
+              }}
+            >
+              Declanșează Eroare Test
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+
       {/* Filters */}
       <Card style={{ marginBottom: '24px' }}>
         <Space wrap>

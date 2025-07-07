@@ -6,7 +6,7 @@ import { useLanguage } from '@/lib/i18n';
 
 /**
  * ProfileImageCrop - Specialized component for profile image cropping
- * Always crops to square aspect ratio for profile images
+ * Supports square and portrait aspect ratios for profile images
  */
 const ProfileImageCrop = ({
   visible,
@@ -14,17 +14,18 @@ const ProfileImageCrop = ({
   onCropComplete,
   file,
   title,
+  defaultAspectRatio = 'square',
   maxWidth = 1080, // Same size as post square images for better quality
   quality = 0.85 // Optimized quality for good size/quality balance
 }) => {
   const { t } = useLanguage();
 
   const handleCropComplete = useCallback((cropData) => {
-    // Profile images always get square crop
+    // Add profile-specific metadata
     const profileCropData = {
       ...cropData,
       isProfileImage: true,
-      aspectRatio: 'square'
+      context: 'profile'
     };
     
     onCropComplete(profileCropData);
@@ -39,11 +40,11 @@ const ProfileImageCrop = ({
       onCropComplete={handleCropComplete}
       file={file}
       title={profileTitle}
-      aspectRatios={['square']} // Only square for profile images
-      defaultAspectRatio="square"
+      aspectRatios={['square', 'portrait']} // Square and portrait options for profile images
+      defaultAspectRatio={defaultAspectRatio}
       maxWidth={maxWidth}
       quality={quality}
-      showAspectRatioSelector={false} // Hide aspect ratio selector since it's always square
+      showAspectRatioSelector={true} // Show aspect ratio selector for choosing between square and portrait
       showZoomSlider={true}
       showImageInfo={true}
     />

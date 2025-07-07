@@ -162,20 +162,42 @@ export const handleSubscriptionChange = async (subscription) => {
 
     const isPremiumStatus = isSubscriptionActive(subscription.status);
     
+    // Handle optional period dates - use fallback dates if not available
+    let currentPeriodStart = null;
+    let currentPeriodEnd = null;
+    
+    if (subscription.current_period_start) {
+      currentPeriodStart = toSerializableDate(new Date(subscription.current_period_start * 1000));
+    } else if (subscription.start_date) {
+      currentPeriodStart = toSerializableDate(new Date(subscription.start_date * 1000));
+    } else if (subscription.created) {
+      currentPeriodStart = toSerializableDate(new Date(subscription.created * 1000));
+    }
+    
+    if (subscription.current_period_end) {
+      currentPeriodEnd = toSerializableDate(new Date(subscription.current_period_end * 1000));
+    } else if (subscription.trial_end) {
+      currentPeriodEnd = toSerializableDate(new Date(subscription.trial_end * 1000));
+    }
+    
     const subscriptionData = {
       subscriptionId: subscription.id,
       customerId: subscription.customer,
       status: subscription.status,
       isPremium: isPremiumStatus,
-      currentPeriodStart: toSerializableDate(new Date(subscription.current_period_start * 1000)),
-      currentPeriodEnd: toSerializableDate(new Date(subscription.current_period_end * 1000)),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      priceId: subscription.items.data[0]?.price?.id,
+      currentPeriodStart,
+      currentPeriodEnd,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
+      priceId: subscription.items?.data?.[0]?.price?.id || null,
     };
 
     await updateUserSubscription(userId, subscriptionData);
     
-    console.log(`Updated subscription for user ${userId}:`, subscriptionData);
+    console.log(`✅ Updated subscription for user ${userId}:`, {
+      ...subscriptionData,
+      hasCurrentPeriodDates: !!(subscription.current_period_start && subscription.current_period_end),
+      usedFallbackDates: !subscription.current_period_start || !subscription.current_period_end
+    });
   } catch (error) {
     console.error('Error handling subscription change:', error);
     throw error;

@@ -273,12 +273,12 @@ export const getPremiumBadgeProps = (user) => {
  */
 export const validateSubscriptionWebhookData = (subscription) => {
   try {
-    // Required fields check
-    const requiredFields = ['id', 'customer', 'status', 'current_period_start', 'current_period_end'];
+    // Essential required fields (always present in Stripe webhooks)
+    const essentialFields = ['id', 'customer', 'status'];
     
-    for (const field of requiredFields) {
+    for (const field of essentialFields) {
       if (!subscription[field]) {
-        console.error(`Missing required field in subscription webhook: ${field}`);
+        console.error(`Missing essential field in subscription webhook: ${field}`);
         return false;
       }
     }
@@ -296,15 +296,20 @@ export const validateSubscriptionWebhookData = (subscription) => {
       return false;
     }
 
-    // Validate dates
-    const currentPeriodStart = new Date(subscription.current_period_start * 1000);
-    const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-    
-    if (currentPeriodEnd <= currentPeriodStart) {
-      console.error('Invalid subscription period: end date must be after start date');
-      return false;
+    // Optional date validation (only if both dates are present)
+    if (subscription.current_period_start && subscription.current_period_end) {
+      const currentPeriodStart = new Date(subscription.current_period_start * 1000);
+      const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+      
+      if (currentPeriodEnd <= currentPeriodStart) {
+        console.error('Invalid subscription period: end date must be after start date');
+        return false;
+      }
+    } else {
+      console.log('ℹ️ Note: current_period_start/end not present in this webhook event (this is normal for some Stripe events)');
     }
 
+    console.log('✅ Subscription webhook validation passed');
     return true;
   } catch (error) {
     console.error('Error validating subscription webhook data:', error);

@@ -19,6 +19,8 @@ import { getUserLimits } from "@/utils/premiumHelpers";
 import { now } from "@/utils/dateHelpers";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { message } from "antd";
+import { PostImageCrop } from "@/components/ImageCrop";
+import { validateImageFile } from "@/utils/imageValidation";
 
 const PostGenerator = () => {
   const { t } = useLanguage();
@@ -31,6 +33,9 @@ const PostGenerator = () => {
   const [showPrompts, setShowPrompts] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  // Crop functionality state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [fileForCrop, setFileForCrop] = useState(null);
   const queryClient = useQueryClient();
   const { user } = useUser();
   const { subscription, isPremium } = useSubscription();
@@ -222,25 +227,39 @@ const PostGenerator = () => {
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
 
-    if (
-      file &&
-      (file.type.startsWith("image/") || file.type.startsWith("video/"))
-    ) {
-      // Check file size (warn if larger than 10MB)
+    if (!file) return;
+
+    // Check if it's an image or video
+    if (file.type.startsWith("video/")) {
+      // Handle video files (no crop needed)
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
         showError(t('posts.imageSizeError'));
         return;
       }
       
-      setFileType(file.type.split("/")[0]);
-
-      // Store the actual file object instead of converting to base64
+      setFileType("video");
       setSelectedFile({
         file: file,
         preview: URL.createObjectURL(file)
       });
+    } else if (file.type.startsWith("image/")) {
+      // Handle image files (with crop)
+      const validation = validateImageFile(file, 'post');
+      if (!validation.isValid) {
+        showError(validation.error);
+        return;
+      }
+
+      // Store file for cropping and open crop modal
+      setFileForCrop(file);
+      setShowCropModal(true);
+    } else {
+      showError(t('posts.imageUploadError') || 'Please select an image or video file');
     }
+
+    // Clear input value so same file can be selected again
+    e.target.value = '';
   };
 
   const handleRemoveFile = () => {
@@ -250,6 +269,28 @@ const PostGenerator = () => {
     }
     setSelectedFile(null);
     setFileType(null);
+  };
+
+  const handleCropComplete = (cropData) => {
+    // Set the cropped image
+    setSelectedFile({
+      file: cropData.file,
+      preview: cropData.preview,
+      originalFile: cropData.originalFile,
+      aspectRatio: cropData.aspectRatio,
+      dimensions: cropData.dimensions
+    });
+    setFileType("image");
+    setShowCropModal(false);
+    setFileForCrop(null);
+    
+    // Show success message
+    message.success(t('imageCrop.cropSuccessful') || 'Image cropped successfully!');
+  };
+
+  const handleCropCancel = () => {
+    setShowCropModal(false);
+    setFileForCrop(null);
   };
 
   const showError = (errorMessage) => {
@@ -459,32 +500,80 @@ const PostGenerator = () => {
               {/* file preview */}
               {fileType && (
                 <div className={css.previewContainer}>
-                  {/* remove button */}
+                  {/* remove button - always visible */}
                   <Button
                     type="default"
                     className={css.remove}
-                    style={{ position: "absolute" }}
+                    style={{ 
+                      position: "absolute",
+                      zIndex: 10,
+                      right: "12px",
+                      top: "12px",
+                      background: "rgba(0, 0, 0, 0.8)",
+                      border: "none",
+                      borderRadius: "50%",
+                      width: "36px",
+                      height: "36px",
+                      padding: "0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.4)",
+                      transition: "all 0.2s ease",
+                      cursor: "pointer"
+                    }}
                     onClick={handleRemoveFile}
-                    icon={<Iconify icon="eva:close-fill" width="18px" style={{ color: 'white' }} />}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "rgba(220, 38, 38, 0.9)";
+                      e.target.style.transform = "scale(1.1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "rgba(0, 0, 0, 0.8)";
+                      e.target.style.transform = "scale(1)";
+                    }}
+                    icon={<Iconify icon="eva:close-fill" width="20px" style={{ color: 'white' }} />}
                     size="small"
                     shape="circle"
                   />
 
                   {/* media preview */}
                   {fileType === "image" && (
-                    <Image
-                      src={selectedFile?.preview}
-                      className={css.preview}
-                      alt="preview"
-                      height={"350px"}
-                      width={"100%"}
-                    />
+                    <div style={{ position: "relative" }}>
+                      <Image
+                        src={selectedFile?.preview}
+                        className={css.preview}
+                        alt="preview"
+                        height={"350px"}
+                        width={"100%"}
+                        style={{ borderRadius: "12px" }}
+                      />
+                      {/* Show crop info if available */}
+                      {selectedFile?.aspectRatio && (
+                        <div style={{
+                          position: "absolute",
+                          bottom: "12px",
+                          left: "12px",
+                          background: "rgba(0, 0, 0, 0.7)",
+                          color: "white",
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}>
+                          <Iconify icon="eva:crop-fill" width="14px" />
+                          {t(`imageCrop.${selectedFile.aspectRatio}`) || selectedFile.aspectRatio}
+                        </div>
+                      )}
+                    </div>
                   )}
                   {fileType === "video" && (
                     <video
                       className={css.preview}
                       controls
                       src={selectedFile?.preview}
+                      style={{ borderRadius: "12px" }}
                     />
                   )}
                 </div>
@@ -600,10 +689,20 @@ const PostGenerator = () => {
         </div>
       </Modal>
 
-      {/* make an input to only accept img files and max number of files as 1 */}
+      {/* Image Crop Modal */}
+      <PostImageCrop
+        visible={showCropModal}
+        onCancel={handleCropCancel}
+        onCropComplete={handleCropComplete}
+        file={fileForCrop}
+        title={t('imageCrop.postImageTitle') || 'Crop Post Image'}
+        defaultAspectRatio="square"
+      />
+
+      {/* File input - accept both images and videos */}
       <input
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         multiple={false}
         style={{ display: "none" }}
         ref={imgInputRef}

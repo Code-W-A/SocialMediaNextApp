@@ -112,7 +112,7 @@ const UserProfileHead = ({
         <div className={css.bannerSection}>
           <div className={css.bannerImage}>
             <Image
-              src={user.bannerUrl || "https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"}
+              src={user.banner_url || "https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"}
               alt={t('userProfile.profileBanner')}
               preview={false}
               fallback="https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"

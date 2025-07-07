@@ -31,6 +31,8 @@ import { v4 as uuidv4 } from 'uuid';
 import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
 import { useLanguage } from "@/lib/i18n";
+import { ProfileImageCrop } from "@/components/ImageCrop";
+import { validateImageFile, cleanupImagePreview } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -74,6 +76,10 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
   const [showGpsInfo, setShowGpsInfo] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
+  // Crop functionality state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [fileForCrop, setFileForCrop] = useState(null);
+  const [cropFileIndex, setCropFileIndex] = useState(null);
 
   // Check if this is the current user's profile
   const isCurrentUserProfile = currentUser?.id === userData?.data?.id;
@@ -259,14 +265,22 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     maxCount: 6,
     showUploadList: false,
     beforeUpload: (file) => {
-      const isImage = file.type.startsWith('image/');
-      if (!isImage) {
-        message.error(t('profileEdit.onlyImageFiles'));
+      // Validate image
+      const validation = validateImageFile(file, 'profile');
+      if (!validation.isValid) {
+        message.error(validation.error);
         return false;
       }
-      return false;
+
+      // Open crop modal for this file
+      setFileForCrop(file);
+      setCropFileIndex(uploadedImages.length); // Will be the index of this new image
+      setShowCropModal(true);
+      
+      return false; // Prevent auto upload
     },
     onChange: (info) => {
+      // This will be called when we manually add cropped images
       setUploadedImages(info.fileList);
       
       const previews = info.fileList.map((file, index) => {
@@ -313,39 +327,21 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return;
     }
     
-    // Validate each file
-    const validFiles = files.filter(file => {
-      const isImage = file.type.startsWith('image/');
-      
-      if (!isImage) {
-        message.error(t('profileEdit.notImageFile', { fileName: file.name }));
-        return false;
-      }
-      return true;
-    });
+    // Process one file at a time with crop
+    const file = files[0]; // Take only the first file for now
     
-    if (validFiles.length === 0) return;
+    // Validate file
+    const validation = validateImageFile(file, 'profile');
+    if (!validation.isValid) {
+      message.error(validation.error);
+      e.target.value = '';
+      return;
+    }
     
-    // Create file objects for antd Upload
-    const newFileList = validFiles.map((file, index) => ({
-      uid: `${Date.now()}-${index}`,
-      name: file.name,
-      status: 'done',
-      originFileObj: file,
-    }));
-    
-    // Add to existing files
-    const updatedFileList = [...uploadedImages, ...newFileList];
-    setUploadedImages(updatedFileList);
-    
-    // Create previews for new files
-    const newPreviews = newFileList.map((file) => ({
-      url: URL.createObjectURL(file.originFileObj),
-      file,
-      uid: file.uid
-    }));
-    
-    setPreviewImages([...previewImages, ...newPreviews]);
+    // Open crop modal for this file
+    setFileForCrop(file);
+    setCropFileIndex(uploadedImages.length);
+    setShowCropModal(true);
     
     // Clear input
     e.target.value = '';
@@ -416,6 +412,45 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     console.log('Location skipped in profile edit');
     localStorage.setItem('locationDetected', 'skipped');
     setShowLocationDialog(false);
+  };
+
+  // Crop functionality handlers
+  const handleCropComplete = (cropData) => {
+    // Create file object for antd Upload
+    const croppedFileObject = {
+      uid: `cropped-${Date.now()}`,
+      name: `cropped_${cropData.originalFile.name}`,
+      status: 'done',
+      originFileObj: cropData.file
+    };
+
+    // Add to uploaded images
+    const updatedFileList = [...uploadedImages, croppedFileObject];
+    setUploadedImages(updatedFileList);
+
+    // Create preview
+    const newPreview = {
+      url: cropData.preview,
+      file: croppedFileObject,
+      uid: croppedFileObject.uid,
+      aspectRatio: cropData.aspectRatio
+    };
+
+    setPreviewImages([...previewImages, newPreview]);
+
+    // Close modal and cleanup
+    setShowCropModal(false);
+    setFileForCrop(null);
+    setCropFileIndex(null);
+
+    // Show success message
+    message.success(t('imageCrop.cropSuccessful') || 'Profile image cropped successfully!');
+  };
+
+  const handleCropCancel = () => {
+    setShowCropModal(false);
+    setFileForCrop(null);
+    setCropFileIndex(null);
   };
 
   const handleSubmit = async (values) => {
@@ -1000,6 +1035,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             </Card>
           )}
         </Form>
+
+        {/* Profile Image Crop Modal */}
+        <ProfileImageCrop
+          visible={showCropModal}
+          onCancel={handleCropCancel}
+          onCropComplete={handleCropComplete}
+          file={fileForCrop}
+          title={t('imageCrop.profileImageTitle') || 'Crop Profile Image'}
+        />
 
         {/* Location Permission Dialog */}
         <Modal

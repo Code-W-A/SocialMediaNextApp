@@ -14,6 +14,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
 import { v4 as uuidv4 } from 'uuid';
+import { ProfileImageCrop } from "@/components/ImageCrop";
+import { validateImageFile, cleanupImagePreview } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -27,6 +29,9 @@ export default function PhotosPage() {
   const [mainImageIndex, setMainImageIndex] = useState(0);
   const [previewImages, setPreviewImages] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
+  // Crop functionality state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [fileForCrop, setFileForCrop] = useState(null);
 
   // Mobile detection
   useEffect(() => {
@@ -166,14 +171,21 @@ export default function PhotosPage() {
     maxCount: 6,
     showUploadList: false, // Hide the default upload list
     beforeUpload: (file) => {
-      const isImage = file.type.startsWith('image/');
-      if (!isImage) {
-        message.error('You can only upload image files!');
+      // Validate image file
+      const validation = validateImageFile(file, 'profile');
+      if (!validation.isValid) {
+        message.error(validation.error);
         return false;
       }
+
+      // Open crop modal for this file
+      setFileForCrop(file);
+      setShowCropModal(true);
+      
       return false; // Prevent automatic upload
     },
     onChange: (info) => {
+      // This will be called when we manually add cropped images
       setUploadedImages(info.fileList);
       
       // Create preview URLs for uploaded images
@@ -271,6 +283,43 @@ export default function PhotosPage() {
     } else if (mainImageIndex > indexToRemove) {
       setMainImageIndex(mainImageIndex - 1);
     }
+  };
+
+  // Crop functionality handlers
+  const handleCropComplete = (cropData) => {
+    // Create file object for antd Upload
+    const croppedFileObject = {
+      uid: `cropped-${Date.now()}`,
+      name: `cropped_${cropData.originalFile.name}`,
+      status: 'done',
+      originFileObj: cropData.file
+    };
+
+    // Add to uploaded images
+    const updatedFileList = [...uploadedImages, croppedFileObject];
+    setUploadedImages(updatedFileList);
+
+    // Create preview
+    const newPreview = {
+      url: cropData.preview,
+      file: croppedFileObject,
+      uid: croppedFileObject.uid,
+      aspectRatio: cropData.aspectRatio
+    };
+
+    setPreviewImages([...previewImages, newPreview]);
+
+    // Close modal and cleanup
+    setShowCropModal(false);
+    setFileForCrop(null);
+
+    // Show success message
+    message.success(t('imageCrop.cropSuccessful') || 'Profile image cropped successfully!');
+  };
+
+  const handleCropCancel = () => {
+    setShowCropModal(false);
+    setFileForCrop(null);
   };
 
   return (
@@ -448,39 +497,20 @@ export default function PhotosPage() {
                         return;
                       }
                       
-                      // Validate each file
-                      const validFiles = files.filter(file => {
-                        const isImage = file.type.startsWith('image/');
-                        
-                        if (!isImage) {
-                          message.error(`${file.name} is not an image file`);
-                          return false;
-                        }
-                        return true;
-                      });
+                      // Process one file at a time with crop
+                      const file = files[0]; // Take only the first file for now
                       
-                      if (validFiles.length === 0) return;
+                      // Validate file
+                      const validation = validateImageFile(file, 'profile');
+                      if (!validation.isValid) {
+                        message.error(validation.error);
+                        e.target.value = '';
+                        return;
+                      }
                       
-                      // Create file objects for antd Upload
-                      const newFileList = validFiles.map((file, index) => ({
-                        uid: `${Date.now()}-${index}`,
-                        name: file.name,
-                        status: 'done',
-                        originFileObj: file,
-                      }));
-                      
-                      // Add to existing files
-                      const updatedFileList = [...uploadedImages, ...newFileList];
-                      setUploadedImages(updatedFileList);
-                      
-                      // Create previews for new files
-                      const newPreviews = newFileList.map((file) => ({
-                        url: URL.createObjectURL(file.originFileObj),
-                        file,
-                        uid: file.uid
-                      }));
-                      
-                      setPreviewImages([...previewImages, ...newPreviews]);
+                      // Open crop modal for this file
+                      setFileForCrop(file);
+                      setShowCropModal(true);
                       
                       // Clear input
                       e.target.value = '';
@@ -545,6 +575,15 @@ export default function PhotosPage() {
           </Button>
         </div>
       </div>
+
+      {/* Profile Image Crop Modal */}
+      <ProfileImageCrop
+        visible={showCropModal}
+        onCancel={handleCropCancel}
+        onCropComplete={handleCropComplete}
+        file={fileForCrop}
+        title={t('imageCrop.profileImageTitle') || 'Crop Profile Image'}
+      />
     </div>
   );
 } 

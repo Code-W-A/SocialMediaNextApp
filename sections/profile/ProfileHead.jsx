@@ -13,6 +13,9 @@ import { getMainProfileImage } from "@/utils/imageHelpers";
 import { useRouter } from "next/navigation";
 import PremiumBadge from "@/components/PremiumBadge";
 import { hasCompletedQuestionnaire, debugUserData } from '@/utils/onboardingHelpers';
+import { BannerImageCrop } from "@/components/ImageCrop";
+import { validateImageFile, cleanupImagePreview } from "@/utils/imageValidation";
+import { message } from "antd";
 
 const { Text } = Typography;
 
@@ -31,6 +34,9 @@ const ProfileHead = ({
   const router = useRouter();
   const inputRef = useRef(null);
   const [banner, setBanner] = useState(null);
+  // Crop functionality state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [fileForCrop, setFileForCrop] = useState(null);
 
   console.log('🎭 [ProfileHead] Component rendered with:', {
     userId,
@@ -112,29 +118,60 @@ const ProfileHead = ({
       type: file.type
     });
 
-    if (file && file.type.startsWith("image/")) {
-      console.log('✅ [ProfileHead] Valid image file, processing...');
-      const reader = new FileReader();
+    // Validate image with new validation utils
+    const validation = validateImageFile(file, 'BANNER_IMAGE');
+    
+    if (!validation.isValid) {
+      console.error('❌ [ProfileHead] File validation failed:', validation.errors);
+      message.error(validation.errors.join(', '));
+      return;
+    }
 
-      reader.readAsDataURL(file);
+    if (validation.warnings.length > 0) {
+      console.warn('⚠️ [ProfileHead] File validation warnings:', validation.warnings);
+      validation.warnings.forEach(warning => message.warning(warning));
+    }
 
-      reader.onload = () => {
-        console.log('📤 [ProfileHead] File read successfully, updating banner');
-        setBanner(reader.result);
-        mutate({
-          id: currentUser?.id,
-          banner: reader.result,
-          prevBannerId: data?.data?.banner_id,
-        });
-      };
+    console.log('✅ [ProfileHead] Valid image file, opening crop modal...');
+    setFileForCrop(file);
+    setShowCropModal(true);
+    
+    // Clear the input value so the same file can be selected again
+    e.target.value = '';
+  };
 
-      reader.onerror = (error) => {
-        console.error('❌ [ProfileHead] File read error:', error);
-        toast.error("Failed to read image file");
-      };
-    } else {
-      console.error('❌ [ProfileHead] Invalid file type:', file.type);
-      toast.error("Please select a valid image file");
+  // Crop functionality handlers
+  const handleCropComplete = (cropData) => {
+    console.log('📤 [ProfileHead] Crop completed, uploading banner...');
+    
+    // Convert cropped file to base64 for upload
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBanner(reader.result);
+      mutate({
+        id: currentUser?.id,
+        banner: reader.result,
+        prevBannerId: data?.data?.banner_id,
+      });
+    };
+    reader.readAsDataURL(cropData.file);
+    
+    // Close modal and cleanup
+    setShowCropModal(false);
+    setFileForCrop(null);
+    
+    // Show success message
+    message.success(t('imageCrop.cropSuccessful') || 'Banner cropped successfully!');
+  };
+
+  const handleCropCancel = () => {
+    console.log('🚫 [ProfileHead] Crop cancelled');
+    setShowCropModal(false);
+    
+    // Cleanup file reference
+    if (fileForCrop) {
+      cleanupImagePreview(fileForCrop);
+      setFileForCrop(null);
     }
   };
 
@@ -212,7 +249,7 @@ const ProfileHead = ({
               }}
             >
               <input
-                accept="image/*"
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp,image/svg+xml"
                 multiple={false}
                 ref={inputRef}
                 onChange={(e) => handleBannerChange(e)}
@@ -231,6 +268,15 @@ const ProfileHead = ({
           )}
         </div>
       </Spin>
+
+      {/* Banner Image Crop Modal */}
+      <BannerImageCrop
+        visible={showCropModal}
+        onCancel={handleCropCancel}
+        onCropComplete={handleCropComplete}
+        file={fileForCrop}
+        title={t('imageCrop.bannerImageTitle') || 'Crop Banner Image'}
+      />
 
       <Box>
         <div className={css.footer}>

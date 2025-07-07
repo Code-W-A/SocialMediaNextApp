@@ -53,7 +53,7 @@ export default function ProfilePage() {
       router.push('/sign-in');
     }
   };
-
+  
   console.log('🚀 [COMPONENT] Initial state - user:', user);
   console.log('🚀 [COMPONENT] Initial state - selectedInterests:', selectedInterests);
 

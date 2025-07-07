@@ -264,7 +264,7 @@ const AccountSettings = () => {
                       lineHeight: '1.4',
                       wordBreak: 'break-word'
                     }}>
-                      {item.title}
+                    {item.title}
                     </div>
                     <div style={{ 
                       fontSize: '14px', 

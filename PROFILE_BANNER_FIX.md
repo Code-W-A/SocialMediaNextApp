@@ -175,7 +175,7 @@ npm run dev
 
 1. **Cache invalidation** se face automat la schimbarea profilului
 2. **Banner state** se resetează la null pentru profile noi
-3. **Default banner** se încarcă de la `/images/banner.png`
+3. **Default banner** se încarcă de la `/images/banner.jpg`
 4. **Logging** poate fi dezactivat în producție prin înlocuirea cu `console.debug`
 
 ## 📝 **Files modificate:**

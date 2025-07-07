@@ -7,8 +7,6 @@ const STATIC_ASSETS = [
   '/',
   '/offline',
   '/images/sigla-512.png',
-  '/images/logo.png',
-  '/images/sigla-512.png',
   '/images/auth.png',
   '/images/comunity.jpg',
   '/images/landing-page.jpg',

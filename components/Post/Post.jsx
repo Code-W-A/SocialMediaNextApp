@@ -84,7 +84,7 @@ const Post = ({ data, queryId }) => {
         result,
         postId: data?.id
       });
-      
+
       // Show success message
       message.success(t('posts.postDeleted'));
       

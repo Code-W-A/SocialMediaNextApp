@@ -16,6 +16,7 @@ import { hasCompletedQuestionnaire, debugUserData } from '@/utils/onboardingHelp
 import { BannerImageCrop } from "@/components/ImageCrop";
 import { validateImageFile, cleanupImagePreview } from "@/utils/imageValidation";
 import { message } from "antd";
+import { useLanguage } from "@/lib/i18n";
 
 const { Text } = Typography;
 
@@ -31,6 +32,7 @@ const ProfileHead = ({
 }) => {
   const [bannerPreview, setBannerPreview] = useState(false);
   const { user: currentUser } = useUser();
+  const { t } = useLanguage();
   const router = useRouter();
   const inputRef = useRef(null);
   const [banner, setBanner] = useState(null);
@@ -214,7 +216,7 @@ const ProfileHead = ({
   if (isError) return <div>Error loading profile</div>;
 
   // Determine banner source with logging
-  const bannerSrc = banner || "/images/banner.png";
+  const bannerSrc = banner || "/images/banner.jpg";
   console.log('🖼️ [ProfileHead] Rendering banner:', {
     bannerState: banner,
     bannerSrc,

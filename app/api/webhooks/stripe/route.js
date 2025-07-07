@@ -89,7 +89,7 @@ export async function POST(request) {
             console.log('🔄 Processing subscription change...');
             await handleSubscriptionChange(subscription);
             console.log('✅ Subscription change processed successfully');
-
+                  
             console.log('ℹ️ Oblio invoice will be generated when payment is confirmed (invoice.payment_succeeded)');
           } else {
             console.log('ℹ️ No subscription attached to this session');

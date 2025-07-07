@@ -15,7 +15,7 @@ const requiredFiles = [
   'sections/profile/ProfileHead.jsx',
   'sections/profile/view/ProfileView.jsx',
   'app/(app)/profile/[id]/page.jsx',
-  'public/images/banner.png',
+  'public/images/banner.jpg',
   'actions/user.js'
 ];
 
@@ -76,12 +76,12 @@ try {
 // Test 3: Check banner image exists
 console.log('\n🖼️ Test 3: Checking default banner image...');
 
-const bannerPath = path.join(process.cwd(), 'public/images/banner.png');
+const bannerPath = path.join(process.cwd(), 'public/images/banner.jpg');
 if (fs.existsSync(bannerPath)) {
   const stats = fs.statSync(bannerPath);
   console.log(`✅ Default banner exists (${(stats.size / 1024).toFixed(2)} KB)`);
 } else {
-  console.log('❌ Default banner missing at public/images/banner.png');
+  console.log('❌ Default banner missing at public/images/banner.jpg');
 }
 
 // Test 4: Check updateBanner action
@@ -168,7 +168,7 @@ console.log('❌ Banner not loading for other users:');
 console.log('   → Check data?.data?.banner_url in console logs');
 console.log('   → Verify user has uploaded a banner');
 console.log('❌ Default banner not showing:');
-console.log('   → Check if public/images/banner.png exists');
+console.log('   → Check if public/images/banner.jpg exists');
 console.log('   → Verify file path is correct');
 
 console.log('\n✅ Profile banner debugging test completed!');

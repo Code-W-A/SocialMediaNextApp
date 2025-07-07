@@ -14,8 +14,8 @@ const ProfileImageCrop = ({
   onCropComplete,
   file,
   title,
-  maxWidth = 512, // Profile images are typically smaller
-  quality = 0.95 // Higher quality for profile images
+  maxWidth = 1080, // Same size as post square images for better quality
+  quality = 0.85 // Optimized quality for good size/quality balance
 }) => {
   const { t } = useLanguage();
 

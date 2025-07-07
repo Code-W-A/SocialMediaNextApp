@@ -100,6 +100,123 @@ const getEmailTemplate = (type, data, language = 'en') => {
         `
       };
 
+    case 'error_report':
+      const errorData = data.errorData || {};
+      const severityColors = {
+        low: '#52c41a',
+        medium: '#faad14',
+        high: '#ff7a45',
+        critical: '#ff4d4f',
+        user_reported: '#722ed1'
+      };
+      const severityColor = severityColors[errorData.severity] || '#666';
+      
+      return {
+        subject: `🚨 YDestiny Error Report - ${errorData.severity?.toUpperCase() || 'UNKNOWN'} [${data.errorId}]`,
+        html: `
+          ${baseStyle}
+          <style>
+            .error-header { background: linear-gradient(135deg, #ff4d4f, #ff7a45); }
+            .error-badge { 
+              display: inline-block; 
+              background: ${severityColor}; 
+              color: white; 
+              padding: 4px 12px; 
+              border-radius: 12px; 
+              font-size: 12px; 
+              font-weight: 600; 
+              text-transform: uppercase;
+            }
+            .error-section { 
+              background: #f8f9fa; 
+              padding: 16px; 
+              border-radius: 8px; 
+              margin: 16px 0; 
+              border-left: 4px solid ${severityColor};
+            }
+            .error-code { 
+              background: #1f1f1f; 
+              color: #f8f8f2; 
+              padding: 12px; 
+              border-radius: 6px; 
+              font-family: 'Courier New', monospace; 
+              font-size: 12px; 
+              overflow-x: auto; 
+              white-space: pre-wrap;
+            }
+            .user-message { 
+              background: #e6f7ff; 
+              border: 1px solid #91d5ff; 
+              padding: 12px; 
+              border-radius: 6px; 
+              font-style: italic;
+            }
+          </style>
+          <div class="container">
+            <div class="header error-header">
+              <h1>🚨 Error Report - YDestiny App</h1>
+              <div style="margin-top: 12px;">
+                <span class="error-badge">${errorData.severity || 'unknown'} severity</span>
+              </div>
+            </div>
+            <div class="content">
+              <div class="error-section">
+                <h3>📊 Error Overview</h3>
+                <p><strong>Error ID:</strong> ${data.errorId}</p>
+                <p><strong>Type:</strong> ${errorData.type || 'Unknown'}</p>
+                <p><strong>Context:</strong> ${errorData.context || 'Unknown'}</p>
+                <p><strong>Timestamp:</strong> ${errorData.timestamp || new Date().toISOString()}</p>
+                <p><strong>Environment:</strong> ${errorData.environment || 'Unknown'}</p>
+                <p><strong>App Version:</strong> ${errorData.appVersion || 'Unknown'}</p>
+              </div>
+
+              ${errorData.userEmail ? `
+              <div class="error-section">
+                <h3>👤 User Information</h3>
+                <p><strong>User:</strong> ${errorData.userName || 'Unknown'}</p>
+                <p><strong>Email:</strong> ${errorData.userEmail}</p>
+                <p><strong>User ID:</strong> ${errorData.userId || 'N/A'}</p>
+              </div>
+              ` : ''}
+
+              ${errorData.userMessage ? `
+              <div class="error-section">
+                <h3>💬 User Message</h3>
+                <div class="user-message">
+                  "${errorData.userMessage}"
+                </div>
+              </div>
+              ` : ''}
+
+              <div class="error-section">
+                <h3>🐛 Error Details</h3>
+                <p><strong>Message:</strong> ${errorData.message || 'No message available'}</p>
+                
+                ${errorData.browserInfo ? `
+                <h4>🌐 Browser Information</h4>
+                <p><strong>User Agent:</strong> ${errorData.browserInfo.userAgent || 'Unknown'}</p>
+                <p><strong>URL:</strong> ${errorData.browserInfo.url || 'Unknown'}</p>
+                <p><strong>Language:</strong> ${errorData.browserInfo.language || 'Unknown'}</p>
+                ` : ''}
+              </div>
+
+              <div class="error-section">
+                <h3>🔧 Quick Actions</h3>
+                <p>🔗 <a href="https://ydestiny.com/admin/errors" style="color: #1890ff;">View in Admin Dashboard</a></p>
+                <p>📧 Reply to this email to contact the user directly</p>
+                <p>🔍 Error ID for reference: <code>${data.errorId}</code></p>
+              </div>
+            </div>
+            <div class="footer">
+              <p>Sent automatically by YDestiny Error Reporting System</p>
+              <p style="font-size: 12px; color: #999;">
+                This error was ${errorData.userMessage ? 'reported by user' : 'detected automatically'} at ${new Date().toLocaleString()}
+              </p>
+            </div>
+          </div>
+        `
+      };
+
     default:
       throw new Error('Invalid email type');
   }
@@ -117,7 +234,9 @@ export async function POST(request) {
 
     const mailOptions = {
       from: '"YDestiny" <contact@ydestiny.com>',
-      to: type === 'contact' ? 'contact@ydestiny.com' : to,
+      to: type === 'contact' ? 'contact@ydestiny.com' : 
+          type === 'error_report' ? 'dev@ydestiny.com' : // Send error reports to dev team
+          to,
       subject: template.subject,
       html: template.html,
     };
@@ -125,6 +244,11 @@ export async function POST(request) {
     // For contact form, also send a copy to the sender
     if (type === 'contact') {
       mailOptions.replyTo = to;
+    }
+
+    // For error reports, set reply-to as user email if available
+    if (type === 'error_report' && data.errorData?.userEmail) {
+      mailOptions.replyTo = data.errorData.userEmail;
     }
 
     const info = await transporter.sendMail(mailOptions);

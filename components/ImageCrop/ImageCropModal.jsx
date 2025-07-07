@@ -6,7 +6,7 @@ import {
   validateImageFile, 
   createCanvasFromFile, 
   cropImageCanvas, 
-  canvasToFile,
+  smartCompressImage,
   getOptimalDimensions,
   getImageFileInfo,
   cleanupImagePreview
@@ -127,12 +127,12 @@ const ImageCropModal = ({
       // Crop image
       const croppedCanvas = cropImageCanvas(canvas, cropForCanvas, dimensions.width, dimensions.height);
       
-      // Convert to file
-      const croppedFile = await canvasToFile(
+      // Convert to file with smart compression
+      const croppedFile = await smartCompressImage(
         croppedCanvas, 
         `cropped_${Date.now()}.jpg`, 
-        'image/jpeg', 
-        quality
+        file, // Original file for compression reference
+        'post' // Default context
       );
 
       // Call completion callback with processed data

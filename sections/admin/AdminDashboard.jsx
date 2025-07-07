@@ -33,6 +33,7 @@ import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilit
 import { getMainProfileImage } from "@/utils/imageHelpers";
 
 import AdminChatDashboard from "@/components/AdminChatDashboard";
+import ErrorsManagement from "./ErrorsManagement";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -1385,6 +1386,16 @@ const AdminDashboard = () => {
       )
     },
     // Removed settings tab - simplified feed system without admin controls
+    {
+      key: 'errors',
+      label: (
+        <span>
+          <WarningOutlined />
+          Error Management
+        </span>
+      ),
+      children: <ErrorsManagement />
+    },
     {
       key: 'chats',
       label: (

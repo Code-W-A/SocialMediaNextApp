@@ -8,6 +8,7 @@ import OnlineStatusManager from "@/components/OnlineStatusManager";
 import { LanguageProvider } from "@/lib/i18n";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import PWAServiceWorker from "@/components/PWAServiceWorker";
+import ErrorBoundaryWrapper from "@/components/ErrorBoundaryWrapper";
 
 const publicSans = Public_Sans({
   subsets: ["latin"],
@@ -74,10 +75,12 @@ export default function RootLayout({ children }) {
             <PWAServiceWorker />
             <QueryProvider>
               <StyledComponentsRegistry>
-                <OnlineStatusManager>
-                  {children}
-                  <PWAInstallPrompt />
-                </OnlineStatusManager>
+                <ErrorBoundaryWrapper>
+                  <OnlineStatusManager>
+                    {children}
+                    <PWAInstallPrompt />
+                  </OnlineStatusManager>
+                </ErrorBoundaryWrapper>
               </StyledComponentsRegistry>
             </QueryProvider>
           </body>

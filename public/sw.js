@@ -193,6 +193,58 @@ self.addEventListener('notificationclick', (event) => {
   }
 });
 
+// Listen for messages from the main thread
+self.addEventListener('message', (event) => {
+  console.log('📨 [SW] Received message:', event.data);
+  
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('⏩ [SW] Skip waiting requested');
+    self.skipWaiting();
+  }
+  
+  // Handle cache clearing request from ErrorBoundary
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('🧹 [SW] Cache clear requested from ErrorBoundary');
+    clearAllCaches().then(() => {
+      console.log('✅ [SW] All caches cleared successfully');
+      // Send confirmation back to main thread
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage({ type: 'CACHE_CLEARED', success: true });
+      }
+    }).catch((error) => {
+      console.error('❌ [SW] Failed to clear caches:', error);
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage({ type: 'CACHE_CLEARED', success: false, error: error.message });
+      }
+    });
+  }
+});
+
+// Function to clear all caches
+async function clearAllCaches() {
+  try {
+    console.log('🧹 [SW] Starting comprehensive cache clearing...');
+    
+    // Get all cache names
+    const cacheNames = await caches.keys();
+    console.log('📋 [SW] Found caches:', cacheNames);
+    
+    // Delete all caches
+    const deletePromises = cacheNames.map(async (cacheName) => {
+      console.log(`🗑️ [SW] Deleting cache: ${cacheName}`);
+      return caches.delete(cacheName);
+    });
+    
+    await Promise.all(deletePromises);
+    console.log('✅ [SW] All caches deleted successfully');
+    
+    return true;
+  } catch (error) {
+    console.error('❌ [SW] Error clearing caches:', error);
+    throw error;
+  }
+}
+
 // Helper function for background sync
 async function handleBackgroundSync() {
   try {

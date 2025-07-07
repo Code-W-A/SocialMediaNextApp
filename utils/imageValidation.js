@@ -25,12 +25,12 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   'svg'
 ];
 
-// Max file sizes (in bytes)
+// Max file sizes (in bytes) - Removed strict limits, rely on compression
 export const MAX_FILE_SIZES = {
-  POST_IMAGE: 10 * 1024 * 1024, // 10MB for posts
-  PROFILE_IMAGE: 5 * 1024 * 1024, // 5MB for profile images
-  BANNER_IMAGE: 8 * 1024 * 1024, // 8MB for banner images
-  MESSAGE_IMAGE: 8 * 1024 * 1024 // 8MB for message images
+  POST_IMAGE: 50 * 1024 * 1024, // 50MB - generous limit, rely on compression
+  PROFILE_IMAGE: 50 * 1024 * 1024, // 50MB - generous limit, rely on compression
+  BANNER_IMAGE: 50 * 1024 * 1024, // 50MB - generous limit, rely on compression
+  MESSAGE_IMAGE: 50 * 1024 * 1024 // 50MB - generous limit, rely on compression
 };
 
 /**
@@ -77,9 +77,9 @@ export const validateImageFile = (file, context = 'post') => {
     return result;
   }
 
-  // Add warnings for large files
-  if (file.size > maxSize * 0.8) {
-    result.warnings.push('Large file size may affect upload speed');
+  // Add warnings for very large files only
+  if (file.size > 25 * 1024 * 1024) { // Only warn for files > 25MB
+    result.warnings.push('Very large file - will be compressed for optimal storage');
   }
 
   // Special handling for SVG files
@@ -158,7 +158,7 @@ export const cropImageCanvas = (canvas, crop, outputWidth, outputHeight) => {
  * @param {number} quality - Image quality (0-1)
  * @returns {Promise<File>} File object
  */
-export const canvasToFile = (canvas, fileName, mimeType = 'image/jpeg', quality = 0.9) => {
+export const canvasToFile = (canvas, fileName, mimeType = 'image/jpeg', quality = 0.85) => {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       const file = new File([blob], fileName, { type: mimeType });
@@ -195,7 +195,7 @@ export const processImageForUpload = async (file, options = {}) => {
     aspectRatio = 'square',
     crop = null,
     maxWidth = 1080,
-    quality = 0.9
+    quality = 0.85 // Better compression for Firebase storage
   } = options;
 
   // Validate file
@@ -216,12 +216,12 @@ export const processImageForUpload = async (file, options = {}) => {
       processedCanvas = cropImageCanvas(canvas, crop, dimensions.width, dimensions.height);
     }
 
-    // Convert to file
-    const processedFile = await canvasToFile(
+    // Convert to file with smart compression
+    const processedFile = await smartCompressImage(
       processedCanvas, 
       `processed_${Date.now()}.jpg`, 
-      'image/jpeg', 
-      quality
+      file, // Original file for size reference
+      context
     );
 
     return {
@@ -258,6 +258,62 @@ export const cleanupImagePreview = (url) => {
   if (url && url.startsWith('blob:')) {
     URL.revokeObjectURL(url);
   }
+};
+
+/**
+ * Get intelligent quality based on file size and context
+ * @param {File} file - Image file
+ * @param {string} context - Image context
+ * @returns {number} Optimal quality (0-1)
+ */
+export const getIntelligentQuality = (file, context = 'post') => {
+  const fileSizeMB = file.size / 1024 / 1024;
+  
+  // Base quality by context
+  const baseQuality = {
+    profile: 0.85,
+    post: 0.85,
+    banner: 0.85,
+    message: 0.8
+  };
+  
+  let quality = baseQuality[context] || 0.85;
+  
+  // Reduce quality for very large files
+  if (fileSizeMB > 20) {
+    quality = 0.75; // More compression for files > 20MB
+  } else if (fileSizeMB > 10) {
+    quality = 0.8; // Some compression for files > 10MB
+  } else if (fileSizeMB > 5) {
+    quality = 0.82; // Light compression for files > 5MB
+  }
+  
+  return quality;
+};
+
+/**
+ * Smart image compression with size optimization
+ * @param {HTMLCanvasElement} canvas - Canvas to compress
+ * @param {string} fileName - Output file name
+ * @param {File} originalFile - Original file for size reference
+ * @param {string} context - Image context
+ * @returns {Promise<File>} Compressed file
+ */
+export const smartCompressImage = async (canvas, fileName, originalFile, context = 'post') => {
+  const quality = getIntelligentQuality(originalFile, context);
+  
+  // Try compression with intelligent quality
+  let compressedFile = await canvasToFile(canvas, fileName, 'image/jpeg', quality);
+  
+  // If still too large (> 2MB), apply additional compression
+  if (compressedFile.size > 2 * 1024 * 1024) {
+    const reducedQuality = Math.max(0.6, quality - 0.15);
+    compressedFile = await canvasToFile(canvas, fileName, 'image/jpeg', reducedQuality);
+  }
+  
+  console.log(`📸 [Image Compression] Original: ${(originalFile.size / 1024 / 1024).toFixed(2)}MB → Compressed: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB (Quality: ${quality})`);
+  
+  return compressedFile;
 };
 
 /**

@@ -26,25 +26,35 @@ const PWAInstallButtonAlways = ({
       return;
     }
 
-    // If can't install, check if it's because installation is not supported or already dismissed
+    // Try to install regardless of canInstall status - same as header button
     if (!canInstall) {
-      // Check if we're in a PWA-capable browser
-      const isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
-      
-      if (!isSupported) {
-        message.info({
-          content: t('pwa.installNotSupported'),
-          duration: 4,
-          icon: <Iconify icon="eva:info-fill" style={{ color: '#1890ff' }} />
-        });
-      } else {
-        // PWA is supported but prompt may have been dismissed or already used
-        message.info({
-          content: t('pwa.installPromptUnavailable'),
-          duration: 5,
-          icon: <Iconify icon="eva:info-fill" style={{ color: '#1890ff' }} />
-        });
+      // If canInstall is false, still try to trigger installation
+      // The prompt might be available but not detected by our hook
+      try {
+        setIsInstalling(true);
+        const success = await installApp();
+        
+        if (success) {
+          message.success({
+            content: t('pwa.installSuccess'),
+            duration: 5,
+            icon: <Iconify icon="eva:checkmark-circle-fill" style={{ color: '#52c41a' }} />
+          });
+          return;
+        }
+      } catch (error) {
+        // If installApp fails, it means no prompt is available
+        console.log('Install prompt not available:', error);
+      } finally {
+        setIsInstalling(false);
       }
+      
+      // Show informative message only if installation truly failed
+      message.info({
+        content: t('pwa.installPromptUnavailable'),
+        duration: 4,
+        icon: <Iconify icon="eva:info-fill" style={{ color: '#1890ff' }} />
+      });
       return;
     }
 
@@ -130,11 +140,11 @@ const PWAInstallButtonAlways = ({
     return "eva:smartphone-fill";
   };
 
-  return (
-    <>
+  // Don't render the button if app is already installed - same behavior as header button
+  if (isInstalled) {
+    return (
       <Button
-        onClick={handleInstall}
-        loading={isInstalling}
+        onClick={() => setShowAlreadyInstalledModal(true)}
         style={getButtonStyles()}
         className={className}
         size={size}
@@ -152,6 +162,31 @@ const PWAInstallButtonAlways = ({
           </span>
         )}
       </Button>
+    );
+  }
+
+      return (
+      <>
+        <Button
+          onClick={handleInstall}
+          loading={isInstalling}
+          style={getButtonStyles()}
+          className={className}
+          size={size}
+        >
+          <Iconify 
+            icon="eva:smartphone-fill" 
+            width={size === 'large' ? '24px' : size === 'small' ? '16px' : '20px'}
+          />
+          {showText && (
+            <span style={{ 
+              fontSize: size === 'large' ? '16px' : size === 'small' ? '12px' : '14px',
+              lineHeight: 1 
+            }}>
+              {t('pwa.installApp')}
+            </span>
+          )}
+        </Button>
 
       {/* Already Installed Modal */}
       <Modal

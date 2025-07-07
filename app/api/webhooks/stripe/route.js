@@ -148,9 +148,24 @@ export async function POST(request) {
               // 🆕 OBLIO INVOICE GENERATION 
               // NOTE: Invoices are generated ONLY here (invoice.payment_succeeded) to avoid duplicates
               // We do NOT generate invoices in checkout.session.completed to prevent double invoicing
-              console.log('\n�� ===== GENERATING OBLIO INVOICE (PAYMENT CONFIRMED) =====');
+              console.log('\n🏭 ===== GENERATING OBLIO INVOICE (PAYMENT CONFIRMED) =====');
+              console.log('📅 Timestamp:', new Date().toISOString());
+              console.log('🌍 Environment:', process.env.NODE_ENV);
+              console.log('🔧 Oblio Environment Variables Check:', {
+                OBLIO_ENABLED: process.env.OBLIO_ENABLED || 'NOT_SET',
+                OBLIO_EMAIL: process.env.OBLIO_EMAIL ? `✅ ${process.env.OBLIO_EMAIL.substring(0, 10)}...` : '❌ NOT_SET',
+                OBLIO_SECRET: process.env.OBLIO_SECRET ? `✅ ${process.env.OBLIO_SECRET.substring(0, 10)}...` : '❌ NOT_SET',
+                OBLIO_CIF: process.env.OBLIO_CIF || 'NOT_SET',
+                OBLIO_SERIES: process.env.OBLIO_SERIES || 'NOT_SET'
+              });
+              
               try {
                 if (invoice.status === 'paid' && invoice.amount_paid > 0) {
+                  console.log('✅ Invoice validation passed:', {
+                    status: invoice.status,
+                    amount_paid: invoice.amount_paid,
+                    currency: invoice.currency
+                  });
                   // Get user data for invoice
                   const userData = userDoc.data();
                   
@@ -215,9 +230,10 @@ export async function POST(request) {
                   };
                   
                   // Convert to Oblio format
+                  console.log('🔄 Converting data to Oblio format...');
                   const oblioInvoiceData = convertStripeToOblioData(customerData, subscriptionData, invoice.amount_paid);
                   
-                  console.log('📋 Creating Oblio invoice for recurring payment...', {
+                  console.log('📋 Oblio Invoice Data Prepared:', {
                     customer: oblioInvoiceData.clientEmail,
                     amount: invoice.amount_paid,
                     currency: invoice.currency,
@@ -226,14 +242,34 @@ export async function POST(request) {
                       city: oblioInvoiceData.clientCity,
                       state: oblioInvoiceData.clientCounty,
                       country: oblioInvoiceData.clientCountry
-                    }
+                    },
+                    subscriptionId: oblioInvoiceData.subscriptionId,
+                    hasClientName: !!oblioInvoiceData.clientName,
+                    totalCost: oblioInvoiceData.totalCost
                   });
                   
+                  console.log('🚀 Calling oblioService.generateInvoice...');
+                  console.log('⏰ Oblio API call started at:', new Date().toISOString());
                   const oblioResult = await oblioService.generateInvoice(oblioInvoiceData);
+                  console.log('⏰ Oblio API call completed at:', new Date().toISOString());
+                  
+                  console.log('📊 Oblio Result Analysis:', {
+                    success: oblioResult.success,
+                    hasInvoiceNumber: !!oblioResult.invoiceNumber,
+                    hasInvoiceUrl: !!oblioResult.invoiceUrl,
+                    hasError: !!oblioResult.error,
+                    errorType: typeof oblioResult.error,
+                    resultKeys: Object.keys(oblioResult)
+                  });
                   
                   if (oblioResult.success) {
-                    console.log('✅ Oblio invoice created successfully:', oblioResult);
+                    console.log('✅ Oblio invoice created successfully!', {
+                      invoiceNumber: oblioResult.invoiceNumber,
+                      invoiceUrl: oblioResult.invoiceUrl ? `${oblioResult.invoiceUrl.substring(0, 50)}...` : 'NO_URL',
+                      fullResult: oblioResult
+                    });
                     
+                    console.log('💾 Saving Oblio invoice details to Firestore...');
                     // Save Oblio invoice details to user record
                     await updateDoc(doc(db, 'Users', userId), {
                       'subscription.lastOblioInvoiceNumber': oblioResult.invoiceNumber,
@@ -242,19 +278,40 @@ export async function POST(request) {
                       'subscription.updatedAt': new Date()
                     });
                     
-                    console.log('✅ Oblio invoice details saved to user record');
+                    console.log('✅ Oblio invoice details saved to user record successfully');
                   } else {
-                    console.error('❌ Failed to create Oblio invoice:', oblioResult.error);
+                    console.error('❌ OBLIO INVOICE CREATION FAILED!');
+                    console.error('📊 Error Details:', {
+                      error: oblioResult.error,
+                      errorString: JSON.stringify(oblioResult.error),
+                      message: oblioResult.message || 'No message',
+                      fullResult: oblioResult
+                    });
                     // Don't fail the webhook if Oblio fails - just log it
                   }
                 } else {
-                  console.log('ℹ️ Skipping Oblio invoice - payment not completed or zero amount');
+                  console.log('⚠️ SKIPPING Oblio invoice generation:', {
+                    reason: 'Payment not completed or zero amount',
+                    invoiceStatus: invoice.status,
+                    amountPaid: invoice.amount_paid,
+                    shouldGenerate: invoice.status === 'paid' && invoice.amount_paid > 0
+                  });
                 }
               } catch (oblioError) {
-                console.error('❌ Error generating Oblio invoice for recurring payment:', oblioError);
+                console.error('💥 CRITICAL ERROR in Oblio invoice generation!');
+                console.error('📊 Error Analysis:', {
+                  errorName: oblioError.name,
+                  errorMessage: oblioError.message,
+                  errorStack: oblioError.stack,
+                  errorType: typeof oblioError,
+                  timestamp: new Date().toISOString()
+                });
+                console.error('📋 Full Error Object:', oblioError);
                 // Don't fail the webhook if Oblio fails - premium system should still work
               }
-              console.log('📋 ===== OBLIO INVOICE GENERATION COMPLETED =====\n');
+              console.log('📋 ===== OBLIO INVOICE GENERATION COMPLETED =====');
+              console.log('⏰ Section completed at:', new Date().toISOString());
+              console.log('🔍 Next step: Continuing with subscription processing...\n');
             } else {
               console.error('❌ No userId found in subscription metadata!');
             }

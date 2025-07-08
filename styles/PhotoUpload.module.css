@@ -85,10 +85,6 @@
   justify-content: center;
   transition: all 0.2s ease;
   z-index: 2;
-  opacity: 0;
-}
-
-.photoItem:hover .removeButton {
   opacity: 1;
 }
 

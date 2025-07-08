@@ -77,12 +77,15 @@ export default function PhotosPage() {
               setMainImageIndex(tempMainIndex || 0);
               
               // Create previews for temp images (they should be File objects with URLs)
-              const tempPreviews = tempImages.map((file, index) => ({
-                url: file.url || (file.originFileObj ? URL.createObjectURL(file.originFileObj) : ''),
-                uid: file.uid,
-                file: file,
-                index: index
-              }));
+              const tempPreviews = tempImages.map((file, index) => {
+                const previewUrl = file.url || (file.originFileObj ? URL.createObjectURL(file.originFileObj) : '');
+                return previewUrl ? {
+                  url: previewUrl,
+                  uid: file.uid || `temp-${index}`,
+                  file: file,
+                  index: index
+                } : null;
+              }).filter(Boolean);
               setPreviewImages(tempPreviews);
               hasTemporaryData = true;
               
@@ -166,7 +169,7 @@ export default function PhotosPage() {
 
   const uploadProps = {
     name: 'file',
-    multiple: true,
+    multiple: false,
     accept: 'image/*',
     maxCount: 6,
     showUploadList: false, // Hide the default upload list
@@ -483,7 +486,6 @@ export default function PhotosPage() {
                 <div className={photoCss.addMoreButton}>
                   <input
                     type="file"
-                    multiple
                     accept="image/*"
                     style={{ display: "none" }}
                     id="additionalPhotosInput"

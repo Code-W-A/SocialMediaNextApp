@@ -260,7 +260,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
   const uploadProps = {
     name: 'file',
-    multiple: true,
+    multiple: false,
     accept: 'image/*',
     maxCount: 6,
     showUploadList: false,
@@ -751,7 +751,6 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                     <div className={photoCss.addMoreButton}>
                       <input
                         type="file"
-                        multiple
                         accept="image/*"
                         style={{ display: "none" }}
                         id="additionalPhotosInput"

@@ -5,8 +5,7 @@ import { handleSubscriptionChange } from '@/actions/subscription';
 import { validateSubscriptionWebhookData } from '@/utils/premiumHelpers';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-// Import Oblio service for automatic invoice generation
-import { oblioService, convertStripeToOblioData } from '@/lib/oblioService';
+// Oblio invoice generation is handled by dedicated API at /api/oblio/generate-invoice
 
 export async function POST(request) {
   const body = await request.text();
@@ -145,14 +144,13 @@ export async function POST(request) {
                 console.log('🔄 Verification - Updated subscription data:', userData.subscription);
               }
 
-              // 🧾 OBLIO INVOICE GENERATION - ALWAYS ENABLED
-              // NOTE: Invoices are generated ONLY here (invoice.payment_succeeded) to avoid duplicates
-              console.log('\n🏭 ===== GENERATING OBLIO INVOICE (PAYMENT CONFIRMED) =====');
+              // 🧾 OBLIO INVOICE GENERATION - VIA DEDICATED API
+              console.log('\n🏭 ===== CALLING OBLIO INVOICE API =====');
               console.log('📅 Timestamp:', new Date().toISOString());
               
               try {
                 if (invoice.status === 'paid' && invoice.amount_paid > 0) {
-                  console.log('✅ Payment confirmed - generating Oblio invoice');
+                  console.log('✅ Payment confirmed - calling Oblio API');
                   
                   // Get user data for invoice
                   const userData = userDoc.data();
@@ -182,78 +180,98 @@ export async function POST(request) {
                     name: stripeCustomer.name,
                     email: stripeCustomer.email,
                     phone: stripeCustomer.phone,
-                    hasAddress: !!billingAddress,
-                    address: billingAddress
+                    hasAddress: !!billingAddress
                   });
                   
-                  // Prepare customer data with complete billing address
-                  const customerData = {
-                    firstName: userData.firstName || stripeCustomer.name?.split(' ')[0] || 'Client',
-                    lastName: userData.lastName || stripeCustomer.name?.split(' ').slice(1).join(' ') || 'YDestiny',
-                    email: stripeCustomer.email || userData.email,
-                    phone: stripeCustomer.phone || userData.phone,
-                    address: billingAddress?.line1 || userData.address || '',
-                    city: billingAddress?.city || userData.city || '',
-                    state: billingAddress?.state || userData.state || '',
-                    country: billingAddress?.country || userData.country || 'Romania',
-                    company: userData.company || '',
-                    companyVat: userData.companyVat || '',
-                    companyReg: userData.companyReg || '',
+                  // Prepare data for Oblio API call
+                  const oblioApiPayload = {
+                    source: 'stripe_webhook',
+                    userId: userId,
+                    stripeData: {
+                      invoiceId: invoice.id,
+                      customerId: invoice.customer,
+                      subscriptionId: subscription.id,
+                      amount: invoice.amount_paid,
+                      currency: invoice.currency,
+                      paymentStatus: invoice.status
+                    },
+                    customerData: {
+                      name: stripeCustomer.name || `${userData.firstName} ${userData.lastName}`,
+                      email: stripeCustomer.email || userData.email,
+                      phone: stripeCustomer.phone || userData.phone,
+                      address: billingAddress || {
+                        line1: userData.address || '',
+                        city: userData.city || '',
+                        state: userData.state || '',
+                        country: userData.country || 'Romania'
+                      },
+                      company: userData.company,
+                      companyVat: userData.companyVat,
+                      companyReg: userData.companyReg
+                    },
+                    metadata: {
+                      priceId: subscription.items?.data?.[0]?.price?.id,
+                      planName: 'Premium Monthly'
+                    }
                   };
                   
-                  const subscriptionData = {
-                    subscriptionId: subscription.id,
-                    priceId: subscription.items?.data?.[0]?.price?.id,
-                    amount: invoice.amount_paid,
-                    currency: invoice.currency,
-                  };
-                  
-                  // Convert to Oblio format
-                  console.log('🔄 Converting data to Oblio format...');
-                  const oblioInvoiceData = convertStripeToOblioData(customerData, subscriptionData, invoice.amount_paid);
-                  
-                  console.log('📋 Oblio Invoice Data:', {
-                    clientName: oblioInvoiceData.clientName,
-                    clientEmail: oblioInvoiceData.clientEmail,
-                    address: oblioInvoiceData.clientAddress,
-                    city: oblioInvoiceData.clientCity,
-                    county: oblioInvoiceData.clientCounty,
-                    country: oblioInvoiceData.clientCountry,
-                    totalCost: oblioInvoiceData.totalCost,
-                    currency: oblioInvoiceData.currency
+                  console.log('📋 Calling Oblio API with payload:', {
+                    source: oblioApiPayload.source,
+                    userId: oblioApiPayload.userId,
+                    amount: oblioApiPayload.stripeData.amount,
+                    currency: oblioApiPayload.stripeData.currency,
+                    customerEmail: oblioApiPayload.customerData.email
                   });
                   
-                  console.log('🚀 Generating Oblio invoice...');
-                  const oblioResult = await oblioService.generateInvoice(oblioInvoiceData);
+                  // Call the dedicated Oblio API
+                  const headers = new Headers({
+                    'Content-Type': 'application/json'
+                  });
+
+                  // Get the base URL for internal API call
+                  const baseUrl = process.env.VERCEL_URL 
+                    ? `https://${process.env.VERCEL_URL}` 
+                    : 'http://localhost:3000';
+
+                  const oblioApiResponse = await fetch(`${baseUrl}/api/oblio/generate-invoice`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(oblioApiPayload)
+                  });
+                  
+                  const oblioResult = await oblioApiResponse.json();
+                  
+                  console.log('📊 Oblio API response:', {
+                    success: oblioResult.success,
+                    status: oblioApiResponse.status,
+                    hasInvoiceNumber: !!oblioResult.invoice?.number,
+                    duplicate: oblioResult.duplicate || false
+                  });
                   
                   if (oblioResult.success) {
-                    console.log('✅ Oblio invoice created successfully!', {
-                      invoiceNumber: oblioResult.invoiceNumber,
-                      invoiceUrl: oblioResult.invoiceUrl
+                    console.log('✅ Oblio invoice generated via API!', {
+                      invoiceNumber: oblioResult.invoice.number,
+                      source: oblioResult.source,
+                      duplicate: oblioResult.duplicate
                     });
-                    
-                    // Save Oblio invoice details to user record
-                    await updateDoc(doc(db, 'Users', userId), {
-                      'subscription.lastOblioInvoiceNumber': oblioResult.invoiceNumber,
-                      'subscription.lastOblioInvoiceUrl': oblioResult.invoiceUrl,
-                      'subscription.lastOblioInvoiceDate': new Date(),
-                      'subscription.updatedAt': new Date()
-                    });
-                    
-                    console.log('💾 Oblio invoice details saved to Firestore');
                   } else {
-                    console.error('❌ Oblio invoice creation failed:', oblioResult.error);
+                    console.error('❌ Oblio API call failed:', {
+                      error: oblioResult.error,
+                      details: oblioResult.details,
+                      retryable: oblioResult.retryable
+                    });
                     // Don't fail the webhook if Oblio fails - just log the error
                   }
+                  
                 } else {
                   console.log('⚠️ Skipping Oblio invoice - payment not completed or zero amount');
                 }
               } catch (oblioError) {
-                console.error('💥 Error in Oblio invoice generation:', oblioError.message);
+                console.error('💥 Error calling Oblio API:', oblioError.message);
                 console.error('📊 Full error:', oblioError);
                 // Don't fail the webhook if Oblio fails - premium system should still work
               }
-              console.log('📋 ===== OBLIO INVOICE GENERATION COMPLETED =====');
+              console.log('📋 ===== OBLIO API CALL COMPLETED =====');
             } else {
               console.error('❌ No userId found in subscription metadata!');
             }

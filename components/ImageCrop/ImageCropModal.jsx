@@ -10,7 +10,8 @@ import {
   getOptimalDimensions,
   getImageFileInfo,
   cleanupImagePreview,
-  convertHeicIfNeeded
+  convertHeicIfNeeded,
+  attemptFixUnreadableJpeg
 } from '@/utils/imageValidation';
 import { useLanguage } from '@/lib/i18n';
 import Iconify from '@/components/Iconify';
@@ -47,50 +48,37 @@ const ImageCropModal = ({
   const [validationWarnings, setValidationWarnings] = useState([]);
   const [mediaError, setMediaError] = useState(null);
   const [mediaSize, setMediaSize] = useState(null);
+  const [sourceFile, setSourceFile] = useState(file);
 
   // Create image preview when file changes
   useEffect(() => {
     (async () => {
       if (file) {
-        // Convert HEIC if necessary
-        let processedFile = file;
-        if (['image/heic', 'image/heif'].includes(file.type)) {
-          try {
-            processedFile = await convertHeicIfNeeded(file);
-          } catch (conversionErr) {
-            setValidationErrors([conversionErr.message]);
-            return;
-          }
-        }
-
-        // Validate file
-        const validation = validateImageFile(processedFile, 'post');
-        if (!validation.isValid) {
-          setValidationErrors([validation.error]);
-          setValidationWarnings([]);
-          return;
-        }
-
-        setValidationErrors([]);
-        setValidationWarnings(validation.warnings || []);
-
-        // Create preview
-        const preview = URL.createObjectURL(processedFile);
-        setImagePreview(preview);
-        const info = getImageFileInfo(processedFile);
-        setImageInfo(info);
-
-        return () => {
-          cleanupImagePreview(preview);
-        };
-      } else {
-        setImagePreview(null);
-        setImageInfo(null);
-        setValidationErrors([]);
-        setValidationWarnings([]);
+        setSourceFile(file);
       }
     })();
   }, [file]);
+
+  // Update preview when sourceFile changes
+  useEffect(() => {
+    (async () => {
+      if (!sourceFile) {
+        setImagePreview(null); setImageInfo(null); return;
+      }
+      let processedFile = sourceFile;
+      // HEIC convert
+      if (['image/heic','image/heif'].includes(processedFile.type)) {
+        try { processedFile = await convertHeicIfNeeded(processedFile); } catch(err){ setValidationErrors([err.message]); return; }
+      }
+      const validation = validateImageFile(processedFile,'post');
+      if(!validation.isValid){ setValidationErrors([validation.error]); return; }
+      setValidationErrors([]); setValidationWarnings(validation.warnings||[]);
+      const preview=URL.createObjectURL(processedFile);
+      setImagePreview(preview);
+      setImageInfo(getImageFileInfo(processedFile));
+      return ()=>{cleanupImagePreview(preview);}
+    })();
+  }, [sourceFile]);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -121,21 +109,32 @@ const ImageCropModal = ({
     setMediaError(null);
   }, []);
 
-  const handleMediaError = useCallback((e) => {
+  const handleMediaError = useCallback(async (e) => {
     console.error('Image failed to load into cropper', e);
-    setMediaError('Failed to load image into cropper');
-  }, []);
+    if (file && file.type === 'image/jpeg') {
+      try {
+        const fixed = await attemptFixUnreadableJpeg(file);
+        setSourceFile(fixed);
+        return;
+      } catch(conversionErr) {
+        console.error('Fallback conversion failed', conversionErr);
+        setMediaError('Cannot display this image. Try converting to JPEG/PNG first.');
+      }
+    } else {
+      setMediaError('Failed to load image into cropper');
+    }
+  }, [file]);
 
   const handleCropComplete = async () => {
-    if (!file || !croppedAreaPixels) {
+    if (!sourceFile || !croppedAreaPixels) {
       message.error(t('imageCrop.noCropSelected') || 'Please select a crop area');
       return;
     }
 
     setIsProcessing(true);
     try {
-      // Create canvas from original file
-      const canvas = await createCanvasFromFile(file);
+      // Create canvas from original sourceFile
+      const canvas = await createCanvasFromFile(sourceFile);
       
       // Get optimal dimensions for selected aspect ratio
       const dimensions = getOptimalDimensions(selectedAspectRatio, maxWidth);
@@ -155,14 +154,14 @@ const ImageCropModal = ({
       const croppedFile = await smartCompressImage(
         croppedCanvas, 
         `cropped_${Date.now()}.jpg`, 
-        file, // Original file for compression reference
+        sourceFile, // Original file for compression reference
         'post' // Default context
       );
 
       // Call completion callback with processed data
       onCropComplete({
         file: croppedFile,
-        originalFile: file,
+        originalFile: sourceFile,
         aspectRatio: selectedAspectRatio,
         dimensions: {
           width: dimensions.width,

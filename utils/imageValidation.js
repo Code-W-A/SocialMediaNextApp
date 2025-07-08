@@ -341,6 +341,53 @@ export const smartCompressImage = async (canvas, fileName, originalFile, context
 };
 
 /**
+ * Attempt to fix unreadable JPEGs (e.g., CMYK, huge resolution) by decoding with jpeg-js and re-encoding via canvas.
+ * Returns a new File or throws if cannot fix.
+ */
+export const attemptFixUnreadableJpeg = async (file, resizeMax = 4096) => {
+  if (!file || file.type !== 'image/jpeg') throw new Error('Not a JPEG');
+  try {
+    const jpegJs = (await import('jpeg-js')).default || (await import('jpeg-js'));
+    const arrayBuffer = await file.arrayBuffer();
+    const raw = jpegJs.decode(new Uint8Array(arrayBuffer), { useTArray: true, formatAsRGBA: true });
+
+    // Create canvas and optionally downscale if too big
+    let { width, height, data } = raw;
+    if (Math.max(width, height) > resizeMax) {
+      const scale = resizeMax / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    // PutImageData requires same length; if scaled, draw via imgBitmap path
+    if (width === raw.width && height === raw.height) {
+      const imageData = new ImageData(new Uint8ClampedArray(data), raw.width, raw.height);
+      ctx.putImageData(imageData, 0, 0);
+    } else {
+      // create full-size then scale
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = raw.width;
+      tempCanvas.height = raw.height;
+      const tctx = tempCanvas.getContext('2d');
+      const imgData = new ImageData(new Uint8ClampedArray(data), raw.width, raw.height);
+      tctx.putImageData(imgData, 0, 0);
+      ctx.drawImage(tempCanvas, 0, 0, width, height);
+    }
+
+    const fixedFile = await canvasToFile(canvas, file.name.replace(/\.jpg$/i, '_fixed.jpg'), 'image/jpeg', 0.9);
+    return fixedFile;
+  } catch (err) {
+    console.error('Failed to fix unreadable JPEG:', err);
+    throw err;
+  }
+};
+
+/**
  * Get image file info
  * @param {File} file - Image file
  * @returns {Object} File information

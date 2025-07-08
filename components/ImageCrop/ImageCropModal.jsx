@@ -9,7 +9,8 @@ import {
   smartCompressImage,
   getOptimalDimensions,
   getImageFileInfo,
-  cleanupImagePreview
+  cleanupImagePreview,
+  createSafePreview
 } from '@/utils/imageValidation';
 import { useLanguage } from '@/lib/i18n';
 import Iconify from '@/components/Iconify';
@@ -47,6 +48,9 @@ const ImageCropModal = ({
 
   // Create image preview when file changes
   useEffect(() => {
+    let isCancelled = false;
+    let previewUrl = null;
+
     if (file) {
       // Validate file
       const validation = validateImageFile(file, 'post');
@@ -55,20 +59,34 @@ const ImageCropModal = ({
         setValidationWarnings([]);
         return;
       }
-      
+
       setValidationErrors([]);
       setValidationWarnings(validation.warnings || []);
-      
-      // Create preview
-      const preview = URL.createObjectURL(file);
-      setImagePreview(preview);
-      
-      // Get file info
-      const info = getImageFileInfo(file);
-      setImageInfo(info);
+
+      // Generate safe preview (downscale very large images)
+      (async () => {
+        const previewData = await createSafePreview(file);
+        previewUrl = previewData.url;
+        if (!isCancelled) {
+          setImagePreview(previewUrl);
+          // Get file info
+          const info = getImageFileInfo(file);
+          setImageInfo(info);
+
+          // Mobile-friendly visual debug message
+          const downscaledNote = previewData.downscaled ? ' (preview downscaled)' : '';
+          // Inject width/height if not resolved yet
+          if (!info.width && previewData.width) {
+            info.width = previewData.width;
+            info.height = previewData.height;
+          }
+          message.info(`📸 ${info.sizeFormatted}${info.width ? ' • '+info.width+'x'+info.height+'px' : ''}${downscaledNote}`, 3);
+        }
+      })();
 
       return () => {
-        cleanupImagePreview(preview);
+        isCancelled = true;
+        if (previewUrl) cleanupImagePreview(previewUrl);
       };
     } else {
       setImagePreview(null);

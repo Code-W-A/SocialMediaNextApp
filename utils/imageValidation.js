@@ -22,7 +22,9 @@ export const SUPPORTED_IMAGE_EXTENSIONS = [
   'webp',
   'gif',
   'bmp',
-  'svg'
+  'svg',
+  'heic',
+  'heif'
 ];
 
 // Max file sizes (in bytes) - Removed strict limits, rely on compression

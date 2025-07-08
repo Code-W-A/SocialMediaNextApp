@@ -26,6 +26,7 @@
     "dayjs": "^1.11.10",
     "firebase": "^11.9.1",
     "firebase-admin": "^13.4.0",
+    "heic2any": "^0.0.4",
     "next": "14.1.4",
     "nodemailer": "^7.0.4",
     "react": "^18",

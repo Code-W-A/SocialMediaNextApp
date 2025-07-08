@@ -113,16 +113,51 @@ export async function POST(request) {
         console.log('💳 Payment Status:', invoice.status);
         
         try {
-          // If this is a subscription invoice, update the subscription
+          let userId = null;
+          let subscription = null;
+          
+          // Try to get userId from subscription first
           if (invoice.subscription) {
-            console.log('🔄 Retrieving subscription details...');
-            const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
-            const userId = subscription.metadata?.userId;
+            console.log('💡 Subscription-based invoice detected');
+            subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+            userId = subscription.metadata?.userId;
+          } else {
+            console.log('⚠️ Standalone invoice - trying to find user via customer');
+            // For standalone invoices, try to find user via customer metadata or payment intent
+            const customer = await stripe.customers.retrieve(invoice.customer);
+            userId = customer.metadata?.userId;
             
-            console.log('🔍 Extracted User ID from subscription:', userId);
-            console.log('📋 Subscription Status:', subscription.status);
+            if (!userId && invoice.payment_intent) {
+              const paymentIntent = await stripe.paymentIntents.retrieve(invoice.payment_intent);
+              userId = paymentIntent.metadata?.userId;
+            }
             
-            if (userId) {
+            if (!userId) {
+              console.log('🔍 Trying to find user by customer email in recent subscriptions...');
+              const subscriptions = await stripe.subscriptions.list({
+                customer: invoice.customer,
+                limit: 1,
+                status: 'active'
+              });
+              
+              if (subscriptions.data.length > 0) {
+                subscription = subscriptions.data[0];
+                userId = subscription.metadata?.userId;
+                console.log('✅ Found user via customer subscriptions:', userId);
+              }
+            }
+          }
+          
+          console.log('🔍 Extracted User ID:', userId);
+          
+          if (userId) {
+            // If we don't have subscription yet, try to get it for context
+            if (!subscription && invoice.subscription) {
+              console.log('🔄 Retrieving subscription details...');
+              subscription = await stripe.subscriptions.retrieve(invoice.subscription);
+            }
+            
+            console.log('📋 Subscription Status:', subscription?.status || 'No subscription found');
               console.log('📝 Updating payment success in Firestore...');
               const firestoreData = {
                 'subscription.lastPaymentStatus': 'succeeded',
@@ -190,7 +225,7 @@ export async function POST(request) {
                     stripeData: {
                       invoiceId: invoice.id,
                       customerId: invoice.customer,
-                      subscriptionId: subscription.id,
+                      subscriptionId: subscription?.id || invoice.subscription || null,
                       amount: invoice.amount_paid,
                       currency: invoice.currency,
                       paymentStatus: invoice.status
@@ -210,8 +245,8 @@ export async function POST(request) {
                       companyReg: userData.companyReg
                     },
                     metadata: {
-                      priceId: subscription.items?.data?.[0]?.price?.id,
-                      planName: 'Premium Monthly'
+                      priceId: subscription?.items?.data?.[0]?.price?.id || 'standalone_payment',
+                      planName: subscription ? 'Premium Monthly' : 'Standalone Payment'
                     }
                   };
                   
@@ -272,15 +307,22 @@ export async function POST(request) {
                 // Don't fail the webhook if Oblio fails - premium system should still work
               }
               console.log('📋 ===== OBLIO API CALL COMPLETED =====');
-            } else {
-              console.error('❌ No userId found in subscription metadata!');
-            }
             
-            console.log('🔄 Processing subscription change...');
-            await handleSubscriptionChange(subscription);
-            console.log('✅ Subscription change processed successfully');
+            // Update subscription status if we have one
+            if (subscription) {
+              console.log('🔄 Processing subscription change...');
+              await handleSubscriptionChange(subscription);
+              console.log('✅ Subscription change processed successfully');
+            } else {
+              console.log('ℹ️ No subscription to update (standalone payment)');
+            }
           } else {
-            console.log('ℹ️ Invoice not associated with a subscription');
+            console.error('❌ No userId found! Cannot generate Oblio invoice.');
+            console.log('🔍 Debug info:', {
+              hasSubscription: !!invoice.subscription,
+              customerId: invoice.customer,
+              invoiceId: invoice.id
+            });
           }
         } catch (error) {
           console.error('❌ Error processing payment success:', error);

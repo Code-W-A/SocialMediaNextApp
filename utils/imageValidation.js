@@ -341,49 +341,173 @@ export const smartCompressImage = async (canvas, fileName, originalFile, context
 };
 
 /**
+ * Robust image processing pipeline with multiple fallback strategies
+ * Handles problematic images that normal browser loading can't process
+ */
+export const createRobustImagePreview = async (file) => {
+  console.log(`🔍 [RobustImagePreview] Starting processing for: ${file.name} (${file.type}, ${(file.size/1024/1024).toFixed(2)}MB)`);
+  
+  const strategies = [
+    { name: 'Browser URL.createObjectURL', method: tryBrowserPreview },
+    { name: 'createImageBitmap resized', method: tryImageBitmapPreview },
+    { name: 'Canvas-based decode', method: tryCanvasPreview },
+    { name: 'jpeg-js fallback', method: tryJpegJsPreview }
+  ];
+
+  for (const strategy of strategies) {
+    try {
+      console.log(`🔄 [RobustImagePreview] Trying: ${strategy.name}`);
+      const result = await strategy.method(file);
+      console.log(`✅ [RobustImagePreview] Success with: ${strategy.name}`);
+      return result;
+    } catch (error) {
+      console.warn(`❌ [RobustImagePreview] Failed ${strategy.name}:`, error.message);
+    }
+  }
+  
+  throw new Error('All image processing strategies failed. This image cannot be displayed in the browser.');
+};
+
+// Strategy 1: Normal browser preview
+const tryBrowserPreview = async (file) => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    
+    const timeout = setTimeout(() => {
+      img.onload = img.onerror = null;
+      URL.revokeObjectURL(url);
+      reject(new Error('Browser preview timeout (6s)'));
+    }, 6000);
+    
+    img.onload = () => {
+      clearTimeout(timeout);
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        URL.revokeObjectURL(url);
+        reject(new Error('Image loaded but has zero dimensions'));
+        return;
+      }
+      resolve({ url, width: img.naturalWidth, height: img.naturalHeight, strategy: 'browser' });
+    };
+    
+    img.onerror = () => {
+      clearTimeout(timeout);
+      URL.revokeObjectURL(url);
+      reject(new Error('Browser failed to decode image'));
+    };
+    
+    img.src = url;
+  });
+};
+
+// Strategy 2: createImageBitmap with resizing
+const tryImageBitmapPreview = async (file, maxSize = 4096) => {
+  try {
+    const bitmap = await createImageBitmap(file, { 
+      resizeWidth: maxSize, 
+      resizeHeight: maxSize,
+      resizeQuality: 'high'
+    });
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    
+    const url = canvas.toDataURL('image/jpeg', 0.9);
+    return { url, width: canvas.width, height: canvas.height, strategy: 'imageBitmap' };
+  } catch (error) {
+    throw new Error(`ImageBitmap failed: ${error.message}`);
+  }
+};
+
+// Strategy 3: Canvas-based decode
+const tryCanvasPreview = async (file) => {
+  const canvas = await createCanvasFromFile(file);
+  if (canvas.width === 0 || canvas.height === 0) {
+    throw new Error('Canvas decode resulted in zero dimensions');
+  }
+  
+  // Check if canvas is completely black (common CMYK issue)
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, Math.min(50, canvas.width), Math.min(50, canvas.height));
+  const isCompletelyBlack = imageData.data.every((value, index) => 
+    index % 4 === 3 ? true : value === 0 // Skip alpha channel
+  );
+  
+  if (isCompletelyBlack) {
+    throw new Error('Canvas decode resulted in completely black image (likely CMYK)');
+  }
+  
+  const url = canvas.toDataURL('image/jpeg', 0.9);
+  return { url, width: canvas.width, height: canvas.height, strategy: 'canvas' };
+};
+
+// Strategy 4: jpeg-js fallback
+const tryJpegJsPreview = async (file) => {
+  if (file.type !== 'image/jpeg') {
+    throw new Error('Not a JPEG - jpeg-js only supports JPEG');
+  }
+  
+  const jpegJs = (await import('jpeg-js')).default || (await import('jpeg-js'));
+  const arrayBuffer = await file.arrayBuffer();
+  const raw = jpegJs.decode(new Uint8Array(arrayBuffer), { useTArray: true, formatAsRGBA: true });
+  
+  let { width, height, data } = raw;
+  
+  // Downscale if too large
+  const maxSize = 4096;
+  if (Math.max(width, height) > maxSize) {
+    const scale = maxSize / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  
+  if (width === raw.width && height === raw.height) {
+    const imageData = new ImageData(new Uint8ClampedArray(data), raw.width, raw.height);
+    ctx.putImageData(imageData, 0, 0);
+  } else {
+    // Scale via temporary canvas
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = raw.width;
+    tempCanvas.height = raw.height;
+    const tctx = tempCanvas.getContext('2d');
+    const imgData = new ImageData(new Uint8ClampedArray(data), raw.width, raw.height);
+    tctx.putImageData(imgData, 0, 0);
+    ctx.drawImage(tempCanvas, 0, 0, width, height);
+  }
+  
+  const url = canvas.toDataURL('image/jpeg', 0.9);
+  return { url, width, height, strategy: 'jpeg-js' };
+};
+
+/**
  * Attempt to fix unreadable JPEGs (e.g., CMYK, huge resolution) by decoding with jpeg-js and re-encoding via canvas.
  * Returns a new File or throws if cannot fix.
  */
 export const attemptFixUnreadableJpeg = async (file, resizeMax = 4096) => {
-  if (!file || file.type !== 'image/jpeg') throw new Error('Not a JPEG');
+  console.log(`🔧 [FixUnreadableJpeg] Attempting to fix: ${file.name}`);
+  
   try {
-    const jpegJs = (await import('jpeg-js')).default || (await import('jpeg-js'));
-    const arrayBuffer = await file.arrayBuffer();
-    const raw = jpegJs.decode(new Uint8Array(arrayBuffer), { useTArray: true, formatAsRGBA: true });
-
-    // Create canvas and optionally downscale if too big
-    let { width, height, data } = raw;
-    if (Math.max(width, height) > resizeMax) {
-      const scale = resizeMax / Math.max(width, height);
-      width = Math.round(width * scale);
-      height = Math.round(height * scale);
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-
-    // PutImageData requires same length; if scaled, draw via imgBitmap path
-    if (width === raw.width && height === raw.height) {
-      const imageData = new ImageData(new Uint8ClampedArray(data), raw.width, raw.height);
-      ctx.putImageData(imageData, 0, 0);
-    } else {
-      // create full-size then scale
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = raw.width;
-      tempCanvas.height = raw.height;
-      const tctx = tempCanvas.getContext('2d');
-      const imgData = new ImageData(new Uint8ClampedArray(data), raw.width, raw.height);
-      tctx.putImageData(imgData, 0, 0);
-      ctx.drawImage(tempCanvas, 0, 0, width, height);
-    }
-
-    const fixedFile = await canvasToFile(canvas, file.name.replace(/\.jpg$/i, '_fixed.jpg'), 'image/jpeg', 0.9);
+    const result = await createRobustImagePreview(file);
+    
+    // Convert data URL back to File
+    const response = await fetch(result.url);
+    const blob = await response.blob();
+    const fixedFile = new File([blob], file.name.replace(/\.jpg$/i, '_fixed.jpg'), { type: 'image/jpeg' });
+    
+    console.log(`✅ [FixUnreadableJpeg] Successfully fixed using: ${result.strategy}`);
     return fixedFile;
-  } catch (err) {
-    console.error('Failed to fix unreadable JPEG:', err);
-    throw err;
+  } catch (error) {
+    console.error('❌ [FixUnreadableJpeg] All strategies failed:', error);
+    throw error;
   }
 };
 

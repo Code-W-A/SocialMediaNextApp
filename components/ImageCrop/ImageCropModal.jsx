@@ -11,7 +11,8 @@ import {
   getImageFileInfo,
   cleanupImagePreview,
   convertHeicIfNeeded,
-  attemptFixUnreadableJpeg
+  attemptFixUnreadableJpeg,
+  createRobustImagePreview
 } from '@/utils/imageValidation';
 import { useLanguage } from '@/lib/i18n';
 import Iconify from '@/components/Iconify';
@@ -49,6 +50,7 @@ const ImageCropModal = ({
   const [mediaError, setMediaError] = useState(null);
   const [mediaSize, setMediaSize] = useState(null);
   const [sourceFile, setSourceFile] = useState(file);
+  const [processingTimeout, setProcessingTimeout] = useState(null);
 
   // Create image preview when file changes
   useEffect(() => {
@@ -63,20 +65,80 @@ const ImageCropModal = ({
   useEffect(() => {
     (async () => {
       if (!sourceFile) {
-        setImagePreview(null); setImageInfo(null); return;
+        setImagePreview(null); 
+        setImageInfo(null); 
+        setValidationErrors([]);
+        setValidationWarnings([]);
+        setMediaError(null);
+        setMediaSize(null);
+        if (processingTimeout) {
+          clearTimeout(processingTimeout);
+          setProcessingTimeout(null);
+        }
+        return;
       }
-      let processedFile = sourceFile;
-      // HEIC convert
-      if (['image/heic','image/heif'].includes(processedFile.type)) {
-        try { processedFile = await convertHeicIfNeeded(processedFile); } catch(err){ setValidationErrors([err.message]); return; }
+      
+      // Set timeout for processing (15 seconds)
+      const timeoutId = setTimeout(() => {
+        setMediaError(t('imageCrop.imageProcessingFailed'));
+        setImagePreview(null);
+        setImageInfo(null);
+        setMediaSize(null);
+      }, 15000);
+      setProcessingTimeout(timeoutId);
+      
+      try {
+        let processedFile = sourceFile;
+        
+        // HEIC convert first
+        if (['image/heic','image/heif'].includes(processedFile.type)) {
+          try { 
+            processedFile = await convertHeicIfNeeded(processedFile); 
+          } catch(err){ 
+            setValidationErrors([err.message]); 
+            clearTimeout(timeoutId);
+            setProcessingTimeout(null);
+            return; 
+          }
+        }
+        
+        // Validate the processed file
+        const validation = validateImageFile(processedFile,'post');
+        if(!validation.isValid){ 
+          setValidationErrors([validation.error]); 
+          setValidationWarnings([]);
+          clearTimeout(timeoutId);
+          setProcessingTimeout(null);
+          return; 
+        }
+        
+        setValidationErrors([]); 
+        setValidationWarnings(validation.warnings||[]);
+        
+        // Use robust preview system instead of basic URL.createObjectURL
+        const previewResult = await createRobustImagePreview(processedFile);
+        setImagePreview(previewResult.url);
+        setImageInfo(getImageFileInfo(processedFile));
+        setMediaError(null);
+        setMediaSize({ width: previewResult.width, height: previewResult.height });
+        
+        // Clear timeout - success!
+        clearTimeout(timeoutId);
+        setProcessingTimeout(null);
+        
+        console.log(`🎯 [ImageCropModal] Preview created successfully using: ${previewResult.strategy}`);
+        
+      } catch (error) {
+        console.error('❌ [ImageCropModal] Failed to create preview:', error);
+        setValidationErrors([]);
+        setValidationWarnings([]);
+        setImagePreview(null);
+        setImageInfo(null);
+        setMediaError(t('imageCrop.imageNotAccepted'));
+        setMediaSize(null);
+        clearTimeout(timeoutId);
+        setProcessingTimeout(null);
       }
-      const validation = validateImageFile(processedFile,'post');
-      if(!validation.isValid){ setValidationErrors([validation.error]); return; }
-      setValidationErrors([]); setValidationWarnings(validation.warnings||[]);
-      const preview=URL.createObjectURL(processedFile);
-      setImagePreview(preview);
-      setImageInfo(getImageFileInfo(processedFile));
-      return ()=>{cleanupImagePreview(preview);}
     })();
   }, [sourceFile]);
 
@@ -110,20 +172,10 @@ const ImageCropModal = ({
   }, []);
 
   const handleMediaError = useCallback(async (e) => {
-    console.error('Image failed to load into cropper', e);
-    if (file && file.type === 'image/jpeg') {
-      try {
-        const fixed = await attemptFixUnreadableJpeg(file);
-        setSourceFile(fixed);
-        return;
-      } catch(conversionErr) {
-        console.error('Fallback conversion failed', conversionErr);
-        setMediaError('Cannot display this image. Try converting to JPEG/PNG first.');
-      }
-    } else {
-      setMediaError('Failed to load image into cropper');
-    }
-  }, [file]);
+    console.error('React-easy-crop onError triggered:', e);
+    // This is now just a backup - most issues should be caught in useEffect
+    setMediaError('Cropper failed to display the image');
+  }, []);
 
   const handleCropComplete = async () => {
     if (!sourceFile || !croppedAreaPixels) {
@@ -246,6 +298,24 @@ const ImageCropModal = ({
             type="warning"
             message={t('imageCrop.validationWarnings') || 'Warnings'}
             description={validationWarnings.join(', ')}
+            style={{ marginBottom: '16px' }}
+            showIcon
+          />
+        )}
+
+        {/* Image Processing Error */}
+        {mediaError && (
+          <Alert
+            type="error"
+            message={t('imageCrop.imageNotAccepted')}
+            description={
+              <div>
+                <div>{t('imageCrop.imageProcessingFailed')}</div>
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
+                  {t('imageCrop.tryDifferentImage')}
+                </div>
+              </div>
+            }
             style={{ marginBottom: '16px' }}
             showIcon
           />

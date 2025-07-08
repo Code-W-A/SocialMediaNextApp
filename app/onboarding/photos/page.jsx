@@ -15,7 +15,7 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
 import { v4 as uuidv4 } from 'uuid';
 import { ProfileImageCrop } from "@/components/ImageCrop";
-import { validateImageFile, cleanupImagePreview } from "@/utils/imageValidation";
+import { validateImageFile, cleanupImagePreview, createRobustImagePreview } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -181,9 +181,18 @@ export default function PhotosPage() {
         return false;
       }
 
-      // Open crop modal for this file
-      setFileForCrop(file);
-      setShowCropModal(true);
+      // Test if image can be processed before opening crop modal
+      createRobustImagePreview(file)
+        .then((result) => {
+          console.log(`✅ [OnboardingPhotos] Image can be processed with: ${result.strategy}`);
+          // Open crop modal for this file
+          setFileForCrop(file);
+          setShowCropModal(true);
+        })
+        .catch((error) => {
+          console.error('❌ [OnboardingPhotos] Cannot process image:', error);
+          message.error(t('imageCrop.imageNotAccepted'));
+        });
       
       return false; // Prevent automatic upload
     },

@@ -32,7 +32,7 @@ import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
 import { useLanguage } from "@/lib/i18n";
 import { ProfileImageCrop } from "@/components/ImageCrop";
-import { validateImageFile, cleanupImagePreview } from "@/utils/imageValidation";
+import { validateImageFile, createRobustImagePreview } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -272,10 +272,19 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         return false;
       }
 
-      // Open crop modal for this file
-      setFileForCrop(file);
-      setCropFileIndex(uploadedImages.length); // Will be the index of this new image
-      setShowCropModal(true);
+      // Test if image can be processed before opening crop modal
+      createRobustImagePreview(file)
+        .then((result) => {
+          console.log(`✅ [ProfileEdit] Image can be processed with: ${result.strategy}`);
+          // Open crop modal for this file
+          setFileForCrop(file);
+          setCropFileIndex(uploadedImages.length); // Will be the index of this new image
+          setShowCropModal(true);
+        })
+        .catch((error) => {
+          console.error('❌ [ProfileEdit] Cannot process image:', error);
+          message.error(t('imageCrop.imageNotAccepted'));
+        });
       
       return false; // Prevent auto upload
     },
@@ -338,13 +347,22 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return;
     }
     
-    // Open crop modal for this file
-    setFileForCrop(file);
-    setCropFileIndex(uploadedImages.length);
-    setShowCropModal(true);
-    
-    // Clear input
-    e.target.value = '';
+    // Test if image can be processed before opening crop modal
+    createRobustImagePreview(file)
+      .then((result) => {
+        console.log(`✅ [ProfileEdit] Additional image can be processed with: ${result.strategy}`);
+        // Open crop modal for this file
+        setFileForCrop(file);
+        setCropFileIndex(uploadedImages.length);
+        setShowCropModal(true);
+        // Clear input
+        e.target.value = '';
+      })
+      .catch((error) => {
+        console.error('❌ [ProfileEdit] Cannot process additional image:', error);
+        message.error(t('imageCrop.imageNotAccepted'));
+        e.target.value = '';
+      });
   };
 
   const handleAllowLocationInEdit = () => {

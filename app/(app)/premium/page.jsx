@@ -26,6 +26,20 @@ const PremiumPage = () => {
     setMounted(true);
   }, []);
 
+  // Debug subscription data
+  useEffect(() => {
+    if (subscription) {
+      console.log('🔍 Subscription Debug:', {
+        subscription,
+        isPremium,
+        isCanceled,
+        currentPeriodEnd: subscription.currentPeriodEnd,
+        status: subscription.status,
+        cancelAtPeriodEnd: subscription.cancelAtPeriodEnd
+      });
+    }
+  }, [subscription, isPremium, isCanceled]);
+
   const handleUpgrade = async () => {
     try {
       setLoading(true);
@@ -38,16 +52,40 @@ const PremiumPage = () => {
     }
   };
 
-  // Format date function with localization support
+  // Format date function with localization support and debugging
   const formatDateToLocale = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const locale = language === 'ro' ? 'ro-RO' : 'en-US';
-    return date.toLocaleDateString(locale, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    console.log('🔍 Debug formatDateToLocale:', {
+      dateString,
+      type: typeof dateString,
+      subscription: subscription,
+      currentPeriodEnd: subscription?.currentPeriodEnd
     });
+    
+    if (!dateString) {
+      console.warn('⚠️ No dateString provided to formatDateToLocale');
+      return 'N/A';
+    }
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        console.error('❌ Invalid date:', dateString);
+        return 'Invalid Date';
+      }
+      
+      const locale = language === 'ro' ? 'ro-RO' : 'en-US';
+      const formatted = date.toLocaleDateString(locale, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      console.log('✅ Formatted date:', formatted);
+      return formatted;
+    } catch (error) {
+      console.error('❌ Error formatting date:', error);
+      return 'Error formatting date';
+    }
   };
 
   const premiumFeatures = [

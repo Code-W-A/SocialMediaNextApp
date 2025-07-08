@@ -115,6 +115,15 @@ export const getUserSubscription = async (userId) => {
     // Serialize the subscription data to handle Firebase timestamps
     const serializedSubscription = serializeFirebaseData(subscription);
 
+    // Debug current period end processing
+    console.log('🔍 getUserSubscription Debug:', {
+      userId,
+      rawCurrentPeriodEnd: subscription.currentPeriodEnd,
+      serializedCurrentPeriodEnd: serializedSubscription.currentPeriodEnd,
+      subscriptionStatus: subscription.status,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd
+    });
+
     return {
       isPremium: subscription.status && isSubscriptionActive(subscription.status),
       status: subscription.status || 'inactive',
@@ -154,11 +163,20 @@ export const updateUserSubscription = async (userId, subscriptionData) => {
 // Handle subscription status change from webhook
 export const handleSubscriptionChange = async (subscription) => {
   try {
+    console.log('\n🔄 ===== HANDLING SUBSCRIPTION CHANGE =====');
+    console.log('📅 Timestamp:', new Date().toISOString());
+    console.log('🆔 Subscription ID:', subscription.id);
+    console.log('📋 Subscription Status:', subscription.status);
+    console.log('🔄 Cancel at Period End:', subscription.cancel_at_period_end);
+    console.log('📅 Current Period Start:', subscription.current_period_start ? new Date(subscription.current_period_start * 1000) : 'N/A');
+    console.log('📅 Current Period End:', subscription.current_period_end ? new Date(subscription.current_period_end * 1000) : 'N/A');
+    
     const userId = subscription.metadata.userId;
     if (!userId) {
       console.error('No userId found in subscription metadata');
       return;
     }
+    console.log('👤 User ID:', userId);
 
     const isPremiumStatus = isSubscriptionActive(subscription.status);
     
@@ -191,6 +209,13 @@ export const handleSubscriptionChange = async (subscription) => {
       priceId: subscription.items?.data?.[0]?.price?.id || null,
     };
 
+    console.log('\n💾 Preparing to save subscription data:', {
+      userId,
+      subscriptionData,
+      hasCurrentPeriodDates: !!(subscription.current_period_start && subscription.current_period_end),
+      usedFallbackDates: !subscription.current_period_start || !subscription.current_period_end
+    });
+
     await updateUserSubscription(userId, subscriptionData);
     
     console.log(`✅ Updated subscription for user ${userId}:`, {
@@ -198,6 +223,7 @@ export const handleSubscriptionChange = async (subscription) => {
       hasCurrentPeriodDates: !!(subscription.current_period_start && subscription.current_period_end),
       usedFallbackDates: !subscription.current_period_start || !subscription.current_period_end
     });
+    console.log('🔄 ===== SUBSCRIPTION CHANGE COMPLETED =====\n');
   } catch (error) {
     console.error('Error handling subscription change:', error);
     throw error;

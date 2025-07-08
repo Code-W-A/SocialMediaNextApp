@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/firebaseAuth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { oblioAPI } from '@/lib/oblio';
+import { oblioService } from '@/lib/oblioService';
 
 /**
  * Oblio Invoice Status API
@@ -45,7 +45,12 @@ export async function GET(request) {
     if (invoiceId) {
       console.log('📋 Getting specific Oblio invoice:', invoiceId);
       
-      const oblioResult = await oblioAPI.getInvoice(invoiceId);
+      // Parse invoice ID to get series and number
+      const invoiceParts = invoiceId.split(' ');
+      const seriesName = invoiceParts[0] || 'FACT';
+      const number = invoiceParts[1] || invoiceId;
+      
+      const oblioResult = await oblioService.getInvoiceDetails(seriesName, number);
       
       if (oblioResult.success) {
         return NextResponse.json({

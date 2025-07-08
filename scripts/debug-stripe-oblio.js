@@ -13,8 +13,7 @@ console.log('🔑 STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY ? '✅ SET'
 console.log('🔐 STRIPE_WEBHOOK_SECRET:', process.env.STRIPE_WEBHOOK_SECRET ? '✅ SET' : '❌ MISSING');
 console.log('🌐 STRIPE_PUBLISHABLE_KEY:', process.env.STRIPE_PUBLISHABLE_KEY ? '✅ SET' : '❌ MISSING');
 
-console.log('\n🏭 OBLIO CONFIGURATION:');
-console.log('🔧 OBLIO_ENABLED:', process.env.OBLIO_ENABLED || '❌ NOT_SET');
+console.log('\n🏭 OBLIO CONFIGURATION (ALWAYS ENABLED):');
 console.log('📧 OBLIO_EMAIL:', process.env.OBLIO_EMAIL ? `✅ ${process.env.OBLIO_EMAIL.substring(0, 10)}...` : '❌ NOT_SET');
 console.log('🔐 OBLIO_SECRET:', process.env.OBLIO_SECRET ? `✅ ${process.env.OBLIO_SECRET.substring(0, 10)}...` : '❌ NOT_SET');
 console.log('🏢 OBLIO_CIF:', process.env.OBLIO_CIF || '❌ NOT_SET');
@@ -23,22 +22,14 @@ console.log('📄 OBLIO_SERIES:', process.env.OBLIO_SERIES || '❌ NOT_SET');
 console.log('\n🔥 FIREBASE CONFIGURATION:');
 console.log('🔑 Firebase Config Present:', !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? '✅ YES' : '❌ NO');
 
-// Verifică dacă Oblio este activat
-const isOblioEnabled = process.env.OBLIO_ENABLED === 'true';
-console.log('\n📊 OBLIO STATUS:');
-console.log('🟢 Oblio Enabled:', isOblioEnabled ? '✅ YES' : '❌ NO');
-
-if (!isOblioEnabled) {
-  console.log('⚠️  WARNING: Oblio is DISABLED! Set OBLIO_ENABLED=true to generate invoices.');
-}
-
-// Verifică configurația completă Oblio
+// Verifică configurația completă Oblio (fără OBLIO_ENABLED)
 const oblioComplete = process.env.OBLIO_EMAIL && 
                      process.env.OBLIO_SECRET && 
                      process.env.OBLIO_CIF && 
-                     process.env.OBLIO_SERIES &&
-                     process.env.OBLIO_ENABLED === 'true';
+                     process.env.OBLIO_SERIES;
 
+console.log('\n📊 OBLIO STATUS:');
+console.log('🟢 Oblio is ALWAYS ENABLED (no toggle required)');
 console.log('🎯 Oblio Configuration Complete:', oblioComplete ? '✅ YES' : '❌ NO');
 
 if (!oblioComplete) {
@@ -47,7 +38,6 @@ if (!oblioComplete) {
   if (!process.env.OBLIO_SECRET) console.log('   - OBLIO_SECRET');
   if (!process.env.OBLIO_CIF) console.log('   - OBLIO_CIF');
   if (!process.env.OBLIO_SERIES) console.log('   - OBLIO_SERIES');
-  if (process.env.OBLIO_ENABLED !== 'true') console.log('   - OBLIO_ENABLED (should be "true")');
 }
 
 // Testează conexiunea la Stripe

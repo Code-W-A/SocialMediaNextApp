@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/firebaseAuth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { oblioService, convertStripeToOblioData } from '@/lib/oblio-invoice-service';
+import { oblioService, convertStripeToOblioData } from '@/lib/oblioService';
 
 /**
  * Manual Oblio Invoice Creation API

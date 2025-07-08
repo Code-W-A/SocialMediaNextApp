@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Modal, Button, Radio, Slider, Typography, message, Space, Alert, Divider } from 'antd';
+import { Modal, Button, Radio, Slider, Typography, message, Space, Alert, Divider, Spin } from 'antd';
 import Cropper from 'react-easy-crop';
 import { 
   validateImageFile, 
@@ -10,7 +10,7 @@ import {
   getOptimalDimensions,
   getImageFileInfo,
   cleanupImagePreview,
-  createSafePreview
+  convertHeicIfNeeded
 } from '@/utils/imageValidation';
 import { useLanguage } from '@/lib/i18n';
 import Iconify from '@/components/Iconify';
@@ -45,55 +45,51 @@ const ImageCropModal = ({
   const [imageInfo, setImageInfo] = useState(null);
   const [validationErrors, setValidationErrors] = useState([]);
   const [validationWarnings, setValidationWarnings] = useState([]);
+  const [mediaError, setMediaError] = useState(null);
+  const [mediaSize, setMediaSize] = useState(null);
 
   // Create image preview when file changes
   useEffect(() => {
-    let isCancelled = false;
-    let previewUrl = null;
-
-    if (file) {
-      // Validate file
-      const validation = validateImageFile(file, 'post');
-      if (!validation.isValid) {
-        setValidationErrors([validation.error]);
-        setValidationWarnings([]);
-        return;
-      }
-
-      setValidationErrors([]);
-      setValidationWarnings(validation.warnings || []);
-
-      // Generate safe preview (downscale very large images)
-      (async () => {
-        const previewData = await createSafePreview(file);
-        previewUrl = previewData.url;
-        if (!isCancelled) {
-          setImagePreview(previewUrl);
-          // Get file info
-          const info = getImageFileInfo(file);
-          setImageInfo(info);
-
-          // Mobile-friendly visual debug message
-          const downscaledNote = previewData.downscaled ? ' (preview downscaled)' : '';
-          // Inject width/height if not resolved yet
-          if (!info.width && previewData.width) {
-            info.width = previewData.width;
-            info.height = previewData.height;
+    (async () => {
+      if (file) {
+        // Convert HEIC if necessary
+        let processedFile = file;
+        if (['image/heic', 'image/heif'].includes(file.type)) {
+          try {
+            processedFile = await convertHeicIfNeeded(file);
+          } catch (conversionErr) {
+            setValidationErrors([conversionErr.message]);
+            return;
           }
-          message.info(`📸 ${info.sizeFormatted}${info.width ? ' • '+info.width+'x'+info.height+'px' : ''}${downscaledNote}`, 3);
         }
-      })();
 
-      return () => {
-        isCancelled = true;
-        if (previewUrl) cleanupImagePreview(previewUrl);
-      };
-    } else {
-      setImagePreview(null);
-      setImageInfo(null);
-      setValidationErrors([]);
-      setValidationWarnings([]);
-    }
+        // Validate file
+        const validation = validateImageFile(processedFile, 'post');
+        if (!validation.isValid) {
+          setValidationErrors([validation.error]);
+          setValidationWarnings([]);
+          return;
+        }
+
+        setValidationErrors([]);
+        setValidationWarnings(validation.warnings || []);
+
+        // Create preview
+        const preview = URL.createObjectURL(processedFile);
+        setImagePreview(preview);
+        const info = getImageFileInfo(processedFile);
+        setImageInfo(info);
+
+        return () => {
+          cleanupImagePreview(preview);
+        };
+      } else {
+        setImagePreview(null);
+        setImageInfo(null);
+        setValidationErrors([]);
+        setValidationWarnings([]);
+      }
+    })();
   }, [file]);
 
   // Reset state when modal opens/closes
@@ -118,6 +114,16 @@ const ImageCropModal = ({
 
   const onCropAreaChange = useCallback((croppedArea, croppedAreaPixels) => {
     setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const handleMediaLoaded = useCallback((mediaSize) => {
+    setMediaSize(mediaSize);
+    setMediaError(null);
+  }, []);
+
+  const handleMediaError = useCallback((e) => {
+    console.error('Image failed to load into cropper', e);
+    setMediaError('Failed to load image into cropper');
   }, []);
 
   const handleCropComplete = async () => {
@@ -296,6 +302,23 @@ const ImageCropModal = ({
             overflow: 'hidden',
             marginBottom: '16px'
           }}>
+            {mediaError && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(0,0,0,0.6)',
+                color: '#fff',
+                zIndex: 5
+              }}>
+                <Text style={{ color: '#fff' }}> {mediaError} </Text>
+              </div>
+            )}
+            {!mediaError && !mediaSize && (
+              <Spin tip="Loading image..." style={{ position: 'absolute', inset: 0, zIndex:4, display:'flex', alignItems:'center', justifyContent:'center'}} />
+            )}
             <Cropper
               image={imagePreview}
               crop={crop}
@@ -306,6 +329,8 @@ const ImageCropModal = ({
               onZoomChange={setZoom}
               showGrid={true}
               cropShape="rect"
+              onMediaLoaded={(media) => handleMediaLoaded(media)}
+              onError={handleMediaError}
               style={{
                 containerStyle: {
                   width: '100%',
@@ -314,6 +339,12 @@ const ImageCropModal = ({
                 }
               }}
             />
+            {/* Debug overlay */}
+            {mediaSize && (
+              <div style={{ position: 'absolute', bottom: 4, right: 4, color: '#fff', background:'rgba(0,0,0,0.4)', padding:'2px 6px', borderRadius:4, fontSize:10 }}>
+                {mediaSize.width}x{mediaSize.height}
+              </div>
+            )}
           </div>
         )}
 

@@ -33,6 +33,28 @@ export const MAX_FILE_SIZES = {
   MESSAGE_IMAGE: 50 * 1024 * 1024 // 50MB - generous limit, rely on compression
 };
 
+// Extend supported types list to include HEIC for conversion
+export const NATIVE_SUPPORTED_IMAGE_TYPES = [...SUPPORTED_IMAGE_TYPES];
+SUPPORTED_IMAGE_TYPES.push('image/heic', 'image/heif');
+
+/**
+ * Convert HEIC/HEIF files to JPEG using heic2any (only when needed)
+ * Returns Promise<File>
+ */
+export const convertHeicIfNeeded = async (file) => {
+  if (!file || !['image/heic', 'image/heif'].includes(file.type)) return file;
+  try {
+    const heic2any = (await import('heic2any')).default;
+    const outputBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    const convertedFile = new File([outputBlob], file.name.replace(/\.heic|\.heif/i, '.jpg'), { type: 'image/jpeg' });
+    console.log('📸 [HEIC Conversion] Converted HEIC to JPEG:', convertedFile);
+    return convertedFile;
+  } catch (err) {
+    console.error('Failed to convert HEIC image', err);
+    throw new Error('Unsupported image format (HEIC). Please convert to JPEG/PNG before uploading.');
+  }
+};
+
 /**
  * Validate if file is a valid image
  * @param {File} file - File object to validate
@@ -322,84 +344,12 @@ export const smartCompressImage = async (canvas, fileName, originalFile, context
  * @returns {Object} File information
  */
 export const getImageFileInfo = (file) => {
-  const info = {
+  return {
     name: file.name,
     size: file.size,
     type: file.type,
     lastModified: file.lastModified,
     sizeFormatted: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-    extension: file.name.split('.').pop()?.toLowerCase(),
-    width: null,
-    height: null
+    extension: file.name.split('.').pop()?.toLowerCase()
   };
-
-  try {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      info.width = img.naturalWidth;
-      info.height = img.naturalHeight;
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  } catch (e) {
-    // ignore
-  }
-
-  return info;
-}; 
-
-/**
- * Create a safe preview URL for very large images by downscaling if necessary.
- * Some browsers fail to render extremely large images, resulting in black preview.
- * @param {File} file - Image file
- * @param {number} maxDimension - Maximum width or height for preview
- * @returns {Promise<string>} Preview object URL
- */
-export const createSafePreview = async (file, maxDimension = 4096) => {
-  return new Promise((resolve) => {
-    const originalUrl = URL.createObjectURL(file);
-
-    const img = new Image();
-    img.onload = () => {
-      const { naturalWidth: width, naturalHeight: height } = img;
-
-      // If within limits, use original object URL
-      if (width <= maxDimension && height <= maxDimension) {
-        resolve({ url: originalUrl, downscaled: false, width, height });
-        return;
-      }
-
-      // Downscale preview to avoid rendering issues
-      const scale = Math.min(maxDimension / width, maxDimension / height);
-      const previewWidth = Math.round(width * scale);
-      const previewHeight = Math.round(height * scale);
-
-      const canvas = document.createElement('canvas');
-      canvas.width = previewWidth;
-      canvas.height = previewHeight;
-
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, previewWidth, previewHeight);
-
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const previewUrl = URL.createObjectURL(blob);
-          // Revoke original big URL to free memory
-          URL.revokeObjectURL(originalUrl);
-          resolve({ url: previewUrl, downscaled: true, width: previewWidth, height: previewHeight });
-        } else {
-          // Fallback to original
-          resolve({ url: originalUrl, downscaled: false, width, height });
-        }
-      }, 'image/jpeg', 0.8);
-    };
-
-    img.onerror = () => {
-      // On error, fallback to original URL
-      resolve({ url: originalUrl, downscaled: false, width: null, height: null });
-    };
-
-    img.src = originalUrl;
-  });
 }; 

@@ -13,7 +13,7 @@ import { getMainProfileImage } from "@/utils/imageHelpers";
 import { useRouter } from "next/navigation";
 import PremiumBadge from "@/components/PremiumBadge";
 import { hasCompletedQuestionnaire, debugUserData } from '@/utils/onboardingHelpers';
-import { BannerImageCrop } from "@/components/ImageCrop";
+import SimpleImageCrop from "@/components/ImageCrop/SimpleImageCrop";
 import { validateImageFile, cleanupImagePreview } from "@/utils/imageValidation";
 import { message } from "antd";
 import { useLanguage } from "@/lib/i18n";
@@ -38,7 +38,7 @@ const ProfileHead = ({
   const [banner, setBanner] = useState(null);
   // Crop functionality state
   const [showCropModal, setShowCropModal] = useState(false);
-  const [fileForCrop, setFileForCrop] = useState(null);
+  const [cropImageUrl, setCropImageUrl] = useState(null);
 
   console.log('🎭 [ProfileHead] Component rendered with:', {
     userId,
@@ -135,46 +135,12 @@ const ProfileHead = ({
     }
 
     console.log('✅ [ProfileHead] Valid image file, opening crop modal...');
-    setFileForCrop(file);
+    const previewUrl = URL.createObjectURL(file);
+    setCropImageUrl(previewUrl);
     setShowCropModal(true);
     
     // Clear the input value so the same file can be selected again
     e.target.value = '';
-  };
-
-  // Crop functionality handlers
-  const handleCropComplete = (cropData) => {
-    console.log('📤 [ProfileHead] Crop completed, uploading banner...');
-    
-    // Convert cropped file to base64 for upload
-    const reader = new FileReader();
-    reader.onload = () => {
-      setBanner(reader.result);
-      mutate({
-        id: currentUser?.id,
-        banner: reader.result,
-        prevBannerId: data?.data?.banner_id,
-      });
-    };
-    reader.readAsDataURL(cropData.file);
-    
-    // Close modal and cleanup
-    setShowCropModal(false);
-    setFileForCrop(null);
-    
-    // Show success message
-    message.success(t('imageCrop.cropSuccessful') || 'Banner cropped successfully!');
-  };
-
-  const handleCropCancel = () => {
-    console.log('🚫 [ProfileHead] Crop cancelled');
-    setShowCropModal(false);
-    
-    // Cleanup file reference
-    if (fileForCrop) {
-      cleanupImagePreview(fileForCrop);
-      setFileForCrop(null);
-    }
   };
 
   // Function to get profile image with multiple fallbacks
@@ -272,12 +238,41 @@ const ProfileHead = ({
       </Spin>
 
       {/* Banner Image Crop Modal */}
-      <BannerImageCrop
+      <SimpleImageCrop
         visible={showCropModal}
-        onCancel={handleCropCancel}
-        onCropComplete={handleCropComplete}
-        file={fileForCrop}
-        title={t('imageCrop.bannerImageTitle') || 'Crop Banner Image'}
+        onCancel={() => {
+          setShowCropModal(false);
+          setCropImageUrl(null);
+        }}
+        onCropComplete={(cropResult) => {
+          // Convert cropped file to base64 for upload
+          const reader = new FileReader();
+          reader.onload = () => {
+            setBanner(reader.result);
+            mutate({
+              id: currentUser?.id,
+              banner: reader.result,
+              prevBannerId: data?.data?.banner_id,
+            });
+          };
+          reader.readAsDataURL(cropResult.file);
+          
+          // Close modal and cleanup
+          setShowCropModal(false);
+          setCropImageUrl(null);
+          
+          // Show success message
+          message.success(t('imageCrop.cropSuccessful') || 'Banner cropped successfully!');
+        }}
+        imageUrl={cropImageUrl}
+        title={t('imageCrop.cropBannerImage') || 'Crop Banner Image'}
+        aspectRatios={[
+          { label: 'Widescreen', value: 16/9, icon: 'eva:monitor-fill' },
+          { label: 'Ultra Wide', value: 21/9, icon: 'eva:tv-fill' },
+          { label: 'Wide', value: 2/1, icon: 'eva:crop-fill' },
+          { label: 'Standard', value: 3/2, icon: 'eva:image-fill' }
+        ]}
+        defaultAspectRatio={16/9}
       />
 
       <Box>

@@ -31,7 +31,7 @@ import { v4 as uuidv4 } from 'uuid';
 import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
 import { useLanguage } from "@/lib/i18n";
-import { ProfileImageCrop } from "@/components/ImageCrop";
+import SimpleImageCrop from "@/components/ImageCrop/SimpleImageCrop";
 import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
 import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
 
@@ -284,7 +284,10 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   };
 
   // ADD helper to append image directly with lightweight repair fallback
-  const ENABLE_CROP = false;
+  const ENABLE_CROP = true;
+  // crop state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropImageUrl, setCropImageUrl] = useState(null);
   const addImageDirect = async (file) => {
     if (file.__handled) return;
     file.__handled = true;
@@ -324,6 +327,12 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     }
 
     hide();
+
+    if (ENABLE_CROP && previewUrl) {
+      setCropImageUrl(previewUrl);
+      setShowCropModal(true);
+      return;
+    }
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
@@ -549,44 +558,6 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   };
 
   // Crop functionality handlers
-  const handleCropComplete = (cropData) => {
-    // Create file object for antd Upload
-    const croppedFileObject = {
-      uid: `cropped-${Date.now()}`,
-      name: `cropped_${cropData.originalFile.name}`,
-      status: 'done',
-      originFileObj: cropData.file
-    };
-
-    // Add to uploaded images
-    const updatedFileList = [...uploadedImages, croppedFileObject];
-    setUploadedImages(updatedFileList);
-
-    // Create preview
-    const newPreview = {
-      url: cropData.preview,
-      file: croppedFileObject,
-      uid: croppedFileObject.uid,
-      aspectRatio: cropData.aspectRatio
-    };
-
-    setPreviewImages([...previewImages, newPreview]);
-
-    // Close modal and cleanup
-    // setShowCropModal(false); // This line is removed
-    // setFileForCrop(null); // This line is removed
-    // setCropFileIndex(null); // This line is removed
-
-    // Show success message
-    message.success(t('imageCrop.cropSuccessful') || 'Profile image cropped successfully!');
-  };
-
-  const handleCropCancel = () => {
-    // setShowCropModal(false); // This line is removed
-    // setFileForCrop(null); // This line is removed
-    // setCropFileIndex(null); // This line is removed
-  };
-
   const handleSubmit = async (values) => {
     setLoading(true);
     try {
@@ -1187,12 +1158,38 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         </Form>
 
         {/* Profile Image Crop Modal */}
-        <ProfileImageCrop
-          visible={false} // This line is changed
-          onCancel={handleCropCancel}
-          onCropComplete={handleCropComplete}
-          file={null} // This line is changed
-          title={t('imageCrop.profileImageTitle') || 'Crop Profile Image'}
+        <SimpleImageCrop
+          visible={showCropModal}
+          onCancel={() => {
+            setShowCropModal(false);
+            setCropImageUrl(null);
+          }}
+          onCropComplete={(cropResult) => {
+            const fileObject = {
+              uid: `cropped-${Date.now()}`,
+              name: `cropped_${Date.now()}.jpg`,
+              status: 'done',
+              originFileObj: cropResult.file
+            };
+            
+            setUploadedImages(prev => [...prev, fileObject]);
+            setPreviewImages(prev => [...prev, { 
+              url: cropResult.preview, 
+              file: fileObject, 
+              uid: fileObject.uid 
+            }]);
+            
+            setShowCropModal(false);
+            setCropImageUrl(null);
+            message.success(t('imageCrop.cropSuccessful') || 'Image cropped successfully!');
+          }}
+          imageUrl={cropImageUrl}
+          title={t('imageCrop.cropProfileImage') || 'Crop Profile Image'}
+          aspectRatios={[
+            { label: 'Square', value: 1, icon: 'eva:square-fill' },
+            { label: 'Portrait', value: 4/5, icon: 'eva:smartphone-fill' }
+          ]}
+          defaultAspectRatio={1}
         />
 
         {/* Location Permission Dialog */}

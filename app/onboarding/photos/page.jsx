@@ -14,7 +14,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
 import { v4 as uuidv4 } from 'uuid';
-import { ProfileImageCrop } from "@/components/ImageCrop";
+import SimpleImageCrop from "@/components/ImageCrop/SimpleImageCrop";
 import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
 import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
 const serverFixImage = async (file) => {
@@ -25,7 +25,7 @@ const serverFixImage = async (file) => {
   const data = await res.json();
   return { url: data.url, fileName: data.fileName };
 };
-const ENABLE_CROP = false;
+const ENABLE_CROP = true;
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -41,7 +41,7 @@ export default function PhotosPage() {
   const [isMobile, setIsMobile] = useState(false);
   // Crop functionality state
   const [showCropModal, setShowCropModal] = useState(false);
-  const [fileForCrop, setFileForCrop] = useState(null);
+  const [cropImageUrl, setCropImageUrl] = useState(null);
 
   // Mobile detection
   useEffect(() => {
@@ -232,10 +232,9 @@ export default function PhotosPage() {
       }
     }
 
-    if (ENABLE_CROP && previewUrl && workingFile instanceof File) {
-      setFileForCrop(workingFile);
+    if (ENABLE_CROP && previewUrl) {
+      setCropImageUrl(previewUrl);
       setShowCropModal(true);
-      hide();
       return;
     }
 
@@ -294,7 +293,7 @@ export default function PhotosPage() {
         message.success(t('onboarding.imageStandardized') || 'Image processed successfully!');
         
         // Use the standardized file for cropping
-        setFileForCrop(standardizedResult.file);
+        setCropImageUrl(standardizedResult.previewUrl);
         setShowCropModal(true);
         
         // Clean up the original preview URL if it exists
@@ -411,42 +410,9 @@ export default function PhotosPage() {
     }
   };
 
-  // Crop functionality handlers
-  const handleCropComplete = (cropData) => {
-    // Create file object for antd Upload
-    const croppedFileObject = {
-      uid: `cropped-${Date.now()}`,
-      name: `cropped_${cropData.originalFile.name}`,
-      status: 'done',
-      originFileObj: cropData.file
-    };
-
-    // Add to uploaded images
-    const updatedFileList = [...uploadedImages, croppedFileObject];
-    setUploadedImages(updatedFileList);
-
-    // Create preview
-    const newPreview = {
-      url: cropData.preview,
-      file: croppedFileObject,
-      uid: croppedFileObject.uid,
-      aspectRatio: cropData.aspectRatio
-    };
-
-    setPreviewImages([...previewImages, newPreview]);
-
-    // Close modal and cleanup
-    setShowCropModal(false);
-    setFileForCrop(null);
-
-    // Show success message
-    message.success(t('imageCrop.cropSuccessful') || 'Profile image cropped successfully!');
-  };
-
-  const handleCropCancel = () => {
-    setShowCropModal(false);
-    setFileForCrop(null);
-  };
+  // Remove old crop handlers
+  // const handleCropComplete = (cropData) => { ... }; // REMOVED
+  // const handleCropCancel = () => { ... }; // REMOVED
 
   return (
     <div className={layoutCss.singleColumnLayout}>
@@ -658,7 +624,7 @@ export default function PhotosPage() {
                         message.success(t('onboarding.imageStandardized') || 'Image processed successfully!');
                         
                         // Use the standardized file for cropping
-                        setFileForCrop(standardizedResult.file);
+                        setCropImageUrl(standardizedResult.previewUrl);
                         setShowCropModal(true);
                         
                         // Clean up the original preview URL if it exists
@@ -736,12 +702,38 @@ export default function PhotosPage() {
       </div>
 
       {/* Profile Image Crop Modal */}
-      <ProfileImageCrop
+      <SimpleImageCrop
         visible={showCropModal}
-        onCancel={handleCropCancel}
-        onCropComplete={handleCropComplete}
-        file={fileForCrop}
-        title={t('imageCrop.profileImageTitle') || 'Crop Profile Image'}
+        onCancel={() => {
+          setShowCropModal(false);
+          setCropImageUrl(null);
+        }}
+        onCropComplete={(cropResult) => {
+          const fileObject = {
+            uid: `cropped-${Date.now()}`,
+            name: `cropped_${Date.now()}.jpg`,
+            status: 'done',
+            originFileObj: cropResult.file
+          };
+          
+          setUploadedImages(prev => [...prev, fileObject]);
+          setPreviewImages(prev => [...prev, { 
+            url: cropResult.preview, 
+            file: fileObject, 
+            uid: fileObject.uid 
+          }]);
+          
+          setShowCropModal(false);
+          setCropImageUrl(null);
+          message.success(t('imageCrop.cropSuccessful') || 'Image cropped successfully!');
+        }}
+        imageUrl={cropImageUrl}
+        title={t('imageCrop.cropProfileImage') || 'Crop Profile Image'}
+        aspectRatios={[
+          { label: 'Square', value: 1, icon: 'eva:square-fill' },
+          { label: 'Portrait', value: 4/5, icon: 'eva:smartphone-fill' }
+        ]}
+        defaultAspectRatio={1}
       />
     </div>
   );

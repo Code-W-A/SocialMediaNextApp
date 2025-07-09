@@ -15,7 +15,7 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
 import { v4 as uuidv4 } from 'uuid';
 import { ProfileImageCrop } from "@/components/ImageCrop";
-import { validateImageFile, cleanupImagePreview, createRobustImagePreview } from "@/utils/imageValidation";
+import { validateImageFile, cleanupImagePreview, createRobustImagePreview, standardizeImage } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -173,7 +173,7 @@ export default function PhotosPage() {
     accept: 'image/*',
     maxCount: 6,
     showUploadList: false, // Hide the default upload list
-    beforeUpload: (file) => {
+    beforeUpload: async (file) => {
       // Validate image file
       const validation = validateImageFile(file, 'profile');
       if (!validation.isValid) {
@@ -181,18 +181,38 @@ export default function PhotosPage() {
         return false;
       }
 
-      // Test if image can be processed before opening crop modal
-      createRobustImagePreview(file)
-        .then((result) => {
-          console.log(`✅ [OnboardingPhotos] Image can be processed with: ${result.strategy}`);
-          // Open crop modal for this file
-          setFileForCrop(file);
-          setShowCropModal(true);
-        })
-        .catch((error) => {
-          console.error('❌ [OnboardingPhotos] Cannot process image:', error);
-          message.error(t('imageCrop.imageNotAccepted'));
+      try {
+        // Show loading message
+        const loadingMessage = message.loading(t('onboarding.processingImage') || 'Processing image...', 0);
+        
+        // Standardize the image to ensure browser compatibility
+        console.log('🔄 [OnboardingPhotos] Standardizing image for compatibility...');
+        const standardizedResult = await standardizeImage(file, {
+          maxWidthOrHeight: 2000,
+          quality: 0.9
         });
+        
+        // Close loading message
+        loadingMessage();
+        
+        console.log(`✅ [OnboardingPhotos] Image standardized successfully`);
+        message.success(t('onboarding.imageStandardized') || 'Image processed successfully!');
+        
+        // Use the standardized file for cropping
+        setFileForCrop(standardizedResult.file);
+        setShowCropModal(true);
+        
+        // Clean up the original preview URL if it exists
+        if (standardizedResult.previewUrl) {
+          setTimeout(() => {
+            URL.revokeObjectURL(standardizedResult.previewUrl);
+          }, 5000);
+        }
+        
+      } catch (error) {
+        console.error('❌ [OnboardingPhotos] Cannot process image:', error);
+        message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+      }
       
       return false; // Prevent automatic upload
     },
@@ -498,9 +518,12 @@ export default function PhotosPage() {
                     accept="image/*"
                     style={{ display: "none" }}
                     id="additionalPhotosInput"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const files = Array.from(e.target.files || []);
                       if (files.length === 0) return;
+                      
+                      // Clear input immediately
+                      e.target.value = '';
                       
                       // Check total count
                       if (uploadedImages.length + files.length > 6) {
@@ -515,16 +538,41 @@ export default function PhotosPage() {
                       const validation = validateImageFile(file, 'profile');
                       if (!validation.isValid) {
                         message.error(validation.error);
-                        e.target.value = '';
                         return;
                       }
                       
-                      // Open crop modal for this file
-                      setFileForCrop(file);
-                      setShowCropModal(true);
-                      
-                      // Clear input
-                      e.target.value = '';
+                      try {
+                        // Show loading message
+                        const loadingMessage = message.loading(t('onboarding.processingImage') || 'Processing image...', 0);
+                        
+                        // Standardize the image to ensure browser compatibility
+                        console.log('🔄 [OnboardingPhotos] Standardizing additional image for compatibility...');
+                        const standardizedResult = await standardizeImage(file, {
+                          maxWidthOrHeight: 2000,
+                          quality: 0.9
+                        });
+                        
+                        // Close loading message
+                        loadingMessage();
+                        
+                        console.log(`✅ [OnboardingPhotos] Additional image standardized successfully`);
+                        message.success(t('onboarding.imageStandardized') || 'Image processed successfully!');
+                        
+                        // Use the standardized file for cropping
+                        setFileForCrop(standardizedResult.file);
+                        setShowCropModal(true);
+                        
+                        // Clean up the original preview URL if it exists
+                        if (standardizedResult.previewUrl) {
+                          setTimeout(() => {
+                            URL.revokeObjectURL(standardizedResult.previewUrl);
+                          }, 5000);
+                        }
+                        
+                      } catch (error) {
+                        console.error('❌ [OnboardingPhotos] Cannot process additional image:', error);
+                        message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+                      }
                     }}
                   />
                   <div 

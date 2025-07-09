@@ -526,3 +526,134 @@ export const getImageFileInfo = (file) => {
     extension: file.name.split('.').pop()?.toLowerCase()
   };
 }; 
+
+/**
+ * Standardize any image to a clean JPEG format
+ * Removes EXIF metadata, ICC profiles, and ensures browser compatibility
+ * @param {File} file - Input image file
+ * @param {Object} options - Processing options
+ * @returns {Promise<Object>} Standardized image data
+ */
+export const standardizeImage = async (file, options = {}) => {
+  const {
+    maxWidthOrHeight = 2000,
+    quality = 0.9,
+    outputFormat = 'image/jpeg',
+    preserveExif = false
+  } = options;
+
+  console.log(`📸 [StandardizeImage] Processing: ${file.name} (${file.type}, ${(file.size/1024/1024).toFixed(2)}MB)`);
+
+  try {
+    // Step 1: Convert HEIC/HEIF to JPEG if needed
+    let processedFile = file;
+    if (['image/heic', 'image/heif'].includes(file.type)) {
+      console.log('🔄 [StandardizeImage] Converting HEIC/HEIF to JPEG...');
+      processedFile = await convertHeicIfNeeded(file);
+    }
+
+    // Step 2: Use browser-image-compression for robust standardization
+    const imageCompression = (await import('browser-image-compression')).default;
+    
+    const compressionOptions = {
+      maxWidthOrHeight,
+      useWebWorker: true,
+      fileType: outputFormat,
+      quality,
+      preserveExif: preserveExif,
+      // Force specific settings for standardization
+      alwaysKeepResolution: false,
+      exifOrientation: 1, // Reset EXIF orientation
+      initialQuality: 1 // Start with full quality, then compress
+    };
+
+    console.log('🔄 [StandardizeImage] Standardizing with browser-image-compression...');
+    const standardizedFile = await imageCompression(processedFile, compressionOptions);
+
+    // Step 3: Create a clean blob to ensure no metadata remnants
+    const cleanBlob = new Blob([standardizedFile], { type: outputFormat });
+    
+    // Step 4: Convert to File object with clean name
+    const cleanFileName = `standardized_${Date.now()}.jpg`;
+    const cleanFile = new File([cleanBlob], cleanFileName, { 
+      type: outputFormat,
+      lastModified: Date.now()
+    });
+
+    // Step 5: Create preview URL for immediate use
+    const previewUrl = URL.createObjectURL(cleanFile);
+
+    // Step 6: Verify the result works
+    await new Promise((resolve, reject) => {
+      const img = new Image();
+      const timeout = setTimeout(() => {
+        reject(new Error('Standardized image verification timeout'));
+      }, 3000);
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+          reject(new Error('Standardized image has zero dimensions'));
+        } else {
+          resolve();
+        }
+      };
+
+      img.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Standardized image failed to load'));
+      };
+
+      img.src = previewUrl;
+    });
+
+    console.log(`✅ [StandardizeImage] Success! Original: ${(file.size/1024/1024).toFixed(2)}MB → Standardized: ${(cleanFile.size/1024/1024).toFixed(2)}MB`);
+
+    return {
+      file: cleanFile,
+      blob: cleanBlob,
+      previewUrl,
+      originalFile: file,
+      originalSize: file.size,
+      standardizedSize: cleanFile.size,
+      compressionRatio: ((file.size - cleanFile.size) / file.size * 100).toFixed(1),
+      isStandardized: true
+    };
+
+  } catch (error) {
+    console.error('❌ [StandardizeImage] Failed:', error);
+    throw new Error(`Failed to standardize image: ${error.message}`);
+  }
+};
+
+/**
+ * Batch standardize multiple images
+ * @param {File[]} files - Array of image files
+ * @param {Object} options - Processing options
+ * @returns {Promise<Object[]>} Array of standardized image data
+ */
+export const standardizeImages = async (files, options = {}) => {
+  console.log(`📸 [StandardizeImages] Processing ${files.length} images...`);
+  
+  const results = [];
+  const errors = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    try {
+      const result = await standardizeImage(file, options);
+      results.push(result);
+      console.log(`✅ [StandardizeImages] Processed ${i + 1}/${files.length}: ${file.name}`);
+    } catch (error) {
+      console.error(`❌ [StandardizeImages] Failed ${i + 1}/${files.length}: ${file.name}`, error);
+      errors.push({ file, error: error.message });
+    }
+  }
+
+  return {
+    results,
+    errors,
+    successCount: results.length,
+    errorCount: errors.length
+  };
+}; 

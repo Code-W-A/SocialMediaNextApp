@@ -29,17 +29,15 @@ import { createImageObject } from "@/utils/imageHelpers";
 import { hasCompletedQuestionnaire, debugUserData } from '@/utils/onboardingHelpers';
 import { v4 as uuidv4 } from 'uuid';
 import css from "@/styles/ProfileEdit.module.css";
-// photoCss was used in old grid; no longer needed after selector overhaul
+import photoCss from "@/styles/PhotoUpload.module.css";
 import { useLanguage } from "@/lib/i18n";
 import { ProfileImageCrop } from "@/components/ImageCrop";
-// Replaced heavy validation with a simpler image selector component
-import SimpleImageSelector from "@/components/SimpleImageSelector";
-// Previous heavy image validation utilities no longer needed here
+import { validateImageFile, createRobustImagePreview, standardizeImage } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
-// Dragger unused – removed in new image selector overhaul
+const { Dragger } = Upload;
 
 const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, fromOnboardingRedirect = false }) => {
   const { user: currentUser, refreshUser, refreshUserData } = useAuth();
@@ -260,10 +258,151 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     });
   };
 
-  // === Old Dragger workflow removed ===
-  // Image selection is now handled exclusively by SimpleImageSelector.
+  const uploadProps = {
+    name: 'file',
+    multiple: false,
+    accept: 'image/*',
+    maxCount: 6,
+    showUploadList: false,
+    beforeUpload: async (file) => {
+      // Validate image
+      const validation = validateImageFile(file, 'profile');
+      if (!validation.isValid) {
+        message.error(validation.error);
+        return false;
+      }
 
-  // handleRemoveImage no longer needed – removal handled in SimpleImageSelector
+      try {
+        // Show loading message
+        const loadingMessage = message.loading(t('profileEdit.processingImage') || 'Processing image...', 0);
+        
+        // Standardize the image to ensure browser compatibility
+        console.log('🔄 [ProfileEdit] Standardizing image for compatibility...');
+        const standardizedResult = await standardizeImage(file, {
+          maxWidthOrHeight: 2000,
+          quality: 0.9
+        });
+        
+        // Close loading message
+        loadingMessage();
+        
+        console.log(`✅ [ProfileEdit] Image standardized successfully`);
+        message.success(t('profileEdit.imageStandardized') || 'Image processed successfully!');
+        
+        // Use the standardized file for cropping
+        setFileForCrop(standardizedResult.file);
+        setCropFileIndex(uploadedImages.length);
+        setShowCropModal(true);
+        
+        // Clean up the original preview URL if it exists
+        if (standardizedResult.previewUrl) {
+          setTimeout(() => {
+            URL.revokeObjectURL(standardizedResult.previewUrl);
+          }, 5000);
+        }
+        
+      } catch (error) {
+        console.error('❌ [ProfileEdit] Cannot process image:', error);
+        message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+      }
+      
+      return false; // Prevent auto upload
+    },
+    onChange: (info) => {
+      // This will be called when we manually add cropped images
+      setUploadedImages(info.fileList);
+      
+      const previews = info.fileList.map((file, index) => {
+        if (file.originFileObj) {
+          const url = URL.createObjectURL(file.originFileObj);
+          return { url, file, index, uid: file.uid };
+        }
+        return null;
+      }).filter(Boolean);
+      
+      setPreviewImages(previews);
+      
+      if (mainImageIndex >= info.fileList.length) {
+        setMainImageIndex(0);
+      }
+    },
+  };
+
+  const handleSetMainImage = (index) => {
+    setMainImageIndex(index);
+  };
+
+  const handleRemoveImage = (indexToRemove) => {
+    const newUploadedImages = uploadedImages.filter((_, index) => index !== indexToRemove);
+    const newPreviewImages = previewImages.filter((_, index) => index !== indexToRemove);
+    
+    setUploadedImages(newUploadedImages);
+    setPreviewImages(newPreviewImages);
+    
+    if (mainImageIndex >= newUploadedImages.length) {
+      setMainImageIndex(Math.max(0, newUploadedImages.length - 1));
+    } else if (mainImageIndex > indexToRemove) {
+      setMainImageIndex(mainImageIndex - 1);
+    }
+  };
+
+  const handleAdditionalPhotos = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    // Check total count
+    if (uploadedImages.length + files.length > 6) {
+      message.warning(t('profileEdit.canUploadMorePhotos', { count: 6 - uploadedImages.length }));
+      return;
+    }
+    
+    // Process one file at a time with crop
+    const file = files[0]; // Take only the first file for now
+    
+    // Clear input immediately
+    e.target.value = '';
+    
+    // Validate file
+    const validation = validateImageFile(file, 'profile');
+    if (!validation.isValid) {
+      message.error(validation.error);
+      return;
+    }
+    
+    try {
+      // Show loading message
+      const loadingMessage = message.loading(t('profileEdit.processingImage') || 'Processing image...', 0);
+      
+      // Step 1: Standardize the image to ensure browser compatibility
+      console.log('🔄 [ProfileEdit] Standardizing image for compatibility...');
+      const standardizedResult = await standardizeImage(file, {
+        maxWidthOrHeight: 2000,
+        quality: 0.9
+      });
+      
+      // Close loading message
+      loadingMessage();
+      
+      console.log(`✅ [ProfileEdit] Image standardized successfully`);
+      message.success(t('profileEdit.imageStandardized') || 'Image processed successfully!');
+      
+      // Step 2: Use the standardized file for cropping
+      setFileForCrop(standardizedResult.file);
+      setCropFileIndex(uploadedImages.length);
+      setShowCropModal(true);
+      
+      // Clean up the original preview URL if it exists
+      if (standardizedResult.previewUrl) {
+        setTimeout(() => {
+          URL.revokeObjectURL(standardizedResult.previewUrl);
+        }, 5000);
+      }
+      
+    } catch (error) {
+      console.error('❌ [ProfileEdit] Cannot process additional image:', error);
+      message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+    }
+  };
 
   const handleAllowLocationInEdit = () => {
     console.log('Location allow requested in profile edit');
@@ -571,23 +710,136 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             </Form.Item>
           </Card>
 
-          {/* Photos – revamped selector */}
-          <Card
-            title={
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Iconify icon="eva:camera-fill" width="20px" />
-                <span>{t("profileEdit.yourPhotosCount", { count: uploadedImages.length })}</span>
+          {/* Photos - Exact same as onboarding */}
+          <Card title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Iconify icon="eva:camera-fill" width="20px" />
+              <span>{t('profileEdit.yourPhotosCount', { count: uploadedImages.length })}</span>
+            </div>
+          } style={{ marginBottom: '1.5rem' }}>
+            {/* Upload Area - Show only when no images uploaded yet */}
+            {uploadedImages.length === 0 && (
+              <div style={{ marginBottom: "2rem" }}>
+                <Dragger {...uploadProps} style={{ 
+                  borderRadius: "12px", 
+                  border: "2px dashed #d9d9d9",
+                  background: "#fafafa"
+                }}>
+                  <div style={{ padding: "2rem" }}>
+                    <div style={{
+                      width: "64px",
+                      height: "64px",
+                      borderRadius: "50%",
+                      background: "var(--primary-low)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto 1rem"
+                    }}>
+                      <Iconify icon="eva:cloud-upload-fill" width="32px" style={{ color: "var(--primary)" }} />
+                    </div>
+                    <Title level={4} style={{ margin: "0 0 0.5rem", color: "#333" }}>
+                      {t('profileEdit.clickOrDragUpload')}
+                    </Title>
+                    <Text type="secondary">
+                      {t('profileEdit.uploadSupport')}
+                    </Text>
+                  </div>
+                </Dragger>
               </div>
-            }
-            style={{ marginBottom: "1.5rem" }}
-          >
-            <SimpleImageSelector
-              uploadedImages={uploadedImages}
-              setUploadedImages={setUploadedImages}
-              mainImageIndex={mainImageIndex}
-              setMainImageIndex={setMainImageIndex}
-              maxCount={6}
-            />
+            )}
+
+            {/* Photos Preview Grid - Exact same as onboarding */}
+            {previewImages.length > 0 && (
+              <div style={{ marginBottom: "2rem" }}>
+                <div style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  justifyContent: "space-between",
+                  marginBottom: "1rem" 
+                }}>
+                  <Text strong style={{ fontSize: "16px", color: "#333" }}>
+                    {t('profileEdit.yourPhotosCount', { count: previewImages.length })}
+                  </Text>
+                  <Text type="secondary" style={{ fontSize: "14px" }}>
+                    {uploadedImages.length >= 6 ? t('profileEdit.maxPhotosReached') : t('profileEdit.tapToSetMain')}
+                  </Text>
+                </div>
+                
+                <div className={photoCss.photoGrid}>
+                  {previewImages.map((preview, index) => (
+                    <div 
+                      key={preview.uid}
+                      className={`${photoCss.photoItem} ${index === mainImageIndex ? photoCss.mainPhoto : ''}`}
+                      onClick={() => handleSetMainImage(index)}
+                    >
+                      <div className={photoCss.photoContainer}>
+                        <Image
+                          src={preview.url}
+                          alt={`Preview ${index + 1}`}
+                          className={photoCss.photoImage}
+                          preview={false}
+                        />
+                        
+                        {/* Main Photo Badge */}
+                        {index === mainImageIndex && (
+                          <div className={photoCss.mainBadge}>
+                            <Iconify icon="eva:star-fill" width="10px" />
+                            <span>Main</span>
+                          </div>
+                        )}
+                        
+                        {/* Remove Button */}
+                        <button
+                          className={photoCss.removeButton}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage(index);
+                          }}
+                        >
+                          <Iconify icon="eva:close-fill" width="16px" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Add More Button */}
+                  {uploadedImages.length < 6 && (
+                    <div className={photoCss.addMoreButton}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        id="additionalPhotosInput"
+                        onChange={handleAdditionalPhotos}
+                      />
+                      <div 
+                        className={photoCss.addMoreContent}
+                        onClick={() => document.getElementById('additionalPhotosInput').click()}
+                      >
+                        <Iconify icon="eva:plus-fill" width="20px" style={{ color: "var(--primary)" }} />
+                        <Text style={{ color: "var(--primary)", fontSize: "11px", marginTop: "3px" }}>
+                          {t('profileEdit.addPhoto')}
+                        </Text>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div style={{ 
+                  background: "#f0f7ff", 
+                  padding: "0.75rem 1rem", 
+                  borderRadius: "8px", 
+                  marginTop: "1rem",
+                  border: "1px solid #d6e4ff"
+                }}>
+                  <Text style={{ color: "#1890ff", fontSize: "13px" }}>
+                    <Iconify icon="eva:star-fill" width="13px" style={{ marginRight: "4px" }} />
+                    {t('profileEdit.mainPhotoWillBeShown')}
+                  </Text>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Additional Information */}

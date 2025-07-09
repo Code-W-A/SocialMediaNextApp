@@ -25,7 +25,7 @@ const serverFixImage = async (file) => {
   const data = await res.json();
   return data.url;
 };
-const ENABLE_CROP = true;
+const ENABLE_CROP = false;
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;

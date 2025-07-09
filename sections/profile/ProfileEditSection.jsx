@@ -86,10 +86,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
   const [showGpsInfo, setShowGpsInfo] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
-  // Crop functionality state
-  const [showCropModal, setShowCropModal] = useState(false);
-  const [fileForCrop, setFileForCrop] = useState(null);
-  const [cropFileIndex, setCropFileIndex] = useState(null);
+  // Crop disabled
 
   // Check if this is the current user's profile
   const isCurrentUserProfile = currentUser?.id === userData?.data?.id;
@@ -269,7 +266,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   };
 
   // ADD helper to append image directly with lightweight repair fallback
-  const ENABLE_CROP = true;
+  const ENABLE_CROP = false;
   const addImageDirect = async (file) => {
     if (file.__handled) return;
     file.__handled = true;
@@ -309,27 +306,12 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
     hide();
 
-    if (ENABLE_CROP && previewUrl && workingFile instanceof File) {
-      // Deschide crop modal
-      setFileForCrop(workingFile);
-      setCropFileIndex(uploadedImages.length);
-      setShowCropModal(true);
-      return; // Adăugarea se face în handleCropComplete
-    }
-
-    if (workingFile instanceof File) {
-      // Attach transformed file & preview to original file object
-      file.originFileObj = workingFile;
-      file.preview = previewUrl;
-      return; // onChange will handle adding
-    }
-
-    // For serverUrl-only
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: `server_${Date.now()}.jpg`,
+      name: workingFile.name || `image_${Date.now()}.jpg`,
       status: 'done',
-      url: previewUrl
+      originFileObj: workingFile instanceof File ? workingFile : undefined,
+      url: !(workingFile instanceof File) ? previewUrl : undefined
     };
     setUploadedImages(prev=>[...prev, fileObject]);
     setPreviewImages(prev=>[...prev,{url:previewUrl,file:fileObject,uid:fileObject.uid}]);
@@ -373,9 +355,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         message.success(t('profileEdit.imageStandardized') || 'Image processed successfully!');
         
         // Use the standardized file for cropping
-        setFileForCrop(standardizedResult.file);
-        setCropFileIndex(uploadedImages.length);
-        setShowCropModal(true);
+        // setFileForCrop(standardizedResult.file); // This line is removed
+        // setCropFileIndex(uploadedImages.length); // This line is removed
+        // setShowCropModal(true); // This line is removed
         
         // Clean up the original preview URL if it exists
         if (standardizedResult.previewUrl) {
@@ -475,9 +457,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       message.success(t('profileEdit.imageStandardized') || 'Image processed successfully!');
       
       // Step 2: Use the standardized file for cropping
-      setFileForCrop(standardizedResult.file);
-      setCropFileIndex(uploadedImages.length);
-      setShowCropModal(true);
+      // setFileForCrop(standardizedResult.file); // This line is removed
+      // setCropFileIndex(uploadedImages.length); // This line is removed
+      // setShowCropModal(true); // This line is removed
       
       // Clean up the original preview URL if it exists
       if (standardizedResult.previewUrl) {
@@ -585,18 +567,18 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     setPreviewImages([...previewImages, newPreview]);
 
     // Close modal and cleanup
-    setShowCropModal(false);
-    setFileForCrop(null);
-    setCropFileIndex(null);
+    // setShowCropModal(false); // This line is removed
+    // setFileForCrop(null); // This line is removed
+    // setCropFileIndex(null); // This line is removed
 
     // Show success message
     message.success(t('imageCrop.cropSuccessful') || 'Profile image cropped successfully!');
   };
 
   const handleCropCancel = () => {
-    setShowCropModal(false);
-    setFileForCrop(null);
-    setCropFileIndex(null);
+    // setShowCropModal(false); // This line is removed
+    // setFileForCrop(null); // This line is removed
+    // setCropFileIndex(null); // This line is removed
   };
 
   const handleSubmit = async (values) => {
@@ -1187,10 +1169,10 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
         {/* Profile Image Crop Modal */}
         <ProfileImageCrop
-          visible={showCropModal}
+          visible={false} // This line is changed
           onCancel={handleCropCancel}
           onCropComplete={handleCropComplete}
-          file={fileForCrop}
+          file={null} // This line is changed
           title={t('imageCrop.profileImageTitle') || 'Crop Profile Image'}
         />
 

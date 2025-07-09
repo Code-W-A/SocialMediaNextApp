@@ -15,7 +15,8 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
 import { v4 as uuidv4 } from 'uuid';
 import { ProfileImageCrop } from "@/components/ImageCrop";
-import { validateImageFile, cleanupImagePreview, createRobustImagePreview, standardizeImage, attemptFixUnreadableJpeg } from "@/utils/imageValidation";
+import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
+import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -174,14 +175,30 @@ export default function PhotosPage() {
       return;
     }
 
-    // ULTRA SIMPLE - just create URL and add to preview
-    const previewUrl = URL.createObjectURL(file);
+    let workingFile = file;
+    let previewUrl;
+
+    try {
+      await canDecodeImage(workingFile, 2500);
+      previewUrl = URL.createObjectURL(workingFile);
+    } catch (err) {
+      try {
+        workingFile = await tryRepairJpeg(file);
+        await canDecodeImage(workingFile, 2500);
+        previewUrl = URL.createObjectURL(workingFile);
+        message.info(t('onboarding.imageAutoRepaired') || 'Image auto-repaired ✔️');
+      } catch (repairErr) {
+        console.error('❌ Unable to decode/repair:', repairErr);
+        message.error(t('imageCrop.imageNotAccepted') || 'This image is corrupted or uses an unsupported color space.');
+        return;
+      }
+    }
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: file.name,
+      name: workingFile.name,
       status: 'done',
-      originFileObj: file
+      originFileObj: workingFile
     };
     
     setUploadedImages((prev) => [...prev, fileObject]);

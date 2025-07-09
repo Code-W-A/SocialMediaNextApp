@@ -32,7 +32,8 @@ import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
 import { useLanguage } from "@/lib/i18n";
 import { ProfileImageCrop } from "@/components/ImageCrop";
-import { validateImageFile, createRobustImagePreview, standardizeImage, attemptFixUnreadableJpeg } from "@/utils/imageValidation";
+import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
+import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -258,7 +259,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     });
   };
 
-  // ADD helper to append image directly without crop - ULTRA SIMPLE VERSION
+  // ADD helper to append image directly with lightweight repair fallback
   const addImageDirect = async (file) => {
     if (!file) return;
     if (uploadedImages.length >= 6) {
@@ -266,14 +267,32 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return;
     }
 
-    // ULTRA SIMPLE - just create URL and add to preview
-    const previewUrl = URL.createObjectURL(file);
+    let workingFile = file;
+    let previewUrl;
+
+    // 1) încercăm decodarea nativă rapid
+    try {
+      await canDecodeImage(workingFile, 2500);
+      previewUrl = URL.createObjectURL(workingFile);
+    } catch (err) {
+      // 2) dacă eşuează şi e JPEG, încercăm repararea
+      try {
+        workingFile = await tryRepairJpeg(file);
+        await canDecodeImage(workingFile, 2500);
+        previewUrl = URL.createObjectURL(workingFile);
+        message.info(t('profileEdit.imageAutoRepaired') || 'Image auto-repaired ✔️');
+      } catch (repairErr) {
+        console.error('❌ Image cannot be decoded/repaired:', repairErr);
+        message.error(t('imageCrop.imageNotAccepted') || 'This image is corrupted or uses an unsupported color space.');
+        return;
+      }
+    }
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: file.name,
+      name: workingFile.name,
       status: 'done',
-      originFileObj: file
+      originFileObj: workingFile
     };
 
     setUploadedImages((prev) => [...prev, fileObject]);

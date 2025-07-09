@@ -23,7 +23,7 @@ const serverFixImage = async (file) => {
   const res = await fetch('/api/fix-image', { method: 'POST', body: fd });
   if (!res.ok) throw new Error('Server processing failed');
   const data = await res.json();
-  return data.url;
+  return { url: data.url, fileName: data.fileName };
 };
 const ENABLE_CROP = false;
 
@@ -219,8 +219,9 @@ export default function PhotosPage() {
         message.info(t('onboarding.imageAutoRepaired') || 'Image auto-repaired ✔️');
       } catch {
         try {
-          const serverUrl = await serverFixImage(file);
-          previewUrl = serverUrl;
+          const serverResult = await serverFixImage(file);
+          previewUrl = serverResult.url;
+          workingFile = { url: serverResult.url, fileName: serverResult.fileName };
           message.info(t('onboarding.imageFixedServer') || 'Image processed on server ✔️');
         } catch (errFinal) {
           console.error('❌ All repair steps failed:', errFinal);
@@ -247,9 +248,11 @@ export default function PhotosPage() {
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: `server_${Date.now()}.jpg`,
+      name: workingFile.name || workingFile.fileName || `image_${Date.now()}.jpg`,
       status: 'done',
-      url: previewUrl
+      originFileObj: workingFile instanceof File ? workingFile : undefined,
+      url: !(workingFile instanceof File) ? previewUrl : undefined,
+      serverFileName: workingFile.fileName || undefined
     };
     setUploadedImages(prev=>[...prev,fileObject]);
     setPreviewImages(prev=>[...prev,{url:previewUrl,file:fileObject,uid:fileObject.uid}]);
@@ -346,8 +349,21 @@ export default function PhotosPage() {
             const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
             imageObjects.push(imageObject);
           } else if (file.url) {
-            const urlParts = file.url.split('/');
-            const fileName = urlParts[urlParts.length - 1].split('?')[0] || `img_${uuidv4()}.jpg`;
+            let fileName = file.serverFileName;
+            if (!fileName) {
+              try {
+                const url = new URL(file.url);
+                const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
+                if (pathMatch) {
+                  fileName = decodeURIComponent(pathMatch[1]);
+                } else {
+                  fileName = `images/processed/${uuidv4()}.jpg`;
+                }
+              } catch {
+                fileName = `images/processed/${uuidv4()}.jpg`;
+              }
+            }
+            console.log('📁 Using fileName for server image:', fileName);
             imageObjects.push(createImageObject(fileName, file.url, i === mainImageIndex));
           }
         }

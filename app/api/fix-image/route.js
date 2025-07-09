@@ -61,7 +61,11 @@ export async function POST(request) {
     const storageRef = ref(storage, `images/processed/${fileName}`);
     await uploadBytes(storageRef, processedBuffer, { contentType: 'image/jpeg' });
     const downloadURL = await getDownloadURL(storageRef);
-    return NextResponse.json({ url: downloadURL });
+    return NextResponse.json({ 
+      url: downloadURL,
+      fileName: `images/processed/${fileName}`,
+      originalName: file.name 
+    });
   } catch (error) {
     console.error('❌ [fix-image] Error processing image:', error);
     return NextResponse.json({ error: 'Image processing failed' }, { status: 500 });

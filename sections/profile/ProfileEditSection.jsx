@@ -41,7 +41,7 @@ const serverFixImage = async (file) => {
   const res = await fetch('/api/fix-image', { method: 'POST', body: fd });
   if (!res.ok) throw new Error('Server processing failed');
   const data = await res.json();
-  return data.url;
+  return { url: data.url, fileName: data.fileName };
 };
 
 const { Title, Text } = Typography;
@@ -310,8 +310,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         message.info(t('profileEdit.imageAutoRepaired') || 'Image auto-repaired ✔️');
       } catch {
         try {
-          const serverUrl = await serverFixImage(file);
-          previewUrl = serverUrl; // Only URL, no local file
+          const serverResult = await serverFixImage(file);
+          previewUrl = serverResult.url;
+          workingFile = { url: serverResult.url, fileName: serverResult.fileName };
           message.info(t('profileEdit.imageFixedServer') || 'Image processed on server ✔️');
         } catch (errFinal) {
           console.error('❌ All repair steps failed:', errFinal);
@@ -326,10 +327,11 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name || `image_${Date.now()}.jpg`,
+      name: workingFile.name || workingFile.fileName || `image_${Date.now()}.jpg`,
       status: 'done',
       originFileObj: workingFile instanceof File ? workingFile : undefined,
-      url: !(workingFile instanceof File) ? previewUrl : undefined
+      url: !(workingFile instanceof File) ? previewUrl : undefined,
+      serverFileName: workingFile.fileName || undefined
     };
     setUploadedImages(prev=>[...prev, fileObject]);
     setPreviewImages(prev=>[...prev,{url:previewUrl,file:fileObject,uid:fileObject.uid}]);
@@ -632,9 +634,22 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
               const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
               imageObjects.push(imageObject);
             } else if (file.url) {
-              // Already uploaded by serverFixImage – extract filename
-              const urlParts = file.url.split('/');
-              const fileName = urlParts[urlParts.length - 1].split('?')[0] || `img_${uuidv4()}.jpg`;
+              // Use serverFileName if available, otherwise extract from URL
+              let fileName = file.serverFileName;
+              if (!fileName) {
+                try {
+                  const url = new URL(file.url);
+                  const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
+                  if (pathMatch) {
+                    fileName = decodeURIComponent(pathMatch[1]);
+                  } else {
+                    fileName = `images/processed/${uuidv4()}.jpg`;
+                  }
+                } catch {
+                  fileName = `images/processed/${uuidv4()}.jpg`;
+                }
+              }
+              console.log('📁 Using fileName for server image:', fileName);
               imageObjects.push(createImageObject(fileName, file.url, i === mainImageIndex));
             }
           }

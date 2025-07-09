@@ -167,6 +167,25 @@ export default function PhotosPage() {
     };
   }, [previewImages]);
 
+  const addImageDirect = (file) => {
+    if (!file) return;
+    if (uploadedImages.length >= 6) {
+      message.warning(t('onboarding.maxPhotosReachedLabel'));
+      return;
+    }
+    const fileObject = {
+      uid: `direct-${Date.now()}`,
+      name: file.name,
+      status: 'done',
+      originFileObj: file
+    };
+    const previewUrl = URL.createObjectURL(file);
+    setUploadedImages((prev) => [...prev, fileObject]);
+    setPreviewImages((prev) => [...prev, { url: previewUrl, file: fileObject, uid: fileObject.uid }]);
+  };
+
+  const SIMPLE_PICKER = true;
+
   const uploadProps = {
     name: 'file',
     multiple: false,
@@ -174,6 +193,7 @@ export default function PhotosPage() {
     maxCount: 6,
     showUploadList: false, // Hide the default upload list
     beforeUpload: async (file) => {
+      if (SIMPLE_PICKER) { addImageDirect(file); return false; }
       // Validate image file
       const validation = validateImageFile(file, 'profile');
       if (!validation.isValid) {
@@ -534,6 +554,11 @@ export default function PhotosPage() {
                       
                       // Process one file at a time with crop
                       const file = files[0]; // Take only the first file for now
+
+                      if (SIMPLE_PICKER) {
+                        addImageDirect(file);
+                        return;
+                      }
                       
                       // Validate file
                       const validation = validateImageFile(file, 'profile');

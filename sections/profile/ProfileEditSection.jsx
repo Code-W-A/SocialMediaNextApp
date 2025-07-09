@@ -258,6 +258,27 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     });
   };
 
+  // ADD helper to append image directly without crop
+  const addImageDirect = (file) => {
+    if (!file) return;
+    // Limit to 6
+    if (uploadedImages.length >= 6) {
+      message.warning(t('profileEdit.maxPhotosReachedLabel'));
+      return;
+    }
+    const fileObject = {
+      uid: `direct-${Date.now()}`,
+      name: file.name,
+      status: 'done',
+      originFileObj: file
+    };
+    const previewUrl = URL.createObjectURL(file);
+    setUploadedImages((prev) => [...prev, fileObject]);
+    setPreviewImages((prev) => [...prev, { url: previewUrl, file: fileObject, uid: fileObject.uid }]);
+  };
+
+  // MODIFY uploadProps.beforeUpload to simple path if SIMPLE_PICKER flag
+  const SIMPLE_PICKER = true;
   const uploadProps = {
     name: 'file',
     multiple: false,
@@ -265,6 +286,10 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     maxCount: 6,
     showUploadList: false,
     beforeUpload: async (file) => {
+      if (SIMPLE_PICKER) {
+        addImageDirect(file);
+        return false; // stop auto upload
+      }
       // Validate image
       const validation = validateImageFile(file, 'profile');
       if (!validation.isValid) {
@@ -351,6 +376,14 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
+    const file = files[0];
+    e.target.value = '';
+
+    if (SIMPLE_PICKER) {
+      addImageDirect(file);
+      return;
+    }
+
     // Check total count
     if (uploadedImages.length + files.length > 6) {
       message.warning(t('profileEdit.canUploadMorePhotos', { count: 6 - uploadedImages.length }));
@@ -358,10 +391,6 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     }
     
     // Process one file at a time with crop
-    const file = files[0]; // Take only the first file for now
-    
-    // Clear input immediately
-    e.target.value = '';
     
     // Validate file
     const validation = validateImageFile(file, 'profile');

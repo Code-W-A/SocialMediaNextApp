@@ -553,115 +553,99 @@ export const getImageFileInfo = (file) => {
 export const standardizeImage = async (file, options = {}) => {
   const {
     maxWidthOrHeight = 2000,
-    quality = 0.9,
-    outputFormat = 'image/jpeg',
-    preserveExif = false
+    quality = 0.9
   } = options;
 
-  console.log(`📸 [StandardizeImage] Processing: ${file.name} (${file.type || 'unknown'}, ${(file.size/1024/1024).toFixed(2)}MB)`);
+  console.time(`[StandardizeImage] ${file.name}`);
 
-  try {
-    // --- MIME GUESS FALLBACK ---
-    let workingFile = file;
-    if (!file.type || !SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      const mimeGuessMap = {
-        jpg: 'image/jpeg',
-        jpeg: 'image/jpeg',
-        png: 'image/png',
-        webp: 'image/webp',
-        bmp: 'image/bmp',
-        gif: 'image/gif'
-      };
-      if (mimeGuessMap[ext]) {
-        workingFile = new File([file], file.name, {
-          type: mimeGuessMap[ext],
-          lastModified: file.lastModified
-        });
-        console.log(`ℹ️ [StandardizeImage] Guessed MIME type as ${mimeGuessMap[ext]} based on extension .${ext}`);
-      }
+  // 0. Quick validation of presence
+  if (!file) throw new Error('No file');
+
+  // 1. Convert HEIC/HEIF first (extension or MIME handled in convertHeicIfNeeded)
+  let workingFile = await convertHeicIfNeeded(file);
+
+  // 2. If MIME missing, guess from extension (JPEG/PNG/WEBP/BMP/GIF)
+  if (!workingFile.type) {
+    const ext = workingFile.name.split('.').pop()?.toLowerCase();
+    const mimeGuessMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', bmp: 'image/bmp', gif: 'image/gif' };
+    if (mimeGuessMap[ext]) {
+      workingFile = new File([workingFile], workingFile.name, { type: mimeGuessMap[ext], lastModified: workingFile.lastModified });
     }
-
-    // Step 1: Convert HEIC/HEIF to JPEG if needed
-    let processedFile = workingFile;
-    processedFile = await convertHeicIfNeeded(processedFile); // handles detection internally
-
-    // Step 2: Use browser-image-compression for robust standardization
-    const imageCompression = (await import('browser-image-compression')).default;
-    
-    const compressionOptions = {
-      maxWidthOrHeight,
-      useWebWorker: true,
-      fileType: outputFormat,
-      quality,
-      preserveExif: preserveExif,
-      // Force specific settings for standardization
-      alwaysKeepResolution: false,
-      exifOrientation: 1,
-      initialQuality: 1
-    };
-
-    console.log('🔄 [StandardizeImage] Standardizing with browser-image-compression...');
-    const standardizedFile = await imageCompression(processedFile, compressionOptions);
-
-    // Step 3: Create a clean blob to ensure no metadata remnants
-    const cleanBlob = new Blob([standardizedFile], { type: outputFormat });
-    
-    // Step 4: Convert to File object with clean name
-    const cleanFileName = `standardized_${Date.now()}.jpg`;
-    const cleanFile = new File([cleanBlob], cleanFileName, { 
-      type: outputFormat,
-      lastModified: Date.now()
-    });
-
-    // Step 5: Create preview URL for immediate use
-    const previewUrl = URL.createObjectURL(cleanFile);
-
-    // Step 6: Verify the result works (soft verification)
-    try {
-      await new Promise((resolve, reject) => {
-        const img = new Image();
-        const timeout = setTimeout(() => {
-          reject(new Error('Verification timeout'));
-        }, 6000);
-  
-        img.onload = () => {
-          clearTimeout(timeout);
-          if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-            reject(new Error('Image has zero dimensions'));
-          } else {
-            resolve();
-          }
-        };
-  
-        img.onerror = () => {
-          clearTimeout(timeout);
-          reject(new Error('Failed to load image'));
-        };
-  
-        img.src = previewUrl;
-      });
-    } catch (verifyErr) {
-      console.warn('⚠️ [StandardizeImage] Preview verification failed, proceeding anyway:', verifyErr.message);
-    }
-
-    console.log(`✅ [StandardizeImage] Success! Original: ${(file.size/1024/1024).toFixed(2)}MB → Standardized: ${(cleanFile.size/1024/1024).toFixed(2)}MB`);
-
-    return {
-      file: cleanFile,
-      blob: cleanBlob,
-      previewUrl,
-      originalFile: file,
-      originalSize: file.size,
-      standardizedSize: cleanFile.size,
-      compressionRatio: ((file.size - cleanFile.size) / file.size * 100).toFixed(1),
-      isStandardized: true
-    };
-
-  } catch (error) {
-    console.error('❌ [StandardizeImage] Failed:', error);
-    throw new Error(`Failed to standardize image: ${error.message}`);
   }
+
+  // 3. Read EXIF orientation (if JPEG) with exifr
+  let orientation = 1;
+  try {
+    const exifr = (await import('exifr')).orientation;
+    orientation = await exifr(workingFile) || 1;
+  } catch (err) {
+    console.warn('[StandardizeImage] Could not read EXIF orientation:', err.message || err);
+  }
+
+  // 4. Decode image to ImageBitmap (fast) or HTMLImageElement fallback
+  let bmp;
+  try {
+    bmp = await createImageBitmap(workingFile);
+  } catch (err) {
+    // Fallback via Image element
+    bmp = await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(workingFile);
+      const img = new Image();
+      img.onload = () => {
+        resolve(img);
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to decode image'));
+      };
+      img.src = url;
+    });
+  }
+
+  // 5. Prepare canvas and draw respecting orientation
+  const { width: srcW, height: srcH } = bmp;
+  // Scale down if needed, preserving aspect ratio
+  const scale = Math.min(1, maxWidthOrHeight / Math.max(srcW, srcH));
+  const dstW = Math.round(srcW * scale);
+  const dstH = Math.round(srcH * scale);
+
+  // For rotation that swaps width/height (6,8 vs 5,7 vs 3,4), we need canvas accordingly
+  const rotates90 = [5,6,7,8];
+  const canvas = document.createElement('canvas');
+  if (rotates90.includes(orientation)) {
+    canvas.width = dstH;
+    canvas.height = dstW;
+  } else {
+    canvas.width = dstW;
+    canvas.height = dstH;
+  }
+  const ctx = canvas.getContext('2d');
+
+  // Apply transforms based on orientation (EXIF spec)
+  switch (orientation) {
+    case 2: ctx.transform(-1, 0, 0, 1, dstW, 0); break; // Flip horizontal
+    case 3: ctx.transform(-1, 0, 0, -1, dstW, dstH); break; // Rotate 180
+    case 4: ctx.transform(1, 0, 0, -1, 0, dstH); break; // Flip vertical
+    case 5: ctx.transform(0, 1, 1, 0, 0, 0); break; // Rotate 90 CW + flip vertical
+    case 6: ctx.transform(0, 1, -1, 0, dstH, 0); break; // Rotate 90 CW
+    case 7: ctx.transform(0, -1, -1, 0, dstH, dstW); break; // Rotate 270 CW + flip vertical
+    case 8: ctx.transform(0, -1, 1, 0, 0, dstW); break; // Rotate 270 CW
+    default: break; // 1: normal
+  }
+
+  ctx.drawImage(bmp, 0, 0, dstW, dstH);
+  if ('close' in bmp) try { bmp.close(); } catch {}
+
+  // 6. Convert canvas to JPEG Blob
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+  if (!blob) throw new Error('Canvas conversion failed');
+
+  const cleanedFile = new File([blob], `standardized_${Date.now()}.jpg`, { type: 'image/jpeg' });
+  const previewUrl = URL.createObjectURL(cleanedFile);
+
+  console.timeEnd(`[StandardizeImage] ${file.name}`);
+  return { file: cleanedFile, previewUrl, originalFile: file };
 };
 
 /**

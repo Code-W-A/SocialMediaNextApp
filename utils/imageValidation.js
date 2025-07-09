@@ -44,7 +44,14 @@ SUPPORTED_IMAGE_TYPES.push('image/heic', 'image/heif');
  * Returns Promise<File>
  */
 export const convertHeicIfNeeded = async (file) => {
-  if (!file || !['image/heic', 'image/heif'].includes(file.type)) return file;
+  if (!file) return file;
+
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const isHeicType = ['image/heic', 'image/heif'].includes(file.type);
+  const isHeicExt = ['heic', 'heif'].includes(extension);
+
+  if (!isHeicType && !isHeicExt) return file; // Not a HEIC file by type nor extension
+
   try {
     const heic2any = (await import('heic2any')).default;
     const outputBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
@@ -81,15 +88,24 @@ export const validateImageFile = (file, context = 'post') => {
     return result;
   }
 
-  // Check MIME type
-  if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-    result.error = `Unsupported image format: ${file.type}. Supported formats: JPG, PNG, WEBP, GIF`;
-    return result;
+  // Extract extension first
+  const extension = file.name.split('.').pop()?.toLowerCase();
+
+  // --- MIME TYPE VALIDATION ---
+  // Some browsers (especially on Windows) may provide empty or generic MIME types (e.g., "")
+  // We treat unknown MIME as potentially valid if the extension is known.
+  const hasValidMime = file.type && SUPPORTED_IMAGE_TYPES.includes(file.type);
+
+  if (!hasValidMime) {
+    // Fallback: validate by extension if MIME type is missing or not recognized
+    if (!extension || !SUPPORTED_IMAGE_EXTENSIONS.includes(extension)) {
+      result.error = `Unsupported image format. Accepted extensions: ${SUPPORTED_IMAGE_EXTENSIONS.join(', ')}`;
+      return result;
+    }
   }
 
-  // Check file extension
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  if (!extension || !SUPPORTED_IMAGE_EXTENSIONS.includes(extension)) {
+  // --- EXTENSION VALIDATION (already extracted) ---
+  if (extension && !SUPPORTED_IMAGE_EXTENSIONS.includes(extension)) {
     result.error = `Invalid file extension: ${extension}`;
     return result;
   }
@@ -107,7 +123,7 @@ export const validateImageFile = (file, context = 'post') => {
   }
 
   // Special handling for SVG files
-  if (file.type === 'image/svg+xml' && context === 'profile') {
+  if ((file.type === 'image/svg+xml' || extension === 'svg') && context === 'profile') {
     result.warnings.push('SVG files may not display correctly on all devices');
   }
 

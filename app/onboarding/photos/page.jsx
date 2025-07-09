@@ -222,6 +222,7 @@ export default function PhotosPage() {
           const serverResult = await serverFixImage(file);
           previewUrl = serverResult.url;
           workingFile = { url: serverResult.url, fileName: serverResult.fileName };
+          console.log('✅ [OnboardingPhotos] Server repaired image:', serverResult.url);
           message.info(t('onboarding.imageFixedServer') || 'Image processed on server ✔️');
         } catch (errFinal) {
           console.error('❌ All repair steps failed:', errFinal);
@@ -546,6 +547,11 @@ export default function PhotosPage() {
                       alt={`Preview ${index + 1}`}
                       className={photoCss.photoImage}
                       preview={false}
+                      onLoad={() => console.log('✅ [OnboardingPhotos] Image loaded successfully:', preview.url)}
+                      onError={(e) => {
+                        console.error('❌ [OnboardingPhotos] Image failed to load:', preview.url, e);
+                        console.log('🔍 [OnboardingPhotos] Preview object:', preview);
+                      }}
                     />
                     
                     {/* Main Photo Badge */}
@@ -709,6 +715,12 @@ export default function PhotosPage() {
           setCropImageUrl(null);
         }}
         onCropComplete={(cropResult) => {
+          console.log('🎭 [OnboardingPhotos] Crop completed, result:', {
+            previewUrl: cropResult.preview,
+            fileSize: cropResult.file.size,
+            fileName: cropResult.file.name
+          });
+          
           const fileObject = {
             uid: `cropped-${Date.now()}`,
             name: `cropped_${Date.now()}.jpg`,
@@ -716,12 +728,16 @@ export default function PhotosPage() {
             originFileObj: cropResult.file
           };
           
-          setUploadedImages(prev => [...prev, fileObject]);
-          setPreviewImages(prev => [...prev, { 
+          const previewObject = { 
             url: cropResult.preview, 
             file: fileObject, 
             uid: fileObject.uid 
-          }]);
+          };
+          
+          console.log('📸 [OnboardingPhotos] Adding to preview images:', previewObject);
+          
+          setUploadedImages(prev => [...prev, fileObject]);
+          setPreviewImages(prev => [...prev, previewObject]);
           
           setShowCropModal(false);
           setCropImageUrl(null);

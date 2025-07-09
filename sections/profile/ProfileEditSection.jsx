@@ -316,6 +316,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
           const serverResult = await serverFixImage(file);
           previewUrl = serverResult.url;
           workingFile = { url: serverResult.url, fileName: serverResult.fileName };
+          console.log('✅ [ProfileEdit] Server repaired image:', serverResult.url);
           message.info(t('profileEdit.imageFixedServer') || 'Image processed on server ✔️');
         } catch (errFinal) {
           console.error('❌ All repair steps failed:', errFinal);
@@ -844,6 +845,11 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                           alt={`Preview ${index + 1}`}
                           className={photoCss.photoImage}
                           preview={false}
+                          onLoad={() => console.log('✅ [ProfileEdit] Image loaded successfully:', preview.url)}
+                          onError={(e) => {
+                            console.error('❌ [ProfileEdit] Image failed to load:', preview.url, e);
+                            console.log('🔍 [ProfileEdit] Preview object:', preview);
+                          }}
                         />
                         
                         {/* Main Photo Badge */}
@@ -1165,6 +1171,12 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             setCropImageUrl(null);
           }}
           onCropComplete={(cropResult) => {
+            console.log('🎭 [ProfileEdit] Crop completed, result:', {
+              previewUrl: cropResult.preview,
+              fileSize: cropResult.file.size,
+              fileName: cropResult.file.name
+            });
+            
             const fileObject = {
               uid: `cropped-${Date.now()}`,
               name: `cropped_${Date.now()}.jpg`,
@@ -1172,12 +1184,16 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
               originFileObj: cropResult.file
             };
             
-            setUploadedImages(prev => [...prev, fileObject]);
-            setPreviewImages(prev => [...prev, { 
+            const previewObject = { 
               url: cropResult.preview, 
               file: fileObject, 
               uid: fileObject.uid 
-            }]);
+            };
+            
+            console.log('📸 [ProfileEdit] Adding to preview images:', previewObject);
+            
+            setUploadedImages(prev => [...prev, fileObject]);
+            setPreviewImages(prev => [...prev, previewObject]);
             
             setShowCropModal(false);
             setCropImageUrl(null);

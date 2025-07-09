@@ -212,23 +212,29 @@ export default function PhotosPage() {
       }
     }
 
-    hide();
-
     if (ENABLE_CROP && previewUrl && workingFile instanceof File) {
       setFileForCrop(workingFile);
       setShowCropModal(true);
+      hide();
+      return;
+    }
+
+    if (workingFile instanceof File) {
+      file.originFileObj = workingFile;
+      file.preview = previewUrl;
+      hide();
       return;
     }
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name || `image_${Date.now()}`,
+      name: `server_${Date.now()}.jpg`,
       status: 'done',
-      originFileObj: workingFile instanceof File ? workingFile : undefined,
-      url: !(workingFile instanceof File) ? previewUrl : undefined
+      url: previewUrl
     };
-    setUploadedImages((prev) => [...prev, fileObject]);
-    setPreviewImages((prev) => [...prev, { url: previewUrl, file: fileObject, uid: fileObject.uid }]);
+    setUploadedImages(prev=>[...prev,fileObject]);
+    setPreviewImages(prev=>[...prev,{url:previewUrl,file:fileObject,uid:fileObject.uid}]);
+    hide();
   };
 
   const SIMPLE_PICKER = true;

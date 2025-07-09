@@ -315,16 +315,22 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return; // Adăugarea se face în handleCropComplete
     }
 
+    if (workingFile instanceof File) {
+      // Attach transformed file & preview to original file object
+      file.originFileObj = workingFile;
+      file.preview = previewUrl;
+      return; // onChange will handle adding
+    }
+
+    // For serverUrl-only
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name || `image_${Date.now()}`,
+      name: `server_${Date.now()}.jpg`,
       status: 'done',
-      originFileObj: workingFile instanceof File ? workingFile : undefined,
-      url: !(workingFile instanceof File) ? previewUrl : undefined
+      url: previewUrl
     };
-
-    setUploadedImages((prev) => [...prev, fileObject]);
-    setPreviewImages((prev) => [...prev, { url: previewUrl, file: fileObject, uid: fileObject.uid }]);
+    setUploadedImages(prev=>[...prev, fileObject]);
+    setPreviewImages(prev=>[...prev,{url:previewUrl,file:fileObject,uid:fileObject.uid}]);
   };
 
   // MODIFY uploadProps.beforeUpload to simple path if SIMPLE_PICKER flag

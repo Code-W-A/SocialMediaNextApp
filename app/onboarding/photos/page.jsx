@@ -17,6 +17,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { ProfileImageCrop } from "@/components/ImageCrop";
 import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
 import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
+const serverFixImage = async (file) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/fix-image', { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Server processing failed');
+  const data = await res.json();
+  return data.url;
+};
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -188,9 +196,15 @@ export default function PhotosPage() {
         previewUrl = URL.createObjectURL(workingFile);
         message.info(t('onboarding.imageAutoRepaired') || 'Image auto-repaired ✔️');
       } catch (repairErr) {
-        console.error('❌ Unable to decode/repair:', repairErr);
-        message.error(t('imageCrop.imageNotAccepted') || 'This image is corrupted or uses an unsupported color space.');
-        return;
+        try {
+          const serverUrl = await serverFixImage(file);
+          previewUrl = serverUrl;
+          message.info(t('onboarding.imageFixedServer') || 'Image processed on server ✔️');
+        } catch (srvErr) {
+          console.error('❌ Unable to decode/repair:', srvErr);
+          message.error(t('imageCrop.imageNotAccepted') || 'This image is corrupted or uses an unsupported color space.');
+          return;
+        }
       }
     }
 

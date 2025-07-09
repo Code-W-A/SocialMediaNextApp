@@ -35,6 +35,15 @@ import { ProfileImageCrop } from "@/components/ImageCrop";
 import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
 import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
 
+const serverFixImage = async (file) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/fix-image', { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Server processing failed');
+  const data = await res.json();
+  return data.url;
+};
+
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
@@ -282,9 +291,16 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         previewUrl = URL.createObjectURL(workingFile);
         message.info(t('profileEdit.imageAutoRepaired') || 'Image auto-repaired ✔️');
       } catch (repairErr) {
-        console.error('❌ Image cannot be decoded/repaired:', repairErr);
-        message.error(t('imageCrop.imageNotAccepted') || 'This image is corrupted or uses an unsupported color space.');
-        return;
+        // 3) fallback: trimite la server pentru procesare
+        try {
+          const serverUrl = await serverFixImage(file);
+          previewUrl = serverUrl;
+          message.info(t('profileEdit.imageFixedServer') || 'Image processed on server ✔️');
+        } catch (srvErr) {
+          console.error('❌ Server processing also failed:', srvErr);
+          message.error(t('imageCrop.imageNotAccepted') || 'Image cannot be accepted.');
+          return;
+        }
       }
     }
 

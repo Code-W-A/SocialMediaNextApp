@@ -288,6 +288,8 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   // crop state
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState(null);
+  const [cropOriginalFile, setCropOriginalFile] = useState(null); // Store original file for cropping
+  
   const addImageDirect = async (file) => {
     if (file.__handled) return;
     file.__handled = true;
@@ -301,6 +303,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
     let workingFile = file;
     let previewUrl;
+    let serverProcessedData = null;
 
     try {
       await canDecodeImage(workingFile, 2500);
@@ -314,8 +317,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       } catch {
         try {
           const serverResult = await serverFixImage(file);
-          previewUrl = serverResult.url;
-          workingFile = { url: serverResult.url, fileName: serverResult.fileName };
+          // Store server result but keep original file for cropping
+          serverProcessedData = serverResult;
+          previewUrl = URL.createObjectURL(file); // Use original file for preview
           console.log('✅ [ProfileEdit] Server repaired image:', serverResult.url);
           message.info(t('profileEdit.imageFixedServer') || 'Image processed on server ✔️');
         } catch (errFinal) {
@@ -331,17 +335,39 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
     if (ENABLE_CROP && previewUrl) {
       setCropImageUrl(previewUrl);
+      setCropOriginalFile(workingFile);
+      
+      // If server processed, store the server data for later use
+      if (serverProcessedData) {
+        setCropOriginalFile({
+          ...workingFile,
+          serverProcessed: serverProcessedData
+        });
+      }
+      
       setShowCropModal(true);
       return;
     }
 
+    // If not cropping, proceed with adding the image
+    let finalWorkingFile = workingFile;
+    
+    // If server processed, use server data
+    if (serverProcessedData) {
+      finalWorkingFile = { 
+        url: serverProcessedData.url, 
+        fileName: serverProcessedData.fileName,
+        serverProcessed: true
+      };
+    }
+
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name || workingFile.fileName || `image_${Date.now()}.jpg`,
+      name: finalWorkingFile.name || finalWorkingFile.fileName || `image_${Date.now()}.jpg`,
       status: 'done',
-      originFileObj: workingFile instanceof File ? workingFile : undefined,
-      url: !(workingFile instanceof File) ? previewUrl : undefined,
-      serverFileName: workingFile.fileName || undefined
+      originFileObj: finalWorkingFile instanceof File ? finalWorkingFile : undefined,
+      url: !(finalWorkingFile instanceof File) ? (finalWorkingFile.url || previewUrl) : undefined,
+      serverFileName: finalWorkingFile.fileName || undefined
     };
     setUploadedImages(prev=>[...prev, fileObject]);
     setPreviewImages(prev=>[...prev,{url:previewUrl,file:fileObject,uid:fileObject.uid}]);
@@ -598,13 +624,21 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             }
           } else {
             if (file.originFileObj) {
-              // Upload new image
-              const fileName = uuidv4();
-              const storageRef = ref(storage, `images/${fileName}`);
-              const snapshot = await uploadBytes(storageRef, file.originFileObj);
-              const downloadURL = await getDownloadURL(snapshot.ref);
-              const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
-              imageObjects.push(imageObject);
+              // Check if this was originally server-processed but then cropped
+              if (file.wasServerProcessed && file.serverProcessedData) {
+                console.log('🔄 [ProfileEdit] Using server-processed data for cropped image');
+                const serverData = file.serverProcessedData;
+                const imageObject = createImageObject(serverData.fileName, serverData.url, i === mainImageIndex);
+                imageObjects.push(imageObject);
+              } else {
+                // Upload new image normally
+                const fileName = uuidv4();
+                const storageRef = ref(storage, `images/${fileName}`);
+                const snapshot = await uploadBytes(storageRef, file.originFileObj);
+                const downloadURL = await getDownloadURL(snapshot.ref);
+                const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
+                imageObjects.push(imageObject);
+              }
             } else if (file.url) {
               // Use serverFileName if available, otherwise extract from URL
               let fileName = file.serverFileName;
@@ -1169,6 +1203,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
           onCancel={() => {
             setShowCropModal(false);
             setCropImageUrl(null);
+            setCropOriginalFile(null); // Clear original file on cancel
           }}
           onCropComplete={(cropResult) => {
             console.log('🎭 [ProfileEdit] Crop completed, result:', {
@@ -1184,6 +1219,13 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
               originFileObj: cropResult.file
             };
             
+            // Check if original file was server-processed
+            if (cropOriginalFile?.serverProcessed) {
+              console.log('🔄 [ProfileEdit] Original was server-processed, storing server data');
+              fileObject.serverProcessedData = cropOriginalFile.serverProcessed;
+              fileObject.wasServerProcessed = true;
+            }
+            
             const previewObject = { 
               url: cropResult.preview, 
               file: fileObject, 
@@ -1197,6 +1239,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             
             setShowCropModal(false);
             setCropImageUrl(null);
+            setCropOriginalFile(null);
             message.success(t('imageCrop.cropSuccessful') || 'Image cropped successfully!');
           }}
           imageUrl={cropImageUrl}

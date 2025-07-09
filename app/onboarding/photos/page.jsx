@@ -42,6 +42,7 @@ export default function PhotosPage() {
   // Crop functionality state
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState(null);
+  const [cropOriginalFile, setCropOriginalFile] = useState(null); // Store original file for cropping
 
   // Mobile detection
   useEffect(() => {
@@ -207,6 +208,7 @@ export default function PhotosPage() {
 
     let workingFile = file;
     let previewUrl;
+    let serverProcessedData = null;
 
     try {
       await canDecodeImage(workingFile, 2500);
@@ -220,8 +222,9 @@ export default function PhotosPage() {
       } catch {
         try {
           const serverResult = await serverFixImage(file);
-          previewUrl = serverResult.url;
-          workingFile = { url: serverResult.url, fileName: serverResult.fileName };
+          // Store server result but keep original file for cropping
+          serverProcessedData = serverResult;
+          previewUrl = URL.createObjectURL(file); // Use original file for preview
           console.log('✅ [OnboardingPhotos] Server repaired image:', serverResult.url);
           message.info(t('onboarding.imageFixedServer') || 'Image processed on server ✔️');
         } catch (errFinal) {
@@ -233,8 +236,20 @@ export default function PhotosPage() {
       }
     }
 
+    hide();
+
     if (ENABLE_CROP && previewUrl) {
       setCropImageUrl(previewUrl);
+      setCropOriginalFile(workingFile);
+      
+      // If server processed, store the server data for later use
+      if (serverProcessedData) {
+        setCropOriginalFile({
+          ...workingFile,
+          serverProcessed: serverProcessedData
+        });
+      }
+      
       setShowCropModal(true);
       return;
     }
@@ -242,21 +257,31 @@ export default function PhotosPage() {
     if (workingFile instanceof File) {
       file.originFileObj = workingFile;
       file.preview = previewUrl;
-      hide();
       return;
+    }
+
+    // If not cropping, proceed with adding the image
+    let finalWorkingFile = workingFile;
+    
+    // If server processed, use server data
+    if (serverProcessedData) {
+      finalWorkingFile = { 
+        url: serverProcessedData.url, 
+        fileName: serverProcessedData.fileName,
+        serverProcessed: true
+      };
     }
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name || workingFile.fileName || `image_${Date.now()}.jpg`,
+      name: finalWorkingFile.name || finalWorkingFile.fileName || `image_${Date.now()}.jpg`,
       status: 'done',
-      originFileObj: workingFile instanceof File ? workingFile : undefined,
-      url: !(workingFile instanceof File) ? previewUrl : undefined,
-      serverFileName: workingFile.fileName || undefined
+      originFileObj: finalWorkingFile instanceof File ? finalWorkingFile : undefined,
+      url: !(finalWorkingFile instanceof File) ? (finalWorkingFile.url || previewUrl) : undefined,
+      serverFileName: finalWorkingFile.fileName || undefined
     };
     setUploadedImages(prev=>[...prev,fileObject]);
     setPreviewImages(prev=>[...prev,{url:previewUrl,file:fileObject,uid:fileObject.uid}]);
-    hide();
   };
 
   const SIMPLE_PICKER = true;
@@ -342,12 +367,21 @@ export default function PhotosPage() {
           }
         } else {
           if (file.originFileObj) {
-            const fileName = uuidv4();
-            const storageRef = ref(storage, `images/${fileName}`);
-            const snapshot = await uploadBytes(storageRef, file.originFileObj);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
-            imageObjects.push(imageObject);
+            // Check if this was originally server-processed but then cropped
+            if (file.wasServerProcessed && file.serverProcessedData) {
+              console.log('🔄 [OnboardingPhotos] Using server-processed data for cropped image');
+              const serverData = file.serverProcessedData;
+              const imageObject = createImageObject(serverData.fileName, serverData.url, i === mainImageIndex);
+              imageObjects.push(imageObject);
+            } else {
+              // Upload new image normally
+              const fileName = uuidv4();
+              const storageRef = ref(storage, `images/${fileName}`);
+              const snapshot = await uploadBytes(storageRef, file.originFileObj);
+              const downloadURL = await getDownloadURL(snapshot.ref);
+              const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
+              imageObjects.push(imageObject);
+            }
           } else if (file.url) {
             let fileName = file.serverFileName;
             if (!fileName) {
@@ -612,39 +646,8 @@ export default function PhotosPage() {
                         return;
                       }
                       
-                      try {
-                        // Show loading message
-                        const loadingMessage = message.loading(t('onboarding.processingImage') || 'Processing image...', 0);
-                        
-                        // Standardize the image to ensure browser compatibility
-                        console.log('🔄 [OnboardingPhotos] Standardizing additional image for compatibility...');
-                        const standardizedResult = await standardizeImage(file, {
-                          maxWidthOrHeight: 2000,
-                          quality: 0.9
-                        });
-                        
-                        // Close loading message
-                        loadingMessage();
-                        
-                        console.log(`✅ [OnboardingPhotos] Additional image standardized successfully`);
-                        message.success(t('onboarding.imageStandardized') || 'Image processed successfully!');
-                        
-                        // Use the standardized file for cropping
-                        setCropImageUrl(standardizedResult.previewUrl);
-                        setShowCropModal(true);
-                        
-                        // Clean up the original preview URL if it exists
-                        if (standardizedResult.previewUrl) {
-                          setTimeout(() => {
-                            URL.revokeObjectURL(standardizedResult.previewUrl);
-                          }, 5000);
-                        }
-                        
-                      } catch (error) {
-                        console.error('❌ [OnboardingPhotos] Cannot process additional image:', error);
-                        message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
-                        if (loadingMessage) loadingMessage();
-                      }
+                      // Use addImageDirect for consistency with main upload
+                      addImageDirect(file);
                     }}
                   />
                   <div 
@@ -713,6 +716,7 @@ export default function PhotosPage() {
         onCancel={() => {
           setShowCropModal(false);
           setCropImageUrl(null);
+          setCropOriginalFile(null); // Clear original file on cancel
         }}
         onCropComplete={(cropResult) => {
           console.log('🎭 [OnboardingPhotos] Crop completed, result:', {
@@ -728,6 +732,13 @@ export default function PhotosPage() {
             originFileObj: cropResult.file
           };
           
+          // Check if original file was server-processed
+          if (cropOriginalFile?.serverProcessed) {
+            console.log('🔄 [OnboardingPhotos] Original was server-processed, storing server data');
+            fileObject.serverProcessedData = cropOriginalFile.serverProcessed;
+            fileObject.wasServerProcessed = true;
+          }
+          
           const previewObject = { 
             url: cropResult.preview, 
             file: fileObject, 
@@ -741,6 +752,7 @@ export default function PhotosPage() {
           
           setShowCropModal(false);
           setCropImageUrl(null);
+          setCropOriginalFile(null); // Clear original file on crop complete
           message.success(t('imageCrop.cropSuccessful') || 'Image cropped successfully!');
         }}
         imageUrl={cropImageUrl}

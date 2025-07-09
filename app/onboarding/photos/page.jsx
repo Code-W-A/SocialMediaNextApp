@@ -109,6 +109,13 @@ export default function PhotosPage() {
         // Only load from Firestore if no temporary data exists
         if (!hasTemporaryData && user.images && user.images.length > 0) {
           try {
+            // Clean up old preview URLs
+            previewImages.forEach(preview => {
+              if (preview.url && preview.url.startsWith('blob:')) {
+                URL.revokeObjectURL(preview.url);
+              }
+            });
+
             // Create preview objects from existing Firestore images
             const existingPreviews = user.images.map((image, index) => ({
               url: image.fileUri,
@@ -134,10 +141,20 @@ export default function PhotosPage() {
             const mainIndex = user.images.findIndex(img => img.isMain);
             setMainImageIndex(mainIndex >= 0 ? mainIndex : 0);
 
-            console.log('Loaded existing images from Firestore:', user.images.length);
+            console.log('✅ Synced with Firestore images:', user.images.length);
           } catch (error) {
             console.error('Error loading existing images:', error);
           }
+        } else if (!hasTemporaryData) {
+          // Clean up if no data
+          previewImages.forEach(preview => {
+            if (preview.url && preview.url.startsWith('blob:')) {
+              URL.revokeObjectURL(preview.url);
+            }
+          });
+          setPreviewImages([]);
+          setUploadedImages([]);
+          setMainImageIndex(0);
         }
       }
     };
@@ -293,24 +310,8 @@ export default function PhotosPage() {
       return false; // Prevent automatic upload
     },
     onChange: (info) => {
-      // This will be called when we manually add cropped images
-      setUploadedImages(info.fileList);
-      
-      // Create preview URLs for uploaded images
-      const previews = info.fileList.map((file, index) => {
-        if (file.originFileObj) {
-          const url = URL.createObjectURL(file.originFileObj);
-          return { url, file, index, uid: file.uid };
-        }
-        return null;
-      }).filter(Boolean);
-      
-      setPreviewImages(previews);
-      
-      // Reset main image index if it's out of bounds
-      if (mainImageIndex >= info.fileList.length) {
-        setMainImageIndex(0);
-      }
+      // DISABLED - we handle everything in addImageDirect  
+      return;
     },
   };
 

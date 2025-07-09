@@ -224,6 +224,13 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
       // Load existing images (same as onboarding)
       if (user?.images && user.images.length > 0) {
+        // Clean up old preview URLs to prevent memory leaks
+        previewImages.forEach(preview => {
+          if (preview.url && preview.url.startsWith('blob:')) {
+            URL.revokeObjectURL(preview.url);
+          }
+        });
+
         const existingPreviews = user.images.map((image, index) => ({
           url: image.fileUri,
           uid: `existing-${index}`,
@@ -246,7 +253,18 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         const mainIndex = user.images.findIndex(img => img.isMain);
         setMainImageIndex(mainIndex >= 0 ? mainIndex : 0);
 
-        console.log("Loaded existing images:", user.images.length);
+        console.log("✅ Synced with Firestore images:", user.images.length);
+      } else {
+        // No images in Firestore - clear local previews
+        previewImages.forEach(preview => {
+          if (preview.url && preview.url.startsWith('blob:')) {
+            URL.revokeObjectURL(preview.url);
+          }
+        });
+        setPreviewImages([]);
+        setUploadedImages([]);
+        setMainImageIndex(0);
+        console.log("🧹 Cleared local previews - no Firestore images");
       }
     }
   }, [userData, currentUser, form]);
@@ -375,22 +393,8 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return false; // Prevent auto upload
     },
     onChange: (info) => {
-      // This will be called when we manually add cropped images
-      setUploadedImages(info.fileList);
-      
-      const previews = info.fileList.map((file, index) => {
-        if (file.originFileObj) {
-          const url = URL.createObjectURL(file.originFileObj);
-          return { url, file, index, uid: file.uid };
-        }
-        return null;
-      }).filter(Boolean);
-      
-      setPreviewImages(previews);
-      
-      if (mainImageIndex >= info.fileList.length) {
-        setMainImageIndex(0);
-      }
+      // DISABLED - we handle everything in addImageDirect
+      return;
     },
   };
 

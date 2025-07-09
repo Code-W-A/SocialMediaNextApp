@@ -10,7 +10,8 @@
     "test:webhook": "node test-webhook-stripe.js",
     "test:config": "node test-webhook.js",
     "monitor:webhooks": "node monitor-webhooks.js",
-    "monitor:user": "node monitor-webhooks.js"
+    "monitor:user": "node monitor-webhooks.js",
+    "dev:network": "next dev --hostname 0.0.0.0 --port 3000"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.18.0",

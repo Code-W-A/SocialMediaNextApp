@@ -25,6 +25,7 @@ const serverFixImage = async (file) => {
   const data = await res.json();
   return data.url;
 };
+const ENABLE_CROP = true;
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -183,38 +184,49 @@ export default function PhotosPage() {
       return;
     }
 
+    const hide = message.loading(t('onboarding.processingImage') || 'Processing image...', 0);
+
     let workingFile = file;
     let previewUrl;
 
     try {
       await canDecodeImage(workingFile, 2500);
       previewUrl = URL.createObjectURL(workingFile);
-    } catch (err) {
+    } catch {
       try {
         workingFile = await tryRepairJpeg(file);
         await canDecodeImage(workingFile, 2500);
         previewUrl = URL.createObjectURL(workingFile);
         message.info(t('onboarding.imageAutoRepaired') || 'Image auto-repaired ✔️');
-      } catch (repairErr) {
+      } catch {
         try {
           const serverUrl = await serverFixImage(file);
           previewUrl = serverUrl;
           message.info(t('onboarding.imageFixedServer') || 'Image processed on server ✔️');
-        } catch (srvErr) {
-          console.error('❌ Unable to decode/repair:', srvErr);
-          message.error(t('imageCrop.imageNotAccepted') || 'This image is corrupted or uses an unsupported color space.');
+        } catch (errFinal) {
+          console.error('❌ All repair steps failed:', errFinal);
+          hide();
+          message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be accepted.');
           return;
         }
       }
     }
 
+    hide();
+
+    if (ENABLE_CROP && previewUrl && workingFile instanceof File) {
+      setFileForCrop(workingFile);
+      setShowCropModal(true);
+      return;
+    }
+
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name,
+      name: workingFile.name || `image_${Date.now()}`,
       status: 'done',
-      originFileObj: workingFile
+      originFileObj: workingFile instanceof File ? workingFile : undefined,
+      url: !(workingFile instanceof File) ? previewUrl : undefined
     };
-    
     setUploadedImages((prev) => [...prev, fileObject]);
     setPreviewImages((prev) => [...prev, { url: previewUrl, file: fileObject, uid: fileObject.uid }]);
   };
@@ -317,17 +329,18 @@ export default function PhotosPage() {
             });
           }
         } else {
-          // Upload new image
-          const fileName = uuidv4();
-          const storageRef = ref(storage, `images/${fileName}`);
-          
-          // Upload file to Firebase Storage
-          const snapshot = await uploadBytes(storageRef, file.originFileObj);
-          const downloadURL = await getDownloadURL(snapshot.ref);
-          
-          // Create image object with correct structure
-          const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
-          imageObjects.push(imageObject);
+          if (file.originFileObj) {
+            const fileName = uuidv4();
+            const storageRef = ref(storage, `images/${fileName}`);
+            const snapshot = await uploadBytes(storageRef, file.originFileObj);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
+            imageObjects.push(imageObject);
+          } else if (file.url) {
+            const urlParts = file.url.split('/');
+            const fileName = urlParts[urlParts.length - 1].split('?')[0] || `img_${uuidv4()}.jpg`;
+            imageObjects.push(createImageObject(fileName, file.url, i === mainImageIndex));
+          }
         }
       }
 

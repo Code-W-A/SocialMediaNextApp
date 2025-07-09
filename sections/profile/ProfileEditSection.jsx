@@ -269,6 +269,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   };
 
   // ADD helper to append image directly with lightweight repair fallback
+  const ENABLE_CROP = true;
   const addImageDirect = async (file) => {
     if (!file) return;
     if (uploadedImages.length >= 6) {
@@ -276,39 +277,50 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return;
     }
 
+    const hide = message.loading(t('profileEdit.processingImage') || 'Processing image...', 0);
+
     let workingFile = file;
     let previewUrl;
 
-    // 1) încercăm decodarea nativă rapid
     try {
       await canDecodeImage(workingFile, 2500);
       previewUrl = URL.createObjectURL(workingFile);
-    } catch (err) {
-      // 2) dacă eşuează şi e JPEG, încercăm repararea
+    } catch {
       try {
         workingFile = await tryRepairJpeg(file);
         await canDecodeImage(workingFile, 2500);
         previewUrl = URL.createObjectURL(workingFile);
         message.info(t('profileEdit.imageAutoRepaired') || 'Image auto-repaired ✔️');
-      } catch (repairErr) {
-        // 3) fallback: trimite la server pentru procesare
+      } catch {
         try {
           const serverUrl = await serverFixImage(file);
-          previewUrl = serverUrl;
+          previewUrl = serverUrl; // Only URL, no local file
           message.info(t('profileEdit.imageFixedServer') || 'Image processed on server ✔️');
-        } catch (srvErr) {
-          console.error('❌ Server processing also failed:', srvErr);
-          message.error(t('imageCrop.imageNotAccepted') || 'Image cannot be accepted.');
+        } catch (errFinal) {
+          console.error('❌ All repair steps failed:', errFinal);
+          hide();
+          message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be accepted.');
           return;
         }
       }
     }
 
+    hide();
+
+    if (ENABLE_CROP && previewUrl && workingFile instanceof File) {
+      // Deschide crop modal
+      setFileForCrop(workingFile);
+      setCropFileIndex(uploadedImages.length);
+      setShowCropModal(true);
+      return; // Adăugarea se face în handleCropComplete
+    }
+
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name,
+      name: workingFile.name || `image_${Date.now()}`,
       status: 'done',
-      originFileObj: workingFile
+      originFileObj: workingFile instanceof File ? workingFile : undefined,
+      url: !(workingFile instanceof File) ? previewUrl : undefined
     };
 
     setUploadedImages((prev) => [...prev, fileObject]);
@@ -617,16 +629,20 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
               });
             }
           } else {
-            // Upload new image
-            console.log('📤 Uploading new image...');
-            const fileName = uuidv4();
-            const storageRef = ref(storage, `images/${fileName}`);
-            
-            const snapshot = await uploadBytes(storageRef, file.originFileObj);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            
-            const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
-            imageObjects.push(imageObject);
+            if (file.originFileObj) {
+              // Upload new image
+              const fileName = uuidv4();
+              const storageRef = ref(storage, `images/${fileName}`);
+              const snapshot = await uploadBytes(storageRef, file.originFileObj);
+              const downloadURL = await getDownloadURL(snapshot.ref);
+              const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
+              imageObjects.push(imageObject);
+            } else if (file.url) {
+              // Already uploaded by serverFixImage – extract filename
+              const urlParts = file.url.split('/');
+              const fileName = urlParts[urlParts.length - 1].split('?')[0] || `img_${uuidv4()}.jpg`;
+              imageObjects.push(createImageObject(fileName, file.url, i === mainImageIndex));
+            }
           }
         }
       }

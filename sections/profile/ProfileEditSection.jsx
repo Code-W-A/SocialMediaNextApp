@@ -304,6 +304,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       } catch (error) {
         console.error('❌ [ProfileEdit] Cannot process image:', error);
         message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+        if (loadingMessage) loadingMessage();
       }
       
       return false; // Prevent auto upload
@@ -401,6 +402,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     } catch (error) {
       console.error('❌ [ProfileEdit] Cannot process additional image:', error);
       message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+      if (loadingMessage) loadingMessage();
     }
   };
 

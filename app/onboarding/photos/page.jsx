@@ -212,6 +212,7 @@ export default function PhotosPage() {
       } catch (error) {
         console.error('❌ [OnboardingPhotos] Cannot process image:', error);
         message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+        if (loadingMessage) loadingMessage();
       }
       
       return false; // Prevent automatic upload
@@ -572,6 +573,7 @@ export default function PhotosPage() {
                       } catch (error) {
                         console.error('❌ [OnboardingPhotos] Cannot process additional image:', error);
                         message.error(t('imageCrop.imageNotAccepted') || 'Image processing failed. Please try a different image.');
+                        if (loadingMessage) loadingMessage();
                       }
                     }}
                   />

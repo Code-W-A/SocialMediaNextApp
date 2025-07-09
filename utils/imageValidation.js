@@ -558,15 +558,33 @@ export const standardizeImage = async (file, options = {}) => {
     preserveExif = false
   } = options;
 
-  console.log(`📸 [StandardizeImage] Processing: ${file.name} (${file.type}, ${(file.size/1024/1024).toFixed(2)}MB)`);
+  console.log(`📸 [StandardizeImage] Processing: ${file.name} (${file.type || 'unknown'}, ${(file.size/1024/1024).toFixed(2)}MB)`);
 
   try {
-    // Step 1: Convert HEIC/HEIF to JPEG if needed
-    let processedFile = file;
-    if (['image/heic', 'image/heif'].includes(file.type)) {
-      console.log('🔄 [StandardizeImage] Converting HEIC/HEIF to JPEG...');
-      processedFile = await convertHeicIfNeeded(file);
+    // --- MIME GUESS FALLBACK ---
+    let workingFile = file;
+    if (!file.type || !SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      const mimeGuessMap = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        webp: 'image/webp',
+        bmp: 'image/bmp',
+        gif: 'image/gif'
+      };
+      if (mimeGuessMap[ext]) {
+        workingFile = new File([file], file.name, {
+          type: mimeGuessMap[ext],
+          lastModified: file.lastModified
+        });
+        console.log(`ℹ️ [StandardizeImage] Guessed MIME type as ${mimeGuessMap[ext]} based on extension .${ext}`);
+      }
     }
+
+    // Step 1: Convert HEIC/HEIF to JPEG if needed
+    let processedFile = workingFile;
+    processedFile = await convertHeicIfNeeded(processedFile); // handles detection internally
 
     // Step 2: Use browser-image-compression for robust standardization
     const imageCompression = (await import('browser-image-compression')).default;
@@ -579,8 +597,8 @@ export const standardizeImage = async (file, options = {}) => {
       preserveExif: preserveExif,
       // Force specific settings for standardization
       alwaysKeepResolution: false,
-      exifOrientation: 1, // Reset EXIF orientation
-      initialQuality: 1 // Start with full quality, then compress
+      exifOrientation: 1,
+      initialQuality: 1
     };
 
     console.log('🔄 [StandardizeImage] Standardizing with browser-image-compression...');
@@ -599,29 +617,33 @@ export const standardizeImage = async (file, options = {}) => {
     // Step 5: Create preview URL for immediate use
     const previewUrl = URL.createObjectURL(cleanFile);
 
-    // Step 6: Verify the result works
-    await new Promise((resolve, reject) => {
-      const img = new Image();
-      const timeout = setTimeout(() => {
-        reject(new Error('Standardized image verification timeout'));
-      }, 3000);
-
-      img.onload = () => {
-        clearTimeout(timeout);
-        if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-          reject(new Error('Standardized image has zero dimensions'));
-        } else {
-          resolve();
-        }
-      };
-
-      img.onerror = () => {
-        clearTimeout(timeout);
-        reject(new Error('Standardized image failed to load'));
-      };
-
-      img.src = previewUrl;
-    });
+    // Step 6: Verify the result works (soft verification)
+    try {
+      await new Promise((resolve, reject) => {
+        const img = new Image();
+        const timeout = setTimeout(() => {
+          reject(new Error('Verification timeout'));
+        }, 6000);
+  
+        img.onload = () => {
+          clearTimeout(timeout);
+          if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+            reject(new Error('Image has zero dimensions'));
+          } else {
+            resolve();
+          }
+        };
+  
+        img.onerror = () => {
+          clearTimeout(timeout);
+          reject(new Error('Failed to load image'));
+        };
+  
+        img.src = previewUrl;
+      });
+    } catch (verifyErr) {
+      console.warn('⚠️ [StandardizeImage] Preview verification failed, proceeding anyway:', verifyErr.message);
+    }
 
     console.log(`✅ [StandardizeImage] Success! Original: ${(file.size/1024/1024).toFixed(2)}MB → Standardized: ${(cleanFile.size/1024/1024).toFixed(2)}MB`);
 

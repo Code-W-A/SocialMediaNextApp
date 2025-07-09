@@ -178,6 +178,8 @@ export default function PhotosPage() {
   }, [previewImages]);
 
   const addImageDirect = async (file) => {
+    if (file.__handled) return;
+    file.__handled = true;
     if (!file) return;
     if (uploadedImages.length >= 6) {
       message.warning(t('onboarding.maxPhotosReachedLabel'));

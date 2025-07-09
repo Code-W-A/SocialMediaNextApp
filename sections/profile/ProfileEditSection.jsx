@@ -271,6 +271,8 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   // ADD helper to append image directly with lightweight repair fallback
   const ENABLE_CROP = true;
   const addImageDirect = async (file) => {
+    if (file.__handled) return;
+    file.__handled = true;
     if (!file) return;
     if (uploadedImages.length >= 6) {
       message.warning(t('profileEdit.maxPhotosReachedLabel'));

@@ -258,7 +258,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     });
   };
 
-  // ADD helper to append image directly without crop
+  // ADD helper to append image directly without crop - ULTRA SIMPLE VERSION
   const addImageDirect = async (file) => {
     if (!file) return;
     if (uploadedImages.length >= 6) {
@@ -266,29 +266,14 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return;
     }
 
-    let workingFile = file;
-    let previewUrl;
-    try {
-      const { url } = await createRobustImagePreview(workingFile);
-      previewUrl = url;
-    } catch {
-      try {
-        // Attempt to fix (mainly for problematic JPEG CMYK etc.)
-        workingFile = await attemptFixUnreadableJpeg(workingFile);
-        const { url } = await createRobustImagePreview(workingFile);
-        previewUrl = url;
-      } catch (err) {
-        console.error('❌ [addImageDirect] Cannot display image:', err);
-        message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be displayed. Please convert to JPG/PNG.');
-        return;
-      }
-    }
+    // ULTRA SIMPLE - just create URL and add to preview
+    const previewUrl = URL.createObjectURL(file);
 
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: workingFile.name,
+      name: file.name,
       status: 'done',
-      originFileObj: workingFile
+      originFileObj: file
     };
 
     setUploadedImages((prev) => [...prev, fileObject]);

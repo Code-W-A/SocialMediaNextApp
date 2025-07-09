@@ -15,7 +15,7 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
 import { v4 as uuidv4 } from 'uuid';
 import { ProfileImageCrop } from "@/components/ImageCrop";
-import { validateImageFile, cleanupImagePreview, createRobustImagePreview, standardizeImage } from "@/utils/imageValidation";
+import { validateImageFile, cleanupImagePreview, createRobustImagePreview, standardizeImage, attemptFixUnreadableJpeg } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -167,19 +167,36 @@ export default function PhotosPage() {
     };
   }, [previewImages]);
 
-  const addImageDirect = (file) => {
+  const addImageDirect = async (file) => {
     if (!file) return;
     if (uploadedImages.length >= 6) {
       message.warning(t('onboarding.maxPhotosReachedLabel'));
       return;
     }
+
+    let workingFile = file;
+    let previewUrl;
+    try {
+      const { url } = await createRobustImagePreview(workingFile);
+      previewUrl = url;
+    } catch {
+      try {
+        workingFile = await attemptFixUnreadableJpeg(workingFile);
+        const { url } = await createRobustImagePreview(workingFile);
+        previewUrl = url;
+      } catch (err) {
+        console.error('❌ [addImageDirect] Cannot display image:', err);
+        message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be displayed. Please convert to JPG/PNG.');
+        return;
+      }
+    }
+
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: file.name,
+      name: workingFile.name,
       status: 'done',
-      originFileObj: file
+      originFileObj: workingFile
     };
-    const previewUrl = URL.createObjectURL(file);
     setUploadedImages((prev) => [...prev, fileObject]);
     setPreviewImages((prev) => [...prev, { url: previewUrl, file: fileObject, uid: fileObject.uid }]);
   };

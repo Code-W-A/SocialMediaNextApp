@@ -32,7 +32,7 @@ import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
 import { useLanguage } from "@/lib/i18n";
 import { ProfileImageCrop } from "@/components/ImageCrop";
-import { validateImageFile, createRobustImagePreview, standardizeImage } from "@/utils/imageValidation";
+import { validateImageFile, createRobustImagePreview, standardizeImage, attemptFixUnreadableJpeg } from "@/utils/imageValidation";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -259,20 +259,38 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   };
 
   // ADD helper to append image directly without crop
-  const addImageDirect = (file) => {
+  const addImageDirect = async (file) => {
     if (!file) return;
-    // Limit to 6
     if (uploadedImages.length >= 6) {
       message.warning(t('profileEdit.maxPhotosReachedLabel'));
       return;
     }
+
+    let workingFile = file;
+    let previewUrl;
+    try {
+      const { url } = await createRobustImagePreview(workingFile);
+      previewUrl = url;
+    } catch {
+      try {
+        // Attempt to fix (mainly for problematic JPEG CMYK etc.)
+        workingFile = await attemptFixUnreadableJpeg(workingFile);
+        const { url } = await createRobustImagePreview(workingFile);
+        previewUrl = url;
+      } catch (err) {
+        console.error('❌ [addImageDirect] Cannot display image:', err);
+        message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be displayed. Please convert to JPG/PNG.');
+        return;
+      }
+    }
+
     const fileObject = {
       uid: `direct-${Date.now()}`,
-      name: file.name,
+      name: workingFile.name,
       status: 'done',
-      originFileObj: file
+      originFileObj: workingFile
     };
-    const previewUrl = URL.createObjectURL(file);
+
     setUploadedImages((prev) => [...prev, fileObject]);
     setPreviewImages((prev) => [...prev, { url: previewUrl, file: fileObject, uid: fileObject.uid }]);
   };

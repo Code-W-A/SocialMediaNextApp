@@ -6,7 +6,6 @@ import { useLanguage } from '@/lib/i18n';
 import { Button, Typography, Space, Row, Col, Carousel } from 'antd';
 import { HeartOutlined, MessageOutlined } from '@ant-design/icons';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-import ComingSoonPage from '@/components/ComingSoonPage';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -15,13 +14,9 @@ export default function LandingPage() {
   const { t } = useLanguage();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [hasPreviewAccess, setHasPreviewAccess] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Check if user has preview access from localStorage
-    const previewAccess = localStorage.getItem('ydestiny_preview_access');
-    setHasPreviewAccess(previewAccess === 'granted');
   }, []);
 
   useEffect(() => {
@@ -29,10 +24,6 @@ export default function LandingPage() {
       router.push('/home');
     }
   }, [loading, isSignedIn, router]);
-
-  const handlePasswordSuccess = () => {
-    setHasPreviewAccess(true);
-  };
 
   if (!mounted || loading) {
     return (
@@ -56,13 +47,6 @@ export default function LandingPage() {
 
   if (isSignedIn) {
     return null;
-  }
-
-  // Show Coming Soon page if no preview access (only if password protection is enabled)
-  const passwordProtectionEnabled = process.env.NEXT_PUBLIC_ENABLE_PASSWORD_PROTECTION === 'true';
-  
-  if (passwordProtectionEnabled && !hasPreviewAccess) {
-    return <ComingSoonPage onPasswordSuccess={handlePasswordSuccess} />;
   }
 
   return (
@@ -819,28 +803,6 @@ export default function LandingPage() {
           />
         </div>
         
-        {/* Development Reset Button - Only visible in dev mode with password protection */}
-        {process.env.NODE_ENV === 'development' && passwordProtectionEnabled && (
-          <Button
-            size="small"
-            onClick={() => {
-              localStorage.removeItem('ydestiny_preview_access');
-              setHasPreviewAccess(false);
-            }}
-            style={{
-              position: 'fixed',
-              top: '20px',
-              right: '20px',
-              zIndex: 1000,
-              background: 'rgba(255, 0, 0, 0.7)',
-              color: 'white',
-              border: 'none',
-              fontSize: '10px'
-            }}
-          >
-            Reset Preview
-          </Button>
-        )}
       </div>
     </>
   );

@@ -47,6 +47,33 @@ const UserProfileHead = ({
            "/images/placeholder-avatar.png";
   };
 
+  // Function to get all user images for preview gallery
+  const getAllUserImages = () => {
+    if (!userData?.data) return [];
+    
+    let images = userData.data.images || [];
+    
+    // If no images array but has legacy image_url, create a single image object
+    if (images.length === 0) {
+      const legacyImageUrl = userData.data.image_url;
+      
+      if (legacyImageUrl && legacyImageUrl !== "/images/placeholder-avatar.png") {
+        images = [{
+          fileUri: legacyImageUrl,
+          fileName: 'profile-image',
+          isMain: true
+        }];
+      }
+    }
+    
+    // Sort images: main photo first, then the rest
+    return [...images].sort((a, b) => {
+      if (a.isMain && !b.isMain) return -1; // Main photo first
+      if (!a.isMain && b.isMain) return 1;  // Main photo first
+      return 0; // Keep original order for non-main photos
+    });
+  };
+
   const handleStartConversation = () => {
     if (!currentUser?.id || !userId) {
       message.error(t('userProfile.unableToStartConversation'));
@@ -172,13 +199,70 @@ const UserProfileHead = ({
           <div className={css.profileContainer}>
             <div className={css.profileImage}>
               <OnlineStatusAvatar userId={userId} size="large">
-                <Avatar
-                  src={getProfileImage()}
-                  alt="profile"
-                  size={120}
-                >
-                  {user.firstName?.[0]}{user.lastName?.[0]}
-                </Avatar>
+                {(() => {
+                  const allImages = getAllUserImages();
+                  
+                  // If user has multiple images, create preview group for slide functionality
+                  if (allImages.length > 1) {
+                    return (
+                      <Image.PreviewGroup>
+                        {/* Main profile image - visible */}
+                        <Image
+                          src={getProfileImage()}
+                          alt="profile"
+                          width={120}
+                          height={120}
+                          preview={{
+                            mask: (
+                              <div style={{ color: 'white', textAlign: 'center' }}>
+                                <Iconify icon="eva:eye-fill" width="20px" />
+                                <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                                  View All Photos ({allImages.length})
+                                </div>
+                              </div>
+                            )
+                          }}
+                          style={{ 
+                            width: '120px', 
+                            height: '120px', 
+                            objectFit: 'cover',
+                            borderRadius: '50%',
+                            border: '4px solid white',
+                            background: 'white'
+                          }}
+                        />
+                        
+                        {/* Hidden images for gallery slide - only non-main images */}
+                        {allImages.slice(1).map((image, index) => (
+                          <Image
+                            key={`hidden-${index}`}
+                            src={image.fileUri}
+                            alt={`Photo ${index + 2}`}
+                            style={{ display: 'none' }}
+                            preview={{
+                              visible: false
+                            }}
+                          />
+                        ))}
+                      </Image.PreviewGroup>
+                    );
+                  } else {
+                    // Single image or no images - use Avatar with fallback
+                    return (
+                      <Avatar
+                        src={getProfileImage()}
+                        alt="profile"
+                        size={120}
+                        style={{
+                          border: '4px solid white',
+                          background: 'white'
+                        }}
+                      >
+                        {user.firstName?.[0]}{user.lastName?.[0]}
+                      </Avatar>
+                    );
+                  }
+                })()}
               </OnlineStatusAvatar>
             </div>
             

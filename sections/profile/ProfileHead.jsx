@@ -179,6 +179,41 @@ const ProfileHead = ({
     return profileImage;
   };
 
+  // Function to get all user images for preview gallery
+  const getAllUserImages = () => {
+    let images = [];
+    
+    if (isCurrentUserProfile) {
+      // For current user, try multiple sources
+      images = currentUser?.images || data?.data?.images || [];
+    } else {
+      // For other users
+      images = data?.data?.images || [];
+    }
+    
+    // If no images array but has legacy image_url, create a single image object
+    if (images.length === 0) {
+      const legacyImageUrl = isCurrentUserProfile 
+        ? (currentUser?.imageUrl || currentUser?.image_url || data?.data?.image_url)
+        : data?.data?.image_url;
+      
+      if (legacyImageUrl && legacyImageUrl !== "/images/placeholder-avatar.png") {
+        images = [{
+          fileUri: legacyImageUrl,
+          fileName: 'profile-image',
+          isMain: true
+        }];
+      }
+    }
+    
+    // Sort images: main photo first, then the rest
+    return [...images].sort((a, b) => {
+      if (a.isMain && !b.isMain) return -1; // Main photo first
+      if (!a.isMain && b.isMain) return 1;  // Main photo first
+      return 0; // Keep original order for non-main photos
+    });
+  };
+
   if (isError) return <div>Error loading profile</div>;
 
   // Determine banner source with logging
@@ -280,11 +315,66 @@ const ProfileHead = ({
           {/* profile */}
           <div className={css.profileContainer}>
             <div className={css.profileImage}>
-                <Image
-                  src={getProfileImage()}
-                  alt="profile"
-                  preview={{ mask: null }}
-                />
+              {(() => {
+                const allImages = getAllUserImages();
+                
+                // If user has multiple images, create preview group for slide functionality
+                if (allImages.length > 1) {
+                  return (
+                    <Image.PreviewGroup>
+                      {/* Main profile image - visible */}
+                      <Image
+                        src={getProfileImage()}
+                        alt="profile"
+                        preview={{
+                          mask: (
+                            <div style={{ color: 'white', textAlign: 'center' }}>
+                              <Icon icon="eva:eye-fill" style={{ fontSize: '20px' }} />
+                              <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                                View All Photos ({allImages.length})
+                              </div>
+                            </div>
+                          )
+                        }}
+                        style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          objectFit: 'cover',
+                          borderRadius: '50%'
+                        }}
+                      />
+                      
+                      {/* Hidden images for gallery slide - only non-main images */}
+                      {allImages.slice(1).map((image, index) => (
+                        <Image
+                          key={`hidden-${index}`}
+                          src={image.fileUri}
+                          alt={`Photo ${index + 2}`}
+                          style={{ display: 'none' }}
+                          preview={{
+                            visible: false
+                          }}
+                        />
+                      ))}
+                    </Image.PreviewGroup>
+                  );
+                } else {
+                  // Single image or no images - normal preview
+                  return (
+                    <Image
+                      src={getProfileImage()}
+                      alt="profile"
+                      preview={{ mask: null }}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'cover',
+                        borderRadius: '50%'
+                      }}
+                    />
+                  );
+                }
+              })()}
               </div>
               <div className={css.profileInfo}>
                 {!isLoading ? (

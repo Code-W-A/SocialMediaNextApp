@@ -425,7 +425,7 @@ export default function PhotosPage() {
 
   const handleUpload = async () => {
     if (uploadedImages.length === 0) {
-      message.warning("Please select at least one photo");
+      message.warning(t('onboarding.pleaseSelectPhoto'));
       return;
     }
 

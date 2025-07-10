@@ -114,7 +114,7 @@ export default function QuestionnairePage() {
     const currentAnswer = answers[getFieldName(currentStep)];
 
     if (!currentAnswer) {
-      message.warning("Please answer this question to continue");
+      message.warning(t('onboarding.pleaseAnswerQuestion'));
       return;
     }
 

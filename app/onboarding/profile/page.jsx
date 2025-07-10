@@ -424,6 +424,7 @@ export default function ProfilePage() {
             htmlType="submit"
             size="large"
             loading={loading}
+            disabled={selectedInterests.length === 0}
             className={css.authButton}
             style={{ flex: 1 }}
             onClick={handleSubmit}

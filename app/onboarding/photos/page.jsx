@@ -197,6 +197,9 @@ export default function PhotosPage() {
     };
   }, [previewImages]);
 
+  // Force all images through server processing for maximum compatibility
+  const FORCE_SERVER_PROCESSING = true;
+
   const addImageDirect = async (file) => {
     if (file.__handled) return;
     file.__handled = true;
@@ -212,6 +215,52 @@ export default function PhotosPage() {
     let previewUrl;
     let serverProcessedData = null;
 
+    // If FORCE_SERVER_PROCESSING is enabled, skip local checks and go directly to server
+    if (FORCE_SERVER_PROCESSING) {
+      try {
+        console.log('🔧 [OnboardingPhotos] Force processing through server for standardization...');
+        const serverResult = await serverFixImage(file);
+        serverProcessedData = serverResult;
+        console.log('✅ [OnboardingPhotos] Image standardized on server:', serverResult.url);
+        
+        hide();
+        
+        const fileObject = {
+          uid: `direct-${Date.now()}`,
+          name: serverResult.fileName || `image_${Date.now()}.jpg`,
+          status: 'done',
+          url: serverResult.url,
+          serverFileName: serverResult.fileName,
+          serverProcessed: true
+        };
+        
+        setUploadedImages(prev => {
+          const newImages = [...prev, fileObject];
+          // If this is the first image, make it main
+          if (prev.length === 0) {
+            setMainImageIndex(0);
+            console.log('🌟 [OnboardingPhotos] First image automatically set as main:', fileObject.uid);
+          }
+          return newImages;
+        });
+        setPreviewImages(prev => [...prev, {
+          url: serverResult.url,
+          file: fileObject,
+          uid: fileObject.uid
+        }]);
+        
+        message.success(t('onboarding.imageStandardizedServer') || 'Image standardized successfully! ✨');
+        return;
+        
+      } catch (serverError) {
+        console.error('❌ [OnboardingPhotos] Server processing failed:', serverError);
+        hide();
+        message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be processed. Please try a different image.');
+        return;
+      }
+    }
+
+    // Legacy fallback processing (when FORCE_SERVER_PROCESSING is false)
     try {
       await canDecodeImage(workingFile, 2500);
       previewUrl = URL.createObjectURL(workingFile);
@@ -228,8 +277,6 @@ export default function PhotosPage() {
           console.log('✅ [OnboardingPhotos] Server repaired image:', serverResult.url);
           message.info(t('onboarding.imageFixedServer') || 'Image processed on server ✔️');
           
-          // For server-processed images, skip cropping and use directly
-          // since they've already been processed and standardized
           hide();
           
           const fileObject = {

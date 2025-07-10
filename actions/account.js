@@ -111,9 +111,9 @@ export const deleteUserFirestoreData = async (userId) => {
     
     // Collections to clean up
     const collectionsToClean = [
-      { name: 'Posts', field: 'userId' },
-      { name: 'Comments', field: 'userId' },
-      { name: 'Likes', field: 'userId' },
+      { name: 'Posts', field: 'authorId' }, // Posts with subcollections (Comments, Likes) handled specially
+      { name: 'Comments', field: 'authorId' }, // Comments in main collection (if any)
+      { name: 'Likes', field: 'authorId' }, // Likes in main collection (if any)
       { name: 'Matches', field: 'userId' },
       { name: 'Messages', field: 'senderId' },
       { name: 'Messages', field: 'receiverId' },
@@ -128,6 +128,43 @@ export const deleteUserFirestoreData = async (userId) => {
         const q = query(collection(db, name), where(field, '==', userId));
         const snapshot = await getDocs(q);
         
+        // Special handling for Posts - also delete subcollections
+        if (name === 'Posts') {
+          for (const postDoc of snapshot.docs) {
+            const postId = postDoc.id;
+            console.log(`🗑️ Cleaning subcollections for post: ${postId}`);
+            
+            // Delete Comments subcollection
+            try {
+              const commentsQuery = query(collection(db, 'Posts', postId, 'Comments'));
+              const commentsSnapshot = await getDocs(commentsQuery);
+              const commentDeletePromises = commentsSnapshot.docs.map(commentDoc => deleteDoc(commentDoc.ref));
+              await Promise.all(commentDeletePromises);
+              
+              if (commentsSnapshot.docs.length > 0) {
+                console.log(`🗑️ Deleted ${commentsSnapshot.docs.length} comments from post ${postId}`);
+              }
+            } catch (commentError) {
+              console.warn(`⚠️ Error deleting comments for post ${postId}:`, commentError.message);
+            }
+            
+            // Delete Likes subcollection
+            try {
+              const likesQuery = query(collection(db, 'Posts', postId, 'Likes'));
+              const likesSnapshot = await getDocs(likesQuery);
+              const likeDeletePromises = likesSnapshot.docs.map(likeDoc => deleteDoc(likeDoc.ref));
+              await Promise.all(likeDeletePromises);
+              
+              if (likesSnapshot.docs.length > 0) {
+                console.log(`🗑️ Deleted ${likesSnapshot.docs.length} likes from post ${postId}`);
+              }
+            } catch (likeError) {
+              console.warn(`⚠️ Error deleting likes for post ${postId}:`, likeError.message);
+            }
+          }
+        }
+        
+        // Delete the main documents
         const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
         
@@ -138,6 +175,57 @@ export const deleteUserFirestoreData = async (userId) => {
         console.warn(`⚠️ Error cleaning ${name}:`, error.message);
         // Continue with other collections
       }
+    }
+    
+    // Clean up user's comments and likes from other users' posts
+    console.log('🗑️ Cleaning user comments and likes from other posts...');
+    try {
+      // Get all posts (to check their subcollections for user's comments/likes)
+      const allPostsQuery = query(collection(db, 'Posts'));
+      const allPostsSnapshot = await getDocs(allPostsQuery);
+      
+      for (const postDoc of allPostsSnapshot.docs) {
+        const postId = postDoc.id;
+        
+        // Delete user's comments from this post
+        try {
+          const userCommentsQuery = query(
+            collection(db, 'Posts', postId, 'Comments'),
+            where('authorId', '==', userId)
+          );
+          const userCommentsSnapshot = await getDocs(userCommentsQuery);
+          
+          if (userCommentsSnapshot.docs.length > 0) {
+            const commentDeletePromises = userCommentsSnapshot.docs.map(commentDoc => deleteDoc(commentDoc.ref));
+            await Promise.all(commentDeletePromises);
+            console.log(`🗑️ Deleted ${userCommentsSnapshot.docs.length} user comments from post ${postId}`);
+          }
+        } catch (commentError) {
+          console.warn(`⚠️ Error deleting user comments from post ${postId}:`, commentError.message);
+        }
+        
+        // Delete user's likes from this post
+        try {
+          const userLikesQuery = query(
+            collection(db, 'Posts', postId, 'Likes'),
+            where('authorId', '==', userId)
+          );
+          const userLikesSnapshot = await getDocs(userLikesQuery);
+          
+          if (userLikesSnapshot.docs.length > 0) {
+            const likeDeletePromises = userLikesSnapshot.docs.map(likeDoc => deleteDoc(likeDoc.ref));
+            await Promise.all(likeDeletePromises);
+            console.log(`🗑️ Deleted ${userLikesSnapshot.docs.length} user likes from post ${postId}`);
+          }
+        } catch (likeError) {
+          console.warn(`⚠️ Error deleting user likes from post ${postId}:`, likeError.message);
+        }
+      }
+      
+      console.log('✅ User comments and likes cleanup completed');
+    } catch (globalCleanupError) {
+      console.warn('⚠️ Error in global comments/likes cleanup:', globalCleanupError.message);
+      // Continue with user deletion even if this fails
     }
     
     // Delete main user document last

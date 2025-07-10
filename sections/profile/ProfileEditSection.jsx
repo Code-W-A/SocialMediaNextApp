@@ -299,6 +299,9 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   const [cropImageUrl, setCropImageUrl] = useState(null);
   const [cropOriginalFile, setCropOriginalFile] = useState(null); // Store original file for cropping
   
+  // Force all images through server processing for maximum compatibility
+  const FORCE_SERVER_PROCESSING = true;
+
   const addImageDirect = async (file) => {
     if (file.__handled) return;
     file.__handled = true;
@@ -314,6 +317,53 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     let previewUrl;
     let serverProcessedData = null;
 
+    // If FORCE_SERVER_PROCESSING is enabled, skip local checks and go directly to server
+    if (FORCE_SERVER_PROCESSING) {
+      try {
+        console.log('🔧 [ProfileEdit] Force processing through server for standardization...');
+        const serverResult = await serverFixImage(file);
+        serverProcessedData = serverResult;
+        console.log('✅ [ProfileEdit] Image standardized on server:', serverResult.url);
+        
+        hide();
+        
+        const fileObject = {
+          uid: `direct-${Date.now()}`,
+          name: serverResult.fileName || `image_${Date.now()}.jpg`,
+          status: 'done',
+          url: serverResult.url,
+          serverFileName: serverResult.fileName,
+          serverProcessed: true
+        };
+        
+        setUploadedImages(prev => {
+          const newImages = [...prev, fileObject];
+          // If this is the first image, make it main
+          if (prev.length === 0) {
+            setMainImageId(fileObject.uid);
+            setMainImageIndex(0);
+            console.log('🌟 [ProfileEdit] First image automatically set as main:', fileObject.uid);
+          }
+          return newImages;
+        });
+        setPreviewImages(prev => [...prev, {
+          url: serverResult.url,
+          file: fileObject,
+          uid: fileObject.uid
+        }]);
+        
+        message.success(t('profileEdit.imageStandardizedServer') || 'Image standardized successfully! ✨');
+        return;
+        
+      } catch (serverError) {
+        console.error('❌ [ProfileEdit] Server processing failed:', serverError);
+        hide();
+        message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be processed. Please try a different image.');
+        return;
+      }
+    }
+
+    // Legacy fallback processing (when FORCE_SERVER_PROCESSING is false)
     try {
       await canDecodeImage(workingFile, 2500);
       previewUrl = URL.createObjectURL(workingFile);
@@ -330,8 +380,6 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
           console.log('✅ [ProfileEdit] Server repaired image:', serverResult.url);
           message.info(t('profileEdit.imageFixedServer') || 'Image processed on server ✔️');
           
-          // For server-processed images, skip cropping and use directly
-          // since they've already been processed and standardized
           hide();
           
           const fileObject = {

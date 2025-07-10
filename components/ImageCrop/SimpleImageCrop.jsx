@@ -48,8 +48,25 @@ const SimpleImageCrop = ({
       croppedArea,
       croppedAreaPixels
     });
+    console.log('🔍 [SimpleImageCrop] Detailed crop analysis:', {
+      croppedArea: {
+        x: croppedArea.x,
+        y: croppedArea.y, 
+        width: croppedArea.width,
+        height: croppedArea.height
+      },
+      croppedAreaPixels: {
+        x: croppedAreaPixels.x,
+        y: croppedAreaPixels.y,
+        width: croppedAreaPixels.width,
+        height: croppedAreaPixels.height
+      },
+      currentZoom: zoom,
+      selectedAspectRatio,
+      imageUrlPresent: !!imageUrl
+    });
     setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
+  }, [zoom, selectedAspectRatio, imageUrl]);
 
   const handleAspectRatioChange = (ratio) => {
     setSelectedAspectRatio(ratio);
@@ -123,7 +140,83 @@ const SimpleImageCrop = ({
         img.src = imageUrl;
       });
 
-      const { width, height, x, y } = croppedAreaPixels;
+      let { width, height, x, y } = croppedAreaPixels;
+      
+      console.log('📐 [SimpleImageCrop-createCroppedImage] Original crop area:', {
+        width, height, x, y,
+        imageWidth: img.naturalWidth,
+        imageHeight: img.naturalHeight
+      });
+      
+      // Validate and adjust crop area to be within image bounds
+      const maxWidth = img.naturalWidth;
+      const maxHeight = img.naturalHeight;
+      
+      // Adjust x and width
+      if (x < 0) {
+        width += x; // reduce width by the negative x
+        x = 0;
+      }
+      if (x + width > maxWidth) {
+        width = maxWidth - x;
+      }
+      
+      // Adjust y and height  
+      if (y < 0) {
+        height += y; // reduce height by the negative y
+        y = 0;
+      }
+      if (y + height > maxHeight) {
+        height = maxHeight - y;
+      }
+      
+      // Ensure minimum dimensions
+      width = Math.max(1, Math.floor(width));
+      height = Math.max(1, Math.floor(height));
+      x = Math.max(0, Math.floor(x));
+      y = Math.max(0, Math.floor(y));
+      
+      console.log('📐 [SimpleImageCrop-createCroppedImage] Adjusted crop area:', {
+        width, height, x, y,
+        adjustedFromOriginal: {
+          widthDiff: width - croppedAreaPixels.width,
+          heightDiff: height - croppedAreaPixels.height,
+          xDiff: x - croppedAreaPixels.x,
+          yDiff: y - croppedAreaPixels.y
+        }
+      });
+      
+      // Final validation - ensure crop area is valid
+      if (width <= 0 || height <= 0 || x >= maxWidth || y >= maxHeight) {
+        console.error('❌ [SimpleImageCrop-createCroppedImage] Invalid crop area after adjustment:', {
+          width, height, x, y, maxWidth, maxHeight
+        });
+        
+        // Fallback: Use center crop with maximum possible square
+        const fallbackSize = Math.min(maxWidth, maxHeight);
+        const fallbackX = Math.max(0, (maxWidth - fallbackSize) / 2);
+        const fallbackY = Math.max(0, (maxHeight - fallbackSize) / 2);
+        
+        console.log('🔄 [SimpleImageCrop-createCroppedImage] Using fallback center crop:', {
+          fallbackSize,
+          fallbackX,
+          fallbackY,
+          originalCrop: { width: croppedAreaPixels.width, height: croppedAreaPixels.height, x: croppedAreaPixels.x, y: croppedAreaPixels.y }
+        });
+        
+        width = fallbackSize;
+        height = fallbackSize;
+        x = fallbackX;
+        y = fallbackY;
+      }
+      
+      console.log('📐 [SimpleImageCrop-createCroppedImage] Final crop dimensions:', {
+        width, height, x, y,
+        canvasSize: { width, height },
+        sourceRect: { x, y, width, height },
+        targetRect: { x: 0, y: 0, width, height }
+      });
+      
       console.log('📐 [SimpleImageCrop-createCroppedImage] Setting canvas dimensions:', {
         width, height, x, y
       });
@@ -132,6 +225,17 @@ const SimpleImageCrop = ({
       canvas.height = height;
       
       console.log('🎨 [SimpleImageCrop-createCroppedImage] Drawing image to canvas...');
+      console.log('🎨 [SimpleImageCrop-createCroppedImage] Canvas drawImage parameters:', {
+        sourceImage: {
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          displayWidth: img.width,
+          displayHeight: img.height
+        },
+        sourceRect: { sx: x, sy: y, sWidth: width, sHeight: height },
+        targetRect: { dx: 0, dy: 0, dWidth: width, dHeight: height }
+      });
+      
       ctx.drawImage(
         img,
         x, y, width, height,
@@ -139,10 +243,21 @@ const SimpleImageCrop = ({
       );
 
       console.log('🔍 [SimpleImageCrop-createCroppedImage] Verifying canvas content...');
-      // Verify canvas has actual image data (not just transparent/black)
-      const imageData = ctx.getImageData(0, 0, Math.min(50, width), Math.min(50, height));
+      console.log('🔍 [SimpleImageCrop-createCroppedImage] Canvas state after drawing:', {
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        contextExists: !!ctx,
+        canvasData: canvas.toDataURL ? 'Can convert to DataURL' : 'Cannot convert'
+      });
+      
+      // Sample a larger area for content verification
+      const sampleWidth = Math.min(100, width);
+      const sampleHeight = Math.min(100, height);
+      const imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
       const pixels = imageData.data;
       let hasContent = false;
+      let nonTransparentPixels = 0;
+      let colorfulPixels = 0;
       
       // Check if canvas has non-transparent, non-black pixels
       for (let i = 0; i < pixels.length; i += 4) {
@@ -151,11 +266,28 @@ const SimpleImageCrop = ({
         const b = pixels[i + 2];
         const a = pixels[i + 3];
         
-        if (a > 0 && (r > 10 || g > 10 || b > 10)) {
-          hasContent = true;
-          break;
+        if (a > 0) {
+          nonTransparentPixels++;
+          if (r > 10 || g > 10 || b > 10) {
+            colorfulPixels++;
+            hasContent = true;
+          }
         }
       }
+      
+      console.log('🔍 [SimpleImageCrop-createCroppedImage] Canvas content analysis:', {
+        totalPixelsChecked: pixels.length / 4,
+        nonTransparentPixels,
+        colorfulPixels,
+        hasContent,
+        sampleArea: { width: sampleWidth, height: sampleHeight },
+        firstPixel: {
+          r: pixels[0],
+          g: pixels[1], 
+          b: pixels[2],
+          a: pixels[3]
+        }
+      });
       
       if (!hasContent) {
         console.error('❌ [SimpleImageCrop-createCroppedImage] Canvas appears to be empty/black');
@@ -277,23 +409,49 @@ const SimpleImageCrop = ({
     >
       <div style={{ position: 'relative', height: '400px', background: '#000' }}>
         {imageUrl && (
-          <Cropper
-            image={imageUrl}
-            crop={crop}
-            zoom={zoom}
-            aspect={selectedAspectRatio}
-            onCropChange={onCropChange}
-            onZoomChange={onZoomChange}
-            onCropComplete={onCropCompleteCallback}
-            style={{
-              containerStyle: {
-                position: 'relative',
-                width: '100%',
-                height: '100%',
-                background: '#000'
-              }
-            }}
-          />
+          <>
+            <div style={{ 
+              position: 'absolute', 
+              top: '5px', 
+              left: '5px', 
+              background: 'rgba(0,0,0,0.7)', 
+              color: 'white', 
+              padding: '2px 6px', 
+              fontSize: '10px',
+              borderRadius: '3px',
+              zIndex: 10
+            }}>
+              Debug: {imageUrl.substring(0, 30)}...
+            </div>
+            <Cropper
+              image={imageUrl}
+              crop={crop}
+              zoom={zoom}
+              aspect={selectedAspectRatio}
+              onCropChange={onCropChange}
+              onZoomChange={onZoomChange}
+              onCropComplete={onCropCompleteCallback}
+              onMediaLoaded={(mediaSize) => {
+                console.log('🎭 [SimpleImageCrop] Media loaded in Cropper:', {
+                  mediaSize,
+                  naturalWidth: mediaSize.naturalWidth,
+                  naturalHeight: mediaSize.naturalHeight,
+                  width: mediaSize.width,
+                  height: mediaSize.height,
+                  aspect: selectedAspectRatio,
+                  zoom: zoom
+                });
+              }}
+              style={{
+                containerStyle: {
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  background: '#000'
+                }
+              }}
+            />
+          </>
         )}
       </div>
       

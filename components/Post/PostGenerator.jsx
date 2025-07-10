@@ -229,21 +229,8 @@ const PostGenerator = () => {
 
     if (!file) return;
 
-    // Check if it's an image or video
-    if (file.type.startsWith("video/")) {
-      // Handle video files (no crop needed)
-      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
-      if (file.size > maxSize) {
-        showError(t('posts.imageSizeError'));
-        return;
-      }
-      
-      setFileType("video");
-      setSelectedFile({
-        file: file,
-        preview: URL.createObjectURL(file)
-      });
-    } else if (file.type.startsWith("image/")) {
+    // Check if it's an image
+    if (file.type.startsWith("image/")) {
       // Handle image files (with crop)
       const validation = validateImageFile(file, 'post');
       if (!validation.isValid) {
@@ -255,7 +242,7 @@ const PostGenerator = () => {
       setFileForCrop(file);
       setShowCropModal(true);
     } else {
-      showError(t('posts.imageUploadError') || 'Please select an image or video file');
+      showError(t('posts.imageUploadError') || 'Please select an image file');
     }
 
     // Clear input value so same file can be selected again
@@ -568,14 +555,6 @@ const PostGenerator = () => {
                       )}
                     </div>
                   )}
-                  {fileType === "video" && (
-                    <video
-                      className={css.preview}
-                      controls
-                      src={selectedFile?.preview}
-                      style={{ borderRadius: "12px" }}
-                    />
-                  )}
                 </div>
               )}
 
@@ -699,10 +678,10 @@ const PostGenerator = () => {
         defaultAspectRatio="square"
       />
 
-      {/* File input - accept both images and videos */}
+      {/* File input - accept only images */}
       <input
         type="file"
-        accept="image/*,video/*"
+        accept="image/jpeg,image/jpg,image/png"
         multiple={false}
         style={{ display: "none" }}
         ref={imgInputRef}

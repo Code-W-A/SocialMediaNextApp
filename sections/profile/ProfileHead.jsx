@@ -217,7 +217,7 @@ const ProfileHead = ({
               }}
             >
               <input
-                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp,image/svg+xml"
+                accept="image/jpeg,image/jpg,image/png"
                 multiple={false}
                 ref={inputRef}
                 onChange={(e) => handleBannerChange(e)}

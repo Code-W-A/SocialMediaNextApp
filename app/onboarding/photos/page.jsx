@@ -356,7 +356,7 @@ export default function PhotosPage() {
   const uploadProps = {
     name: 'file',
     multiple: false,
-    accept: 'image/*',
+    accept: 'image/jpeg,image/jpg,image/png',
     maxCount: 6,
     showUploadList: false, // Hide the default upload list
     beforeUpload: async (file) => {
@@ -803,7 +803,7 @@ export default function PhotosPage() {
                 <div className={photoCss.addMoreButton}>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png"
                     style={{ display: "none" }}
                     id="additionalPhotosInput"
                     onChange={async (e) => {

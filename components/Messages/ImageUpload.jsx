@@ -69,7 +69,7 @@ const ImageUpload = ({ conversation, currentUser, onImageSent }) => {
   return (
     <>
       <Upload
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png"
         showUploadList={false}
         beforeUpload={handleFileSelect}
         multiple={false}

@@ -5,6 +5,9 @@ import { useAuth } from '@/context/AuthContext';
 import { checkOnboardingStatus } from '@/utils/onboardingHelpers';
 import { Spin } from 'antd';
 
+// To reset first-time premium redirect for testing:
+// localStorage.removeItem('firstTimeHome') or localStorage.setItem('firstTimeHome', 'true')
+
 const OnboardingGuard = ({ children }) => {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -40,6 +43,27 @@ const OnboardingGuard = ({ children }) => {
           console.log('🚨 [OnboardingGuard] Redirecting to:', status.nextStep);
           router.push(status.nextStep);
           return;
+        }
+        
+        // Check for first-time visit to home and redirect to premium
+        if (status.isComplete && typeof window !== 'undefined') {
+          const currentPath = window.location.pathname;
+          const firstTimeHomeFlag = localStorage.getItem('firstTimeHome');
+          
+          console.log('🔍 [OnboardingGuard] First-time check:', {
+            currentPath,
+            firstTimeHomeFlag,
+            shouldRedirect: currentPath === '/home' && firstTimeHomeFlag !== 'false'
+          });
+          
+          // Only redirect on /home path and if it's the first time
+          if (currentPath === '/home' && firstTimeHomeFlag !== 'false') {
+            console.log('🎯 [OnboardingGuard] First time on home, redirecting to premium');
+            // Mark as no longer first time BEFORE redirect to prevent loops
+            localStorage.setItem('firstTimeHome', 'false');
+            router.push('/premium');
+            return;
+          }
         }
         
         console.log('✅ [OnboardingGuard] Onboarding complete, allowing access');

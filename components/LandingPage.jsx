@@ -6,6 +6,7 @@ import { useLanguage } from '@/lib/i18n';
 import { Button, Typography, Space, Row, Col, Carousel } from 'antd';
 import { HeartOutlined, MessageOutlined } from '@ant-design/icons';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import LandingBottomNavbar from '@/components/LandingBottomNavbar';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -103,7 +104,7 @@ export default function LandingPage() {
           .slide-content {
             flex-direction: column !important;
             text-align: center !important;
-            padding: 60px 20px 100px 20px !important;
+            padding: 60px 20px 120px 20px !important;
             justify-content: center !important;
             min-height: 100vh !important;
           }
@@ -303,6 +304,19 @@ export default function LandingPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                   <LanguageSwitcher size="small" />
                   <Space className="mobile-header-buttons" style={{ flexWrap: 'wrap' }}>
+                    <Button 
+                      size="large"
+                      onClick={() => router.push('/public-contact')}
+                      style={{
+                        backgroundColor: 'transparent',
+                        borderColor: '#2c3e50',
+                        color: '#2c3e50',
+                        borderRadius: '25px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      {t('landing.contactButton')}
+                    </Button>
                     <Button 
                       size="large"
                       onClick={() => router.push('/sign-in')}
@@ -804,6 +818,9 @@ export default function LandingPage() {
         </div>
         
       </div>
+
+      {/* Mobile Bottom Navbar - only shows on mobile */}
+      <LandingBottomNavbar />
     </>
   );
 } 

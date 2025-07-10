@@ -352,6 +352,89 @@ const AdminDashboard = () => {
     };
   };
 
+  // Helper functions for onboarding and profile statistics
+  const getOnboardingStatus = (user) => {
+    if (!user) return { isComplete: false, completedSteps: 0, totalSteps: 3, percentage: 0 };
+    
+    const hasPhotos = user.images && Array.isArray(user.images) && user.images.length > 0;
+    const hasInterests = user.interests && Array.isArray(user.interests) && user.interests.length > 0;
+    const hasQuestionnaire = user.questionnaire && Object.keys(user.questionnaire || {}).length >= 3;
+    const isMarkedComplete = user.onboardingCompleted === true;
+    
+    let completedSteps = 0;
+    if (hasPhotos) completedSteps++;
+    if (hasInterests) completedSteps++;
+    if (hasQuestionnaire) completedSteps++;
+    
+    const totalSteps = 3;
+    const percentage = Math.round((completedSteps / totalSteps) * 100);
+    const isComplete = isMarkedComplete && hasPhotos && hasInterests && hasQuestionnaire;
+    
+    return {
+      isComplete,
+      completedSteps,
+      totalSteps,
+      percentage,
+      hasPhotos,
+      hasInterests,
+      hasQuestionnaire,
+      isMarkedComplete,
+      missingSteps: [
+        !hasPhotos && 'Photos',
+        !hasInterests && 'Interests', 
+        !hasQuestionnaire && 'Questionnaire'
+      ].filter(Boolean)
+    };
+  };
+
+  const getProfileCompleteness = (user) => {
+    if (!user) return { percentage: 0, missingFields: [] };
+    
+    const fields = {
+      bio: user.bio && user.bio.trim(),
+      location: user.location && user.location.trim(),
+      website: user.website && user.website.trim(),
+      relationshipStatus: user.relationshipStatus && user.relationshipStatus.trim()
+    };
+    
+    const completedFields = Object.values(fields).filter(Boolean).length;
+    const totalFields = Object.keys(fields).length;
+    const percentage = Math.round((completedFields / totalFields) * 100);
+    const missingFields = Object.keys(fields).filter(key => !fields[key]);
+    
+    return { percentage, missingFields, completedFields, totalFields };
+  };
+
+  const getAccountAge = (user) => {
+    if (!user || !user.createdAt) return null;
+    
+    const createdDate = user.createdAt.seconds 
+      ? new Date(user.createdAt.seconds * 1000) 
+      : new Date(user.createdAt);
+    
+    const now = new Date();
+    const diffMs = now - createdDate;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 1) return 'Today';
+    if (diffDays === 1) return '1 day';
+    if (diffDays < 30) return `${diffDays} days`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months`;
+    return `${Math.floor(diffDays / 365)} years`;
+  };
+
+  const getAstrologicalInfo = (user) => {
+    if (!user || !user.questionnaire) return { hasInfo: false };
+    
+    return {
+      hasInfo: true,
+      zodiacSign: user.questionnaire.zodiacSign || null,
+      birthDate: user.questionnaire.birthDate || null,
+      relationshipType: user.questionnaire.relationshipType || null,
+      age: user.age || null
+    };
+  };
+
   const userColumns = [
     {
       title: "User",
@@ -437,6 +520,84 @@ const AdminDashboard = () => {
           )}
         </div>
       ),
+    },
+    {
+      title: "Onboarding",
+      dataIndex: "onboardingCompleted",
+      key: "onboarding",
+      render: (onboardingCompleted, record) => {
+        const status = getOnboardingStatus(record);
+        const profileStatus = getProfileCompleteness(record);
+        
+        return (
+          <Tooltip 
+            title={
+              <div>
+                <div><strong>Onboarding Progress:</strong> {status.completedSteps}/{status.totalSteps} steps</div>
+                <div>✅ Photos: {status.hasPhotos ? 'Complete' : 'Missing'} ({record.images?.length || 0})</div>
+                <div>✅ Interests: {status.hasInterests ? 'Complete' : 'Missing'} ({record.interests?.length || 0})</div>
+                <div>✅ Questionnaire: {status.hasQuestionnaire ? 'Complete' : 'Missing'}</div>
+                {status.missingSteps.length > 0 && (
+                  <div style={{ color: '#ff4d4f' }}><strong>Missing:</strong> {status.missingSteps.join(', ')}</div>
+                )}
+                <div style={{ marginTop: '8px' }}>
+                  <strong>Profile Completeness:</strong> {profileStatus.percentage}%
+                </div>
+                {profileStatus.missingFields.length > 0 && (
+                  <div style={{ fontSize: '11px', color: '#666' }}>
+                    Optional fields: {profileStatus.missingFields.join(', ')}
+                  </div>
+                )}
+                {getAstrologicalInfo(record).hasInfo && (
+                  <div style={{ marginTop: '4px', fontSize: '11px', color: '#1890ff' }}>
+                    🔮 {getAstrologicalInfo(record).zodiacSign} {getAstrologicalInfo(record).age && `• ${getAstrologicalInfo(record).age}y`}
+                  </div>
+                )}
+              </div>
+            }
+          >
+            <div>
+              {status.isComplete ? (
+                <div>
+                  <Tag color="green" icon="✅">Complete</Tag>
+                  <div style={{ fontSize: '11px', color: '#52c41a' }}>
+                    {status.percentage}% • Profile {profileStatus.percentage}%
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <Tag color={status.completedSteps === 0 ? 'red' : 'orange'}>
+                    {status.completedSteps === 0 ? 'Not Started' : `${status.completedSteps}/3 Steps`}
+                  </Tag>
+                  <div style={{ fontSize: '11px', color: status.completedSteps === 0 ? '#ff4d4f' : '#fa8c16' }}>
+                    {status.percentage}% complete
+                  </div>
+                </div>
+              )}
+            </div>
+          </Tooltip>
+        );
+      },
+      sorter: (a, b) => {
+        const aStatus = getOnboardingStatus(a);
+        const bStatus = getOnboardingStatus(b);
+        if (aStatus.isComplete && !bStatus.isComplete) return -1;
+        if (!aStatus.isComplete && bStatus.isComplete) return 1;
+        return bStatus.percentage - aStatus.percentage;
+      },
+      filters: [
+        { text: 'Complete', value: 'complete' },
+        { text: 'In Progress', value: 'in_progress' },
+        { text: 'Not Started', value: 'not_started' },
+      ],
+      onFilter: (value, record) => {
+        const status = getOnboardingStatus(record);
+        if (value === 'complete') return status.isComplete;
+        if (value === 'in_progress') return !status.isComplete && status.completedSteps > 0;
+        if (value === 'not_started') return status.completedSteps === 0;
+        return false;
+      },
+      width: 160,
     },
     {
       title: "Premium Status",
@@ -565,6 +726,67 @@ const AdminDashboard = () => {
        },
       defaultSortOrder: 'descend',
       width: 150,
+    },
+    {
+      title: "Account Age",
+      dataIndex: "createdAt",
+      key: "accountAge",
+      render: (createdAt, record) => {
+        const accountAge = getAccountAge(record);
+        if (!accountAge) return <Text type="secondary">Unknown</Text>;
+        
+        const days = (() => {
+          if (!record.createdAt) return 0;
+          const createdDate = record.createdAt.seconds 
+            ? new Date(record.createdAt.seconds * 1000) 
+            : new Date(record.createdAt);
+          return Math.floor((new Date() - createdDate) / (1000 * 60 * 60 * 24));
+        })();
+        
+        let color = 'default';
+        if (days <= 7) color = 'green';      // New users (1 week)
+        else if (days <= 30) color = 'blue'; // Recent users (1 month)
+        else if (days <= 90) color = 'orange'; // Established users (3 months)
+        else color = 'default';               // Long-term users
+        
+        return (
+          <div>
+            <Tag color={color} size="small">{accountAge}</Tag>
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+              {days === 0 ? 'Today' : `${days} day${days !== 1 ? 's' : ''} ago`}
+            </div>
+          </div>
+        );
+      },
+      sorter: (a, b) => {
+        const getTimestamp = (user) => {
+          if (!user.createdAt) return 0;
+          return user.createdAt.seconds 
+            ? user.createdAt.seconds * 1000 
+            : new Date(user.createdAt).getTime();
+        };
+        return getTimestamp(b) - getTimestamp(a); // Newest first
+      },
+      filters: [
+        { text: 'New (< 1 week)', value: 'new' },
+        { text: 'Recent (< 1 month)', value: 'recent' },
+        { text: 'Established (< 3 months)', value: 'established' },
+        { text: 'Long-term (> 3 months)', value: 'longtime' },
+      ],
+      onFilter: (value, record) => {
+        if (!record.createdAt) return false;
+        const createdDate = record.createdAt.seconds 
+          ? new Date(record.createdAt.seconds * 1000) 
+          : new Date(record.createdAt);
+        const days = Math.floor((new Date() - createdDate) / (1000 * 60 * 60 * 24));
+        
+        if (value === 'new') return days <= 7;
+        if (value === 'recent') return days > 7 && days <= 30;
+        if (value === 'established') return days > 30 && days <= 90;
+        if (value === 'longtime') return days > 90;
+        return false;
+      },
+      width: 120,
     },
     {
       title: "Actions",
@@ -722,6 +944,32 @@ const AdminDashboard = () => {
     }).length
   } : null;
 
+  // Onboarding and engagement statistics
+  const onboardingStats = users ? {
+    completedOnboarding: users.filter(user => getOnboardingStatus(user).isComplete).length,
+    inProgressOnboarding: users.filter(user => {
+      const status = getOnboardingStatus(user);
+      return !status.isComplete && status.completedSteps > 0;
+    }).length,
+    notStartedOnboarding: users.filter(user => getOnboardingStatus(user).completedSteps === 0).length,
+    withPhotos: users.filter(user => getOnboardingStatus(user).hasPhotos).length,
+    withInterests: users.filter(user => getOnboardingStatus(user).hasInterests).length,
+    withQuestionnaire: users.filter(user => getOnboardingStatus(user).hasQuestionnaire).length,
+    fullProfileComplete: users.filter(user => {
+      const profile = getProfileCompleteness(user);
+      return profile.percentage === 100;
+    }).length,
+    hasAstrologyInfo: users.filter(user => getAstrologicalInfo(user).hasInfo).length,
+    recentlyActive: users.filter(user => {
+      if (!user.lastTimeActive) return false;
+      const lastActive = user.lastTimeActive.seconds 
+        ? new Date(user.lastTimeActive.seconds * 1000) 
+        : new Date(user.lastTimeActive);
+      const daysSinceActive = (new Date() - lastActive) / (1000 * 60 * 60 * 24);
+      return daysSinceActive <= 7; // Active within last 7 days
+    }).length
+  } : null;
+
   const tabItems = [
     {
       key: 'users',
@@ -784,6 +1032,116 @@ const AdminDashboard = () => {
                       {premiumStats.cancelingUsers}
                     </div>
                     <div style={{ color: '#666' }}>Canceling</div>
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+          )}
+
+          {/* Onboarding Statistics */}
+          {onboardingStats && (
+            <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                      ✅ {onboardingStats.completedOnboarding}
+                    </div>
+                    <div style={{ color: '#666' }}>Onboarding Complete</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.completedOnboarding / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fa8c16' }}>
+                      🔄 {onboardingStats.inProgressOnboarding}
+                    </div>
+                    <div style={{ color: '#666' }}>In Progress</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.inProgressOnboarding / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ff4d4f' }}>
+                      ❌ {onboardingStats.notStartedOnboarding}
+                    </div>
+                    <div style={{ color: '#666' }}>Not Started</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.notStartedOnboarding / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
+                      📸 {onboardingStats.withPhotos}
+                    </div>
+                    <div style={{ color: '#666' }}>Have Photos</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.withPhotos / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#722ed1' }}>
+                      💎 {onboardingStats.withInterests}
+                    </div>
+                    <div style={{ color: '#666' }}>Have Interests</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.withInterests / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#eb2f96' }}>
+                      🔮 {onboardingStats.hasAstrologyInfo}
+                    </div>
+                    <div style={{ color: '#666' }}>Astrology Info</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.hasAstrologyInfo / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#13c2c2' }}>
+                      📝 {onboardingStats.fullProfileComplete}
+                    </div>
+                    <div style={{ color: '#666' }}>Full Profile</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.fullProfileComplete / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={4}>
+                <Card size="small">
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#52c41a' }}>
+                      🌟 {onboardingStats.recentlyActive}
+                    </div>
+                    <div style={{ color: '#666' }}>Active (7d)</div>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      {premiumStats ? Math.round((onboardingStats.recentlyActive / premiumStats.totalUsers) * 100) : 0}%
+                    </div>
                   </div>
                 </Card>
               </Col>
@@ -1819,6 +2177,116 @@ const AdminDashboard = () => {
                         )}
                       </div>
                     </div>
+
+                    <Divider style={{ margin: '12px 0' }} />
+
+                    {/* Onboarding Status */}
+                    <div>
+                      <Text strong>Onboarding Status:</Text>
+                      <div style={{ marginLeft: '12px', marginTop: '4px' }}>
+                        {(() => {
+                          const onboardingStatus = getOnboardingStatus(viewingUser);
+                          const profileStatus = getProfileCompleteness(viewingUser);
+                          const accountAge = getAccountAge(viewingUser);
+                          const astroInfo = getAstrologicalInfo(viewingUser);
+                          
+                          return (
+                            <>
+                              <div>
+                                <Text type="secondary">Progress:</Text> 
+                                <Tag color={onboardingStatus.isComplete ? 'green' : onboardingStatus.completedSteps > 0 ? 'orange' : 'red'} style={{ marginLeft: '8px' }}>
+                                  {onboardingStatus.isComplete ? '✅ Complete' : `${onboardingStatus.completedSteps}/3 Steps`}
+                                </Tag>
+                                <span style={{ marginLeft: '8px', fontSize: '12px', color: '#666' }}>
+                                  {onboardingStatus.percentage}%
+                                </span>
+                              </div>
+                              <div>
+                                <Text type="secondary">Photos:</Text> 
+                                <Tag color={onboardingStatus.hasPhotos ? 'green' : 'red'} style={{ marginLeft: '8px' }}>
+                                  {onboardingStatus.hasPhotos ? `✅ ${viewingUser.images?.length || 0} photos` : '❌ No photos'}
+                                </Tag>
+                              </div>
+                              <div>
+                                <Text type="secondary">Interests:</Text> 
+                                <Tag color={onboardingStatus.hasInterests ? 'green' : 'red'} style={{ marginLeft: '8px' }}>
+                                  {onboardingStatus.hasInterests ? `✅ ${viewingUser.interests?.length || 0} interests` : '❌ No interests'}
+                                </Tag>
+                              </div>
+                              <div>
+                                <Text type="secondary">Questionnaire:</Text> 
+                                <Tag color={onboardingStatus.hasQuestionnaire ? 'green' : 'red'} style={{ marginLeft: '8px' }}>
+                                  {onboardingStatus.hasQuestionnaire ? '✅ Complete' : '❌ Incomplete'}
+                                </Tag>
+                              </div>
+                              <div>
+                                <Text type="secondary">Profile Completeness:</Text> 
+                                <Tag color={profileStatus.percentage === 100 ? 'green' : profileStatus.percentage > 50 ? 'orange' : 'red'} style={{ marginLeft: '8px' }}>
+                                  {profileStatus.percentage}%
+                                </Tag>
+                                {profileStatus.missingFields.length > 0 && (
+                                  <span style={{ marginLeft: '8px', fontSize: '11px', color: '#999' }}>
+                                    Missing: {profileStatus.missingFields.join(', ')}
+                                  </span>
+                                )}
+                              </div>
+                              {accountAge && (
+                                <div>
+                                  <Text type="secondary">Account Age:</Text> 
+                                  <span style={{ marginLeft: '8px' }}>{accountAge}</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Astrology Information */}
+                    {(() => {
+                      const astroInfo = getAstrologicalInfo(viewingUser);
+                      if (astroInfo.hasInfo) {
+                        return (
+                          <>
+                            <Divider style={{ margin: '12px 0' }} />
+                            <div>
+                              <Text strong>🔮 Astrology Information:</Text>
+                              <div style={{ marginLeft: '12px', marginTop: '4px' }}>
+                                {astroInfo.zodiacSign && (
+                                  <div>
+                                    <Text type="secondary">Zodiac Sign:</Text> 
+                                    <Tag color="purple" style={{ marginLeft: '8px' }}>
+                                      {astroInfo.zodiacSign}
+                                    </Tag>
+                                  </div>
+                                )}
+                                {astroInfo.birthDate && (
+                                  <div>
+                                    <Text type="secondary">Birth Date:</Text> 
+                                    <span style={{ marginLeft: '8px' }}>{astroInfo.birthDate}</span>
+                                  </div>
+                                )}
+                                {astroInfo.relationshipType && (
+                                  <div>
+                                    <Text type="secondary">Relationship Type:</Text> 
+                                    <Tag color="blue" style={{ marginLeft: '8px' }}>
+                                      {astroInfo.relationshipType}
+                                    </Tag>
+                                  </div>
+                                )}
+                                {astroInfo.age && (
+                                  <div>
+                                    <Text type="secondary">Calculated Age:</Text> 
+                                    <span style={{ marginLeft: '8px' }}>{astroInfo.age} years</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     <Divider style={{ margin: '12px 0' }} />
 

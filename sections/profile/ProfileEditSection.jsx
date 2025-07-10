@@ -375,9 +375,31 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
     // Only enable cropping for images that were successfully decoded locally
     if (ENABLE_CROP && previewUrl && !serverProcessedData) {
-      setCropImageUrl(previewUrl);
-      setCropOriginalFile(workingFile);
-      setShowCropModal(true);
+      // Test if the image is actually loadable before opening crop
+      const testImg = new Image();
+      testImg.onload = () => {
+        console.log('✅ [ProfileEdit] Image validated, opening crop modal');
+        setCropImageUrl(previewUrl);
+        setCropOriginalFile(workingFile);
+        setShowCropModal(true);
+      };
+      testImg.onerror = (e) => {
+        console.error('❌ [ProfileEdit] Image failed validation test:', e);
+        URL.revokeObjectURL(previewUrl);
+        
+        // Show error modal for failed images
+        Modal.confirm({
+          title: t('profileEdit.imageNotWorkingTitle'),
+          content: t('profileEdit.imageNotWorkingMessage'),
+          okText: t('profileEdit.tryDifferentImage'),
+          cancelText: t('common.cancel'),
+          icon: <Iconify icon="eva:alert-triangle-fill" style={{ color: '#faad14' }} />,
+          onOk: () => {
+            // User acknowledges, nothing else to do
+          }
+        });
+      };
+      testImg.src = previewUrl;
       return;
     }
 

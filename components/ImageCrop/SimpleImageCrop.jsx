@@ -102,7 +102,7 @@ const SimpleImageCrop = ({
         console.log('🔍 [SimpleImageCrop] Canvas dimensions:', { width, height });
         console.log('🔍 [SimpleImageCrop] Crop area:', croppedAreaPixels);
         console.log('🔍 [SimpleImageCrop] Image src:', imgSrc);
-        throw new Error('Cropped area appears to be empty');
+        throw new Error('IMAGE_APPEARS_BLACK');
       }
       
       console.log('✅ [SimpleImageCrop] Canvas contains valid image data');
@@ -119,7 +119,7 @@ const SimpleImageCrop = ({
           // Verify blob is valid
           if (blob.size === 0) {
             console.error('❌ [SimpleImageCrop] Blob is empty');
-            throw new Error('Cropped image is empty');
+            throw new Error('BLOB_IS_EMPTY');
           }
           
           const croppedFile = new File([blob], 'cropped.jpg', { type: 'image/jpeg' });
@@ -149,20 +149,47 @@ const SimpleImageCrop = ({
           testImg.onerror = (e) => {
             console.error('❌ [SimpleImageCrop] Preview URL is not loadable:', e);
             URL.revokeObjectURL(previewUrl);
-            throw new Error('Failed to create valid preview URL');
+            throw new Error('PREVIEW_URL_INVALID');
           };
           testImg.src = previewUrl;
           
         } else {
           console.error('❌ [SimpleImageCrop] Failed to create blob from canvas');
-          throw new Error('Failed to create blob from canvas');
+          throw new Error('CANVAS_TO_BLOB_FAILED');
         }
       }, 'image/jpeg', 0.9);
 
     } catch (error) {
       console.error('❌ Error cropping image:', error);
-      message.error(t('imageCrop.cropError') || 'Error cropping image');
       setLoading(false);
+
+      // Check for specific error types to provide better user feedback
+      if (error.message === 'IMAGE_APPEARS_BLACK' || 
+          error.message === 'BLOB_IS_EMPTY' || 
+          error.message === 'PREVIEW_URL_INVALID' || 
+          error.message === 'CANVAS_TO_BLOB_FAILED') {
+        
+        console.warn('🚫 [SimpleImageCrop] Image processing failed - suggesting different image');
+        
+        // Show custom modal for problematic images
+        Modal.confirm({
+          title: t('profileEdit.imageNotWorkingTitle'),
+          content: t('profileEdit.imageNotWorkingMessage'),
+          okText: t('profileEdit.tryDifferentImage'),
+          cancelText: t('common.cancel'),
+          icon: <Iconify icon="eva:alert-triangle-fill" style={{ color: '#faad14' }} />,
+          onOk: () => {
+            // Close crop modal and reset
+            handleCancel();
+          },
+          onCancel: () => {
+            // User wants to try again with same image - just dismiss this dialog
+          }
+        });
+      } else {
+        // Generic error - show normal error message
+        message.error(t('imageCrop.cropError') || 'Error cropping image');
+      }
     }
   };
 
@@ -221,6 +248,28 @@ const SimpleImageCrop = ({
             onCropChange={onCropChange}
             onZoomChange={onZoomChange}
             onCropComplete={onCropCompleteCallback}
+            onMediaLoaded={(mediaSize) => {
+              console.log('✅ [SimpleImageCrop] Cropper media loaded successfully:', mediaSize);
+            }}
+            onError={(error) => {
+              console.error('❌ [SimpleImageCrop] Cropper failed to load image:', error);
+              
+              // Show specific error for cropper failures
+              Modal.confirm({
+                title: t('profileEdit.imageNotWorkingTitle'),
+                content: t('profileEdit.imageFailedToLoad'),
+                okText: t('profileEdit.tryDifferentImage'),
+                cancelText: t('common.cancel'),
+                icon: <Iconify icon="eva:alert-triangle-fill" style={{ color: '#faad14' }} />,
+                onOk: () => {
+                  // Close crop modal and reset
+                  handleCancel();
+                },
+                onCancel: () => {
+                  // User wants to try again - just dismiss this dialog
+                }
+              });
+            }}
             style={{
               containerStyle: {
                 position: 'relative',

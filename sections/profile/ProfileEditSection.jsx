@@ -87,6 +87,8 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
   const [showGpsInfo, setShowGpsInfo] = useState(false);
   const [showLocationDialog, setShowLocationDialog] = useState(false);
+  // State for enhanced main photo selection
+  const [isSelectingMainPhoto, setIsSelectingMainPhoto] = useState(false);
   // Crop disabled
 
   // Check if this is the current user's profile
@@ -347,6 +349,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             if (prev.length === 0) {
               setMainImageId(fileObject.uid);
               setMainImageIndex(0);
+              console.log('🌟 [ProfileEdit] First image automatically set as main:', fileObject.uid);
             }
             return newImages;
           });
@@ -392,6 +395,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       if (prev.length === 0) {
         setMainImageId(fileObject.uid);
         setMainImageIndex(0);
+        console.log('🌟 [ProfileEdit] First image automatically set as main:', fileObject.uid);
       }
       return newImages;
     });
@@ -462,18 +466,61 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   };
 
   const handleSetMainImage = (index) => {
-    setMainImageIndex(index);
+    // If not in selection mode, just return - user must use the button first
+    if (!isSelectingMainPhoto && uploadedImages.length > 1) {
+      return;
+    }
     
-    // Also set the main image ID for reliable tracking
     const selectedImage = uploadedImages[index];
     const imageId = selectedImage?.fileName || selectedImage?.uid;
+    
+    // Reorder images: move selected image to first position
+    const newUploadedImages = [...uploadedImages];
+    const newPreviewImages = [...previewImages];
+    
+    // Move selected image to first position
+    const selectedUploadedImage = newUploadedImages.splice(index, 1)[0];
+    const selectedPreviewImage = newPreviewImages.splice(index, 1)[0];
+    
+    newUploadedImages.unshift(selectedUploadedImage);
+    newPreviewImages.unshift(selectedPreviewImage);
+    
+    setUploadedImages(newUploadedImages);
+    setPreviewImages(newPreviewImages);
+    setMainImageIndex(0); // First image is now main
     setMainImageId(imageId);
     
-    console.log('🔄 [ProfileEdit] Main image changed:', {
-      index,
-      imageId,
-      imageName: selectedImage?.name
+    // Exit selection mode and show success message
+    setIsSelectingMainPhoto(false);
+    message.success(t('profileEdit.mainPhotoUpdated'));
+    
+    console.log('🔄 [ProfileEdit] Main image changed and reordered:', {
+      newMainImageId: imageId,
+      imageName: selectedImage?.name,
+      newOrder: newUploadedImages.map(img => img.name || img.fileName)
     });
+  };
+
+  // Function to start main photo selection mode
+  const handleStartSelectMainPhoto = () => {
+    setIsSelectingMainPhoto(true);
+    message.info(t('profileEdit.selectImageToSetMain'));
+  };
+
+  // Function to cancel main photo selection
+  const handleCancelSelectMainPhoto = () => {
+    setIsSelectingMainPhoto(false);
+  };
+
+  // Enhanced handle click on photo
+  const handlePhotoClick = (index) => {
+    if (isSelectingMainPhoto) {
+      handleSetMainImage(index);
+    } else if (uploadedImages.length === 1) {
+      // For single image, allow normal click behavior (could show preview)
+      return;
+    }
+    // For multiple images, do nothing unless in selection mode
   };
 
   const handleRemoveImage = (indexToRemove) => {
@@ -919,9 +966,47 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                   <Text strong style={{ fontSize: "16px", color: "#333" }}>
                     {t('profileEdit.yourPhotosCount', { count: previewImages.length })}
                   </Text>
-                  <Text type="secondary" style={{ fontSize: "14px" }}>
-                    {uploadedImages.length >= 6 ? t('profileEdit.maxPhotosReached') : t('profileEdit.tapToSetMain')}
-                  </Text>
+                  
+                  {/* Set Main Photo Button - Show only when there are more than 1 photo */}
+                  {uploadedImages.length > 1 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {isSelectingMainPhoto ? (
+                        <>
+                          <Button 
+                            size="small" 
+                            onClick={handleCancelSelectMainPhoto}
+                            style={{ borderRadius: "6px" }}
+                          >
+                            {t('profileEdit.cancelSelection')}
+                          </Button>
+                          <Text type="secondary" style={{ fontSize: "12px", color: "#1890ff" }}>
+                            {t('profileEdit.setMainPhotoMode')}
+                          </Text>
+                        </>
+                      ) : (
+                        <Button 
+                          type="primary" 
+                          size="small" 
+                          icon={<Iconify icon="eva:star-fill" width="14px" />}
+                          onClick={handleStartSelectMainPhoto}
+                          style={{ 
+                            borderRadius: "6px",
+                            background: "linear-gradient(135deg, #1890ff, #40a9ff)",
+                            border: "none",
+                            fontWeight: "500"
+                          }}
+                        >
+                          {t('profileEdit.setMainPhoto')}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  
+                  {uploadedImages.length === 1 && (
+                    <Text type="secondary" style={{ fontSize: "14px" }}>
+                      {uploadedImages.length >= 6 ? t('profileEdit.maxPhotosReached') : t('profileEdit.tapToSetMain')}
+                    </Text>
+                  )}
                 </div>
                 
                 <div className={photoCss.photoGrid}>
@@ -929,7 +1014,18 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                     <div 
                       key={preview.uid}
                       className={`${photoCss.photoItem} ${index === mainImageIndex ? photoCss.mainPhoto : ''}`}
-                      onClick={() => handleSetMainImage(index)}
+                      onClick={() => handlePhotoClick(index)}
+                      style={{
+                        cursor: isSelectingMainPhoto || uploadedImages.length === 1 ? 'pointer' : 'default',
+                        transform: isSelectingMainPhoto && index !== mainImageIndex ? 'scale(0.95)' : 'scale(1)',
+                        transition: 'all 0.2s ease',
+                        opacity: isSelectingMainPhoto && index !== mainImageIndex ? 0.7 : 1,
+                        boxShadow: isSelectingMainPhoto && index !== mainImageIndex 
+                          ? '0 4px 12px rgba(24, 144, 255, 0.3)' 
+                          : index === mainImageIndex 
+                            ? '0 4px 16px rgba(24, 144, 255, 0.4)' 
+                            : '0 2px 8px rgba(0, 0, 0, 0.1)'
+                      }}
                     >
                       <div className={photoCss.photoContainer}>
                         <Image
@@ -945,10 +1041,39 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                         />
                         
                         {/* Main Photo Badge */}
-                        {index === mainImageIndex && (
+                        {index === mainImageIndex && !isSelectingMainPhoto && (
                           <div className={photoCss.mainBadge}>
                             <Iconify icon="eva:star-fill" width="10px" />
                             <span>Main</span>
+                          </div>
+                        )}
+                        
+                        {/* Selection Mode Overlay */}
+                        {isSelectingMainPhoto && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '6px',
+                            right: '6px',
+                            left: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: index === mainImageIndex 
+                              ? 'rgba(24, 144, 255, 0.9)'
+                              : 'rgba(0, 0, 0, 0.6)',
+                            borderRadius: '6px',
+                            padding: '4px 8px',
+                            zIndex: 2
+                          }}>
+                            {index === mainImageIndex ? (
+                              <Text style={{ color: 'white', fontSize: '10px', fontWeight: '600' }}>
+                                Current Main
+                              </Text>
+                            ) : (
+                              <Text style={{ color: 'white', fontSize: '10px', fontWeight: '600' }}>
+                                Tap to Set Main
+                              </Text>
+                            )}
                           </div>
                         )}
                         
@@ -1291,6 +1416,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
               if (prev.length === 0) {
                 setMainImageId(fileObject.uid);
                 setMainImageIndex(0);
+                console.log('🌟 [ProfileEdit] First cropped image automatically set as main:', fileObject.uid);
               }
               return newImages;
             });

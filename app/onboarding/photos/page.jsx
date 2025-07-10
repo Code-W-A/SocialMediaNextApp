@@ -39,6 +39,8 @@ export default function PhotosPage() {
   const [mainImageIndex, setMainImageIndex] = useState(0);
   const [previewImages, setPreviewImages] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
+  // State for enhanced main photo selection
+  const [isSelectingMainPhoto, setIsSelectingMainPhoto] = useState(false);
   // Crop functionality state
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState(null);
@@ -239,7 +241,15 @@ export default function PhotosPage() {
             serverProcessed: true
           };
           
-          setUploadedImages(prev => [...prev, fileObject]);
+          setUploadedImages(prev => {
+            const newImages = [...prev, fileObject];
+            // If this is the first image, make it main
+            if (prev.length === 0) {
+              setMainImageIndex(0);
+              console.log('🌟 [OnboardingPhotos] First image automatically set as main:', fileObject.uid);
+            }
+            return newImages;
+          });
           setPreviewImages(prev => [...prev, {
             url: serverResult.url,
             file: fileObject,
@@ -282,7 +292,15 @@ export default function PhotosPage() {
       originFileObj: workingFile instanceof File ? workingFile : undefined,
       url: !(workingFile instanceof File) ? previewUrl : undefined
     };
-    setUploadedImages(prev => [...prev, fileObject]);
+    setUploadedImages(prev => {
+      const newImages = [...prev, fileObject];
+      // If this is the first image, make it main
+      if (prev.length === 0) {
+        setMainImageIndex(0);
+        console.log('🌟 [OnboardingPhotos] First image automatically set as main:', fileObject.uid);
+      }
+      return newImages;
+    });
     setPreviewImages(prev => [...prev, {url: previewUrl, file: fileObject, uid: fileObject.uid}]);
   };
 
@@ -421,7 +439,58 @@ export default function PhotosPage() {
   };
 
   const handleSetMainImage = (index) => {
-    setMainImageIndex(index);
+    // If not in selection mode, just return - user must use the button first
+    if (!isSelectingMainPhoto && uploadedImages.length > 1) {
+      return;
+    }
+    
+    const selectedImage = uploadedImages[index];
+    
+    // Reorder images: move selected image to first position
+    const newUploadedImages = [...uploadedImages];
+    const newPreviewImages = [...previewImages];
+    
+    // Move selected image to first position
+    const selectedUploadedImage = newUploadedImages.splice(index, 1)[0];
+    const selectedPreviewImage = newPreviewImages.splice(index, 1)[0];
+    
+    newUploadedImages.unshift(selectedUploadedImage);
+    newPreviewImages.unshift(selectedPreviewImage);
+    
+    setUploadedImages(newUploadedImages);
+    setPreviewImages(newPreviewImages);
+    setMainImageIndex(0); // First image is now main
+    
+    // Exit selection mode and show success message
+    setIsSelectingMainPhoto(false);
+    message.success(t('profileEdit.mainPhotoUpdated'));
+    
+    console.log('🔄 [OnboardingPhotos] Main image changed and reordered:', {
+      imageName: selectedImage?.name,
+      newOrder: newUploadedImages.map(img => img.name || img.fileName)
+    });
+  };
+
+  // Function to start main photo selection mode
+  const handleStartSelectMainPhoto = () => {
+    setIsSelectingMainPhoto(true);
+    message.info(t('profileEdit.selectImageToSetMain'));
+  };
+
+  // Function to cancel main photo selection
+  const handleCancelSelectMainPhoto = () => {
+    setIsSelectingMainPhoto(false);
+  };
+
+  // Enhanced handle click on photo
+  const handlePhotoClick = (index) => {
+    if (isSelectingMainPhoto) {
+      handleSetMainImage(index);
+    } else if (uploadedImages.length === 1) {
+      // For single image, allow normal click behavior (could show preview)
+      return;
+    }
+    // For multiple images, do nothing unless in selection mode
   };
 
   const handleRemoveImage = (indexToRemove) => {
@@ -557,9 +626,47 @@ export default function PhotosPage() {
               <Text strong style={{ fontSize: "16px", color: "#333" }}>
                 {t('onboarding.yourPhotos', { count: previewImages.length })}
               </Text>
-              <Text type="secondary" style={{ fontSize: "14px" }}>
-                {uploadedImages.length >= 6 ? t('onboarding.maxPhotosReachedLabel') : t('onboarding.tapToSetMain')}
-              </Text>
+              
+              {/* Set Main Photo Button - Show only when there are more than 1 photo */}
+              {uploadedImages.length > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  {isSelectingMainPhoto ? (
+                    <>
+                      <Button 
+                        size="small" 
+                        onClick={handleCancelSelectMainPhoto}
+                        style={{ borderRadius: "6px" }}
+                      >
+                        {t('profileEdit.cancelSelection')}
+                      </Button>
+                      <Text type="secondary" style={{ fontSize: "12px", color: "#1890ff" }}>
+                        {t('profileEdit.setMainPhotoMode')}
+                      </Text>
+                    </>
+                  ) : (
+                    <Button 
+                      type="primary" 
+                      size="small" 
+                      icon={<Iconify icon="eva:star-fill" width="14px" />}
+                      onClick={handleStartSelectMainPhoto}
+                      style={{ 
+                        borderRadius: "6px",
+                        background: "linear-gradient(135deg, #1890ff, #40a9ff)",
+                        border: "none",
+                        fontWeight: "500"
+                      }}
+                    >
+                      {t('profileEdit.setMainPhoto')}
+                    </Button>
+                  )}
+                </div>
+              )}
+              
+              {uploadedImages.length === 1 && (
+                <Text type="secondary" style={{ fontSize: "14px" }}>
+                  {uploadedImages.length >= 6 ? t('onboarding.maxPhotosReachedLabel') : t('onboarding.tapToSetMain')}
+                </Text>
+              )}
             </div>
             
             <div className={photoCss.photoGrid}>
@@ -567,7 +674,18 @@ export default function PhotosPage() {
                 <div 
                   key={preview.uid}
                   className={`${photoCss.photoItem} ${index === mainImageIndex ? photoCss.mainPhoto : ''}`}
-                  onClick={() => handleSetMainImage(index)}
+                  onClick={() => handlePhotoClick(index)}
+                  style={{
+                    cursor: isSelectingMainPhoto || uploadedImages.length === 1 ? 'pointer' : 'default',
+                    transform: isSelectingMainPhoto && index !== mainImageIndex ? 'scale(0.95)' : 'scale(1)',
+                    transition: 'all 0.2s ease',
+                    opacity: isSelectingMainPhoto && index !== mainImageIndex ? 0.7 : 1,
+                    boxShadow: isSelectingMainPhoto && index !== mainImageIndex 
+                      ? '0 4px 12px rgba(24, 144, 255, 0.3)' 
+                      : index === mainImageIndex 
+                        ? '0 4px 16px rgba(24, 144, 255, 0.4)' 
+                        : '0 2px 8px rgba(0, 0, 0, 0.1)'
+                  }}
                 >
                   <div className={photoCss.photoContainer}>
                     <Image
@@ -583,10 +701,39 @@ export default function PhotosPage() {
                     />
                     
                     {/* Main Photo Badge */}
-                    {index === mainImageIndex && (
+                    {index === mainImageIndex && !isSelectingMainPhoto && (
                       <div className={photoCss.mainBadge}>
                         <Iconify icon="eva:star-fill" width="10px" />
                         <span>{t('onboarding.main')}</span>
+                      </div>
+                    )}
+                    
+                    {/* Selection Mode Overlay */}
+                    {isSelectingMainPhoto && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '6px',
+                        right: '6px',
+                        left: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: index === mainImageIndex 
+                          ? 'rgba(24, 144, 255, 0.9)'
+                          : 'rgba(0, 0, 0, 0.6)',
+                        borderRadius: '6px',
+                        padding: '4px 8px',
+                        zIndex: 2
+                      }}>
+                        {index === mainImageIndex ? (
+                          <Text style={{ color: 'white', fontSize: '10px', fontWeight: '600' }}>
+                            Current Main
+                          </Text>
+                        ) : (
+                          <Text style={{ color: 'white', fontSize: '10px', fontWeight: '600' }}>
+                            Tap to Set Main
+                          </Text>
+                        )}
                       </div>
                     )}
                     
@@ -734,7 +881,15 @@ export default function PhotosPage() {
           
           console.log('📸 [OnboardingPhotos] Adding to preview images:', previewObject);
           
-          setUploadedImages(prev => [...prev, fileObject]);
+          setUploadedImages(prev => {
+            const newImages = [...prev, fileObject];
+            // If this is the first image, make it main
+            if (prev.length === 0) {
+              setMainImageIndex(0);
+              console.log('🌟 [OnboardingPhotos] First cropped image automatically set as main:', fileObject.uid);
+            }
+            return newImages;
+          });
           setPreviewImages(prev => [...prev, previewObject]);
           
           setShowCropModal(false);

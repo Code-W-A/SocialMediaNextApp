@@ -15,7 +15,7 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { createImageObject } from "@/utils/imageHelpers";
 import { v4 as uuidv4 } from 'uuid';
 import SimpleImageCrop from "@/components/ImageCrop/SimpleImageCrop";
-import { validateImageFile, standardizeImage, testImageIntegrity } from "@/utils/imageValidation";
+import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
 import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
 const serverFixImage = async (file) => {
   const fd = new FormData();
@@ -206,18 +206,6 @@ export default function PhotosPage() {
       return;
     }
 
-    // FIRST: Test image integrity before any processing
-    console.log('🔍 [OnboardingPhotos] Testing image integrity before processing...');
-    const isImageAcceptable = await testImageIntegrity(file);
-    
-    if (!isImageAcceptable) {
-      console.log('❌ [OnboardingPhotos] Image failed integrity test - rejecting immediately');
-      message.error(t('profileEdit.imageNotAccepted'));
-      return;
-    }
-    
-    console.log('✅ [OnboardingPhotos] Image passed integrity test - continuing with processing');
-
     const hide = message.loading(t('onboarding.processingImage') || 'Processing image...', 0);
 
     let workingFile = file;
@@ -274,7 +262,7 @@ export default function PhotosPage() {
         } catch (errFinal) {
           console.error('❌ All repair steps failed:', errFinal);
           hide();
-          message.error(t('profileEdit.imageNotAccepted'));
+          message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be accepted.');
           return;
         }
       }

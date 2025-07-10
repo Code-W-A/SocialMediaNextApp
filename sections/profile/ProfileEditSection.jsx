@@ -302,15 +302,41 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   // Force all images through server processing for maximum compatibility
   const FORCE_SERVER_PROCESSING = true;
 
+  console.log('🔧 [ProfileEdit-State] Current crop modal state:', {
+    showCropModal,
+    cropImageUrl: cropImageUrl ? 'SET' : 'NULL',
+    cropOriginalFile: cropOriginalFile ? 'SET' : 'NULL',
+    ENABLE_CROP,
+    FORCE_SERVER_PROCESSING
+  });
+
   const addImageDirect = async (file) => {
-    if (file.__handled) return;
+    console.log('🚀 [ProfileEdit-addImageDirect] STARTING - File details:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      isHandled: file.__handled,
+      uploadedImagesCount: uploadedImages.length
+    });
+
+    if (file.__handled) {
+      console.log('⚠️ [ProfileEdit-addImageDirect] File already handled, returning');
+      return;
+    }
     file.__handled = true;
-    if (!file) return;
+    
+    if (!file) {
+      console.log('❌ [ProfileEdit-addImageDirect] No file provided');
+      return;
+    }
+    
     if (uploadedImages.length >= 6) {
+      console.log('⚠️ [ProfileEdit-addImageDirect] Max photos reached:', uploadedImages.length);
       message.warning(t('profileEdit.maxPhotosReachedLabel'));
       return;
     }
 
+    console.log('⏳ [ProfileEdit-addImageDirect] Starting processing with FORCE_SERVER_PROCESSING:', FORCE_SERVER_PROCESSING);
     const hide = message.loading(t('profileEdit.processingImage') || 'Processing image...', 0);
 
     let workingFile = file;
@@ -320,26 +346,43 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     // If FORCE_SERVER_PROCESSING is enabled, skip local checks and go directly to server
     if (FORCE_SERVER_PROCESSING) {
       try {
-        console.log('🔧 [ProfileEdit] Force processing through server for standardization...');
+        console.log('🔧 [ProfileEdit-addImageDirect] Force processing through server for standardization...');
         const serverResult = await serverFixImage(file);
         serverProcessedData = serverResult;
-        console.log('✅ [ProfileEdit] Image standardized on server:', serverResult.url);
+        console.log('✅ [ProfileEdit-addImageDirect] Image standardized on server:', {
+          url: serverResult.url,
+          fileName: serverResult.fileName
+        });
         
         hide();
         
-        // After server processing, show crop modal with the server-processed image
+        // After server processing, ALWAYS show crop modal
         if (ENABLE_CROP) {
+          console.log('🎭 [ProfileEdit-addImageDirect] ENABLE_CROP is true, opening crop modal with:', {
+            imageUrl: serverResult.url,
+            enableCrop: ENABLE_CROP,
+            showCropModal: showCropModal
+          });
+          
           setCropImageUrl(serverResult.url);
           setCropOriginalFile(file); // Keep original file reference
+          
+          console.log('🎭 [ProfileEdit-addImageDirect] Setting crop modal state...');
           setShowCropModal(true);
           
           // Store server data for later use after crop
           window.tempServerData = serverResult;
-          message.success(t('profileEdit.imageStandardizedServer') || 'Image standardized successfully! ✨');
+          console.log('💾 [ProfileEdit-addImageDirect] Stored server data in window.tempServerData:', window.tempServerData);
+          
+          message.success(t('profileEdit.imageStandardizedServer') || 'Image standardized successfully! Now crop it ✨');
+          console.log('🎭 [ProfileEdit-addImageDirect] Crop modal should be visible now, returning');
           return;
+        } else {
+          console.log('❌ [ProfileEdit-addImageDirect] ENABLE_CROP is false:', ENABLE_CROP);
         }
         
         // If crop is disabled, add directly
+        console.log('➡️ [ProfileEdit-addImageDirect] Crop disabled, adding image directly');
         const fileObject = {
           uid: `direct-${Date.now()}`,
           name: serverResult.fileName || `image_${Date.now()}.jpg`,
@@ -349,48 +392,67 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
           serverProcessed: true
         };
         
+        console.log('📸 [ProfileEdit-addImageDirect] Created fileObject:', fileObject);
+        
         setUploadedImages(prev => {
           const newImages = [...prev, fileObject];
           // If this is the first image, make it main
           if (prev.length === 0) {
             setMainImageId(fileObject.uid);
             setMainImageIndex(0);
-            console.log('🌟 [ProfileEdit] First image automatically set as main:', fileObject.uid);
+            console.log('🌟 [ProfileEdit-addImageDirect] First image automatically set as main:', fileObject.uid);
           }
+          console.log('📋 [ProfileEdit-addImageDirect] Updated uploadedImages:', newImages);
           return newImages;
         });
-        setPreviewImages(prev => [...prev, {
-          url: serverResult.url,
-          file: fileObject,
-          uid: fileObject.uid
-        }]);
+        setPreviewImages(prev => {
+          const newPreviews = [...prev, {
+            url: serverResult.url,
+            file: fileObject,
+            uid: fileObject.uid
+          }];
+          console.log('🖼️ [ProfileEdit-addImageDirect] Updated previewImages:', newPreviews);
+          return newPreviews;
+        });
         
         message.success(t('profileEdit.imageStandardizedServer') || 'Image standardized successfully! ✨');
+        console.log('✅ [ProfileEdit-addImageDirect] Direct add completed successfully');
         return;
         
       } catch (serverError) {
-        console.error('❌ [ProfileEdit] Server processing failed:', serverError);
+        console.error('❌ [ProfileEdit-addImageDirect] Server processing failed:', {
+          error: serverError,
+          message: serverError.message,
+          stack: serverError.stack
+        });
         hide();
         message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be processed. Please try a different image.');
         return;
       }
     }
 
+    console.log('🔄 [ProfileEdit-addImageDirect] FORCE_SERVER_PROCESSING disabled, using legacy fallback');
+    
     // Legacy fallback processing (when FORCE_SERVER_PROCESSING is false)
     try {
+      console.log('🔍 [ProfileEdit-addImageDirect] Testing image decode capability...');
       await canDecodeImage(workingFile, 2500);
       previewUrl = URL.createObjectURL(workingFile);
+      console.log('✅ [ProfileEdit-addImageDirect] Image decode successful, previewUrl:', previewUrl);
     } catch {
+      console.log('⚠️ [ProfileEdit-addImageDirect] Image decode failed, trying repair...');
       try {
         workingFile = await tryRepairJpeg(file);
         await canDecodeImage(workingFile, 2500);
         previewUrl = URL.createObjectURL(workingFile);
+        console.log('🔧 [ProfileEdit-addImageDirect] Image repaired successfully');
         message.info(t('profileEdit.imageAutoRepaired') || 'Image auto-repaired ✔️');
       } catch {
+        console.log('❌ [ProfileEdit-addImageDirect] Local repair failed, trying server...');
         try {
           const serverResult = await serverFixImage(file);
           serverProcessedData = serverResult;
-          console.log('✅ [ProfileEdit] Server repaired image:', serverResult.url);
+          console.log('✅ [ProfileEdit-addImageDirect] Server repaired image:', serverResult.url);
           message.info(t('profileEdit.imageFixedServer') || 'Image processed on server ✔️');
           
           hide();
@@ -404,13 +466,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             serverProcessed: true
           };
           
+          console.log('📸 [ProfileEdit-addImageDirect] Server-processed fileObject:', fileObject);
+          
           setUploadedImages(prev => {
             const newImages = [...prev, fileObject];
             // If this is the first image, make it main
             if (prev.length === 0) {
               setMainImageId(fileObject.uid);
               setMainImageIndex(0);
-              console.log('🌟 [ProfileEdit] First image automatically set as main:', fileObject.uid);
+              console.log('🌟 [ProfileEdit-addImageDirect] First image automatically set as main:', fileObject.uid);
             }
             return newImages;
           });
@@ -424,7 +488,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
           return;
           
         } catch (errFinal) {
-          console.error('❌ All repair steps failed:', errFinal);
+          console.error('❌ [ProfileEdit-addImageDirect] All repair steps failed:', errFinal);
           hide();
           message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be accepted.');
           return;
@@ -433,9 +497,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     }
 
     hide();
+    console.log('🎭 [ProfileEdit-addImageDirect] Checking crop conditions:', {
+      ENABLE_CROP,
+      hasPreviewUrl: !!previewUrl,
+      hasServerProcessedData: !!serverProcessedData
+    });
 
     // Only enable cropping for images that were successfully decoded locally
     if (ENABLE_CROP && previewUrl && !serverProcessedData) {
+      console.log('🎭 [ProfileEdit-addImageDirect] Opening crop modal for locally processed image');
       setCropImageUrl(previewUrl);
       setCropOriginalFile(workingFile);
       setShowCropModal(true);
@@ -443,6 +513,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     }
 
     // For non-cropped images, add them directly
+    console.log('➡️ [ProfileEdit-addImageDirect] Adding image directly without crop');
     const fileObject = {
       uid: `direct-${Date.now()}`,
       name: workingFile.name || `image_${Date.now()}.jpg`,
@@ -450,17 +521,21 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       originFileObj: workingFile instanceof File ? workingFile : undefined,
       url: !(workingFile instanceof File) ? previewUrl : undefined
     };
+    
+    console.log('📸 [ProfileEdit-addImageDirect] Final fileObject:', fileObject);
+    
     setUploadedImages(prev => {
       const newImages = [...prev, fileObject];
       // If this is the first image, make it main
       if (prev.length === 0) {
         setMainImageId(fileObject.uid);
         setMainImageIndex(0);
-        console.log('🌟 [ProfileEdit] First image automatically set as main:', fileObject.uid);
+        console.log('🌟 [ProfileEdit-addImageDirect] First image automatically set as main:', fileObject.uid);
       }
       return newImages;
     });
     setPreviewImages(prev => [...prev, {url: previewUrl, file: fileObject, uid: fileObject.uid}]);
+    console.log('✅ [ProfileEdit-addImageDirect] COMPLETED - Image added to preview');
   };
 
   // MODIFY uploadProps.beforeUpload to simple path if SIMPLE_PICKER flag
@@ -1445,23 +1520,35 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         <SimpleImageCrop
           visible={showCropModal}
           onCancel={() => {
+            console.log('❌ [ProfileEdit-CropModal] User cancelled crop modal');
             setShowCropModal(false);
             setCropImageUrl(null);
             setCropOriginalFile(null); // Clear original file on cancel
+            console.log('🧹 [ProfileEdit-CropModal] Cleaned up crop modal state');
           }}
           onCropComplete={(cropResult) => {
-            console.log('🎭 [ProfileEdit] Crop completed, result:', {
-              previewUrl: cropResult.preview,
-              fileSize: cropResult.file.size,
-              fileName: cropResult.file.name
+            console.log('🎭 [ProfileEdit-onCropComplete] STARTING - Crop completed with result:', {
+              hasPreview: !!cropResult.preview,
+              hasFile: !!cropResult.file,
+              fileSize: cropResult.file?.size,
+              fileName: cropResult.file?.name,
+              previewUrlLength: cropResult.preview?.length
             });
             
             // Check if we have server data from forced processing
             const serverData = window.tempServerData;
+            console.log('💾 [ProfileEdit-onCropComplete] Checking for server data:', {
+              hasServerData: !!serverData,
+              serverUrl: serverData?.url,
+              serverFileName: serverData?.fileName
+            });
+            
             let fileObject;
+            let previewObject;
             
             if (serverData) {
-              // Use server data with cropped image
+              console.log('🌐 [ProfileEdit-onCropComplete] Using server-processed data with crop preview');
+              // Use server data with cropped image for preview
               fileObject = {
                 uid: `server-cropped-${Date.now()}`,
                 name: serverData.fileName || `server_cropped_${Date.now()}.jpg`,
@@ -1469,12 +1556,28 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                 url: serverData.url, // Keep original server URL for upload
                 serverFileName: serverData.fileName,
                 serverProcessed: true,
-                originFileObj: cropResult.file // Use cropped file for display
+                cropData: cropResult // Store crop data for reference
               };
-              console.log('📸 [ProfileEdit] Using server-processed data with crop:', serverData);
+              
+              // For preview, use the cropped image preview URL
+              previewObject = { 
+                url: cropResult.preview, // Use cropped preview for display
+                file: fileObject, 
+                uid: fileObject.uid 
+              };
+              
+              console.log('📸 [ProfileEdit-onCropComplete] Created server-processed objects:', {
+                fileObject,
+                previewObject,
+                serverUrl: serverData.url,
+                previewUrl: cropResult.preview
+              });
+              
               // Clean up temp data
               delete window.tempServerData;
+              console.log('🧹 [ProfileEdit-onCropComplete] Cleaned up window.tempServerData');
             } else {
+              console.log('📁 [ProfileEdit-onCropComplete] Using regular crop without server processing');
               // Regular crop without server processing
               fileObject = {
                 uid: `cropped-${Date.now()}`,
@@ -1482,15 +1585,25 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                 status: 'done',
                 originFileObj: cropResult.file
               };
+              
+              previewObject = { 
+                url: cropResult.preview, 
+                file: fileObject, 
+                uid: fileObject.uid 
+              };
+              
+              console.log('📸 [ProfileEdit-onCropComplete] Created regular crop objects:', {
+                fileObject,
+                previewObject
+              });
             }
             
-            const previewObject = { 
-              url: cropResult.preview, 
-              file: fileObject, 
-              uid: fileObject.uid 
-            };
-            
-            console.log('📸 [ProfileEdit] Adding to preview images:', previewObject);
+            console.log('📋 [ProfileEdit-onCropComplete] About to update state with:', {
+              fileObject,
+              previewObject,
+              currentUploadedImagesCount: uploadedImages.length,
+              currentPreviewImagesCount: previewImages.length
+            });
             
             setUploadedImages(prev => {
               const newImages = [...prev, fileObject];
@@ -1498,16 +1611,33 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
               if (prev.length === 0) {
                 setMainImageId(fileObject.uid);
                 setMainImageIndex(0);
-                console.log('🌟 [ProfileEdit] First cropped image automatically set as main:', fileObject.uid);
+                console.log('🌟 [ProfileEdit-onCropComplete] First cropped image automatically set as main:', fileObject.uid);
               }
+              console.log('📋 [ProfileEdit-onCropComplete] Updated uploadedImages:', {
+                previousCount: prev.length,
+                newCount: newImages.length,
+                newImages
+              });
               return newImages;
             });
-            setPreviewImages(prev => [...prev, previewObject]);
             
+            setPreviewImages(prev => {
+              const newPreviews = [...prev, previewObject];
+              console.log('🖼️ [ProfileEdit-onCropComplete] Updated previewImages:', {
+                previousCount: prev.length,
+                newCount: newPreviews.length,
+                newPreviews
+              });
+              return newPreviews;
+            });
+            
+            console.log('🎭 [ProfileEdit-onCropComplete] Closing crop modal and cleaning up...');
             setShowCropModal(false);
             setCropImageUrl(null);
             setCropOriginalFile(null);
+            
             message.success(t('imageCrop.cropSuccessful') || 'Image cropped successfully!');
+            console.log('✅ [ProfileEdit-onCropComplete] COMPLETED - Crop process finished successfully');
           }}
           imageUrl={cropImageUrl}
           title={t('imageCrop.cropProfileImage') || 'Crop Profile Image'}

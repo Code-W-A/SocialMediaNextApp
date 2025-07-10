@@ -21,15 +21,33 @@ const SimpleImageCrop = ({
   const [loading, setLoading] = useState(false);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(defaultAspectRatio);
 
+  console.log('🎭 [SimpleImageCrop] Component state:', {
+    visible,
+    hasImageUrl: !!imageUrl,
+    imageUrl: imageUrl ? imageUrl.substring(0, 50) + '...' : 'NULL',
+    title,
+    selectedAspectRatio,
+    hasCroppedAreaPixels: !!croppedAreaPixels,
+    loading,
+    crop,
+    zoom
+  });
+
   const onCropChange = useCallback((crop) => {
+    console.log('🔄 [SimpleImageCrop] Crop changed:', crop);
     setCrop(crop);
   }, []);
 
   const onZoomChange = useCallback((zoom) => {
+    console.log('🔍 [SimpleImageCrop] Zoom changed:', zoom);
     setZoom(zoom);
   }, []);
 
   const onCropCompleteCallback = useCallback((croppedArea, croppedAreaPixels) => {
+    console.log('✅ [SimpleImageCrop] Crop area completed:', {
+      croppedArea,
+      croppedAreaPixels
+    });
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 
@@ -39,46 +57,93 @@ const SimpleImageCrop = ({
   };
 
   const createCroppedImage = async () => {
-    if (!croppedAreaPixels || !imageUrl) return;
+    console.log('🚀 [SimpleImageCrop-createCroppedImage] STARTING crop process with:', {
+      hasCroppedAreaPixels: !!croppedAreaPixels,
+      hasImageUrl: !!imageUrl,
+      croppedAreaPixels,
+      imageUrl: imageUrl ? imageUrl.substring(0, 50) + '...' : 'NULL'
+    });
+    
+    if (!croppedAreaPixels || !imageUrl) {
+      console.error('❌ [SimpleImageCrop-createCroppedImage] Missing required data:', {
+        croppedAreaPixels: !!croppedAreaPixels,
+        imageUrl: !!imageUrl
+      });
+      return;
+    }
 
     setLoading(true);
+    console.log('⏳ [SimpleImageCrop-createCroppedImage] Set loading to true');
+    
     try {
       // For server URLs, fetch and convert to blob first
       let imageBlob;
       let imgSrc;
       
+      console.log('🔍 [SimpleImageCrop-createCroppedImage] Analyzing image URL type:', {
+        isServerUrl: imageUrl.startsWith('http'),
+        imageUrl: imageUrl.substring(0, 100) + '...'
+      });
+      
       if (imageUrl.startsWith('http')) {
+        console.log('🌐 [SimpleImageCrop-createCroppedImage] It\'s a server URL - fetching...');
         // It's a server URL - fetch it first
         const response = await fetch(imageUrl);
+        console.log('📡 [SimpleImageCrop-createCroppedImage] Fetch response:', {
+          ok: response.ok,
+          status: response.status,
+          contentType: response.headers.get('content-type')
+        });
+        
         imageBlob = await response.blob();
         imgSrc = URL.createObjectURL(imageBlob);
+        console.log('✅ [SimpleImageCrop-createCroppedImage] Created blob URL:', imgSrc);
       } else {
+        console.log('📁 [SimpleImageCrop-createCroppedImage] It\'s already a blob URL');
         // It's already a blob URL
         imgSrc = imageUrl;
       }
 
+      console.log('🖼️ [SimpleImageCrop-createCroppedImage] Creating canvas and image elements...');
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const img = new Image();
       
+      console.log('⏳ [SimpleImageCrop-createCroppedImage] Loading image...');
       await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
+        img.onload = () => {
+          console.log('✅ [SimpleImageCrop-createCroppedImage] Image loaded successfully:', {
+            width: img.width,
+            height: img.height,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          });
+          resolve();
+        };
+        img.onerror = (e) => {
+          console.error('❌ [SimpleImageCrop-createCroppedImage] Image failed to load:', e);
+          reject(e);
+        };
         img.crossOrigin = 'anonymous';
         img.src = imgSrc;
       });
 
       const { width, height, x, y } = croppedAreaPixels;
+      console.log('📐 [SimpleImageCrop-createCroppedImage] Setting canvas dimensions:', {
+        width, height, x, y
+      });
       
       canvas.width = width;
       canvas.height = height;
       
+      console.log('🎨 [SimpleImageCrop-createCroppedImage] Drawing image to canvas...');
       ctx.drawImage(
         img,
         x, y, width, height,
         0, 0, width, height
       );
 
+      console.log('🔍 [SimpleImageCrop-createCroppedImage] Verifying canvas content...');
       // Verify canvas has actual image data (not just transparent/black)
       const imageData = ctx.getImageData(0, 0, Math.min(50, width), Math.min(50, height));
       const pixels = imageData.data;
@@ -98,44 +163,49 @@ const SimpleImageCrop = ({
       }
       
       if (!hasContent) {
-        console.error('❌ [SimpleImageCrop] Canvas appears to be empty/black');
-        console.log('🔍 [SimpleImageCrop] Canvas dimensions:', { width, height });
-        console.log('🔍 [SimpleImageCrop] Crop area:', croppedAreaPixels);
-        console.log('🔍 [SimpleImageCrop] Image src:', imgSrc);
+        console.error('❌ [SimpleImageCrop-createCroppedImage] Canvas appears to be empty/black');
+        console.log('🔍 [SimpleImageCrop-createCroppedImage] Canvas dimensions:', { width, height });
+        console.log('🔍 [SimpleImageCrop-createCroppedImage] Crop area:', croppedAreaPixels);
+        console.log('🔍 [SimpleImageCrop-createCroppedImage] Image src:', imgSrc);
         throw new Error('Cropped area appears to be empty');
       }
       
-      console.log('✅ [SimpleImageCrop] Canvas contains valid image data');
+      console.log('✅ [SimpleImageCrop-createCroppedImage] Canvas contains valid image data');
 
       // Cleanup blob URL if we created one
       if (imgSrc !== imageUrl) {
+        console.log('🧹 [SimpleImageCrop-createCroppedImage] Cleaning up temporary blob URL');
         URL.revokeObjectURL(imgSrc);
       }
 
+      console.log('📦 [SimpleImageCrop-createCroppedImage] Converting canvas to blob...');
       canvas.toBlob((blob) => {
         if (blob) {
-          console.log('✅ [SimpleImageCrop] Crop successful, blob size:', blob.size);
+          console.log('✅ [SimpleImageCrop-createCroppedImage] Crop successful, blob size:', blob.size);
           
           // Verify blob is valid
           if (blob.size === 0) {
-            console.error('❌ [SimpleImageCrop] Blob is empty');
+            console.error('❌ [SimpleImageCrop-createCroppedImage] Blob is empty');
             throw new Error('Cropped image is empty');
           }
           
           const croppedFile = new File([blob], 'cropped.jpg', { type: 'image/jpeg' });
           const previewUrl = URL.createObjectURL(blob);
           
-          console.log('✅ [SimpleImageCrop] Preview URL created:', previewUrl);
-          console.log('✅ [SimpleImageCrop] File created:', {
+          console.log('✅ [SimpleImageCrop-createCroppedImage] Preview URL created:', previewUrl);
+          console.log('✅ [SimpleImageCrop-createCroppedImage] File created:', {
             name: croppedFile.name,
             size: croppedFile.size,
             type: croppedFile.type
           });
           
           // Test if preview URL is accessible
+          console.log('🧪 [SimpleImageCrop-createCroppedImage] Testing preview URL validity...');
           const testImg = new Image();
           testImg.onload = () => {
-            console.log('✅ [SimpleImageCrop] Preview URL is valid and loadable');
+            console.log('✅ [SimpleImageCrop-createCroppedImage] Preview URL is valid and loadable');
+            console.log('🎉 [SimpleImageCrop-createCroppedImage] Calling onCropComplete with final result');
+            
             onCropComplete({
               file: croppedFile,
               preview: previewUrl,
@@ -145,22 +215,27 @@ const SimpleImageCrop = ({
             
             setLoading(false);
             resetState();
+            console.log('🏁 [SimpleImageCrop-createCroppedImage] COMPLETED successfully');
           };
           testImg.onerror = (e) => {
-            console.error('❌ [SimpleImageCrop] Preview URL is not loadable:', e);
+            console.error('❌ [SimpleImageCrop-createCroppedImage] Preview URL is not loadable:', e);
             URL.revokeObjectURL(previewUrl);
             throw new Error('Failed to create valid preview URL');
           };
           testImg.src = previewUrl;
           
         } else {
-          console.error('❌ [SimpleImageCrop] Failed to create blob from canvas');
+          console.error('❌ [SimpleImageCrop-createCroppedImage] Failed to create blob from canvas');
           throw new Error('Failed to create blob from canvas');
         }
       }, 'image/jpeg', 0.9);
 
     } catch (error) {
-      console.error('❌ Error cropping image:', error);
+      console.error('❌ [SimpleImageCrop-createCroppedImage] Error cropping image:', {
+        error,
+        message: error.message,
+        stack: error.stack
+      });
       message.error(t('imageCrop.cropError') || 'Error cropping image');
       setLoading(false);
     }

@@ -40,6 +40,15 @@ const ProfileHead = ({
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState(null);
 
+  console.log('🔧 [ProfileHead-State] Current banner crop modal state:', {
+    showCropModal,
+    cropImageUrl: cropImageUrl ? 'SET' : 'NULL',
+    currentBanner: banner ? 'SET' : 'NULL',
+    dataBannerUrl: data?.data?.banner_url ? 'SET' : 'NULL',
+    isCurrentUserProfile,
+    isLoading
+  });
+
   console.log('🎭 [ProfileHead] Component rendered with:', {
     userId,
     isCurrentUserProfile,
@@ -115,60 +124,87 @@ const ProfileHead = ({
   };
 
   const handleBannerChange = async (e) => {
-    console.log('📸 [ProfileHead] Banner change triggered');
+    console.log('🚀 [ProfileHead-handleBannerChange] STARTING - Banner change triggered');
     const file = e.target.files[0];
     
     if (!file) {
-      console.log('🚫 [ProfileHead] No file selected');
+      console.log('🚫 [ProfileHead-handleBannerChange] No file selected, returning');
       return;
     }
     
-    console.log('📄 [ProfileHead] File selected:', {
+    console.log('📄 [ProfileHead-handleBannerChange] File selected:', {
       name: file.name,
       size: file.size,
-      type: file.type
+      type: file.type,
+      lastModified: file.lastModified
     });
 
     // Validate image with new validation utils
+    console.log('🔍 [ProfileHead-handleBannerChange] Validating image file...');
     const validation = validateImageFile(file, 'BANNER_IMAGE');
     
     if (!validation.isValid) {
-      console.error('❌ [ProfileHead] File validation failed:', validation.errors);
+      console.error('❌ [ProfileHead-handleBannerChange] File validation failed:', {
+        errors: validation.errors,
+        warnings: validation.warnings
+      });
       message.error(validation.errors.join(', '));
       return;
     }
 
     if (validation.warnings.length > 0) {
-      console.warn('⚠️ [ProfileHead] File validation warnings:', validation.warnings);
+      console.warn('⚠️ [ProfileHead-handleBannerChange] File validation warnings:', validation.warnings);
       validation.warnings.forEach(warning => message.warning(warning));
     }
 
+    console.log('✅ [ProfileHead-handleBannerChange] File validation passed');
+
     // Force server processing for all banner images
+    console.log('⏳ [ProfileHead-handleBannerChange] Starting server processing...');
     const hide = message.loading('Processing banner image...', 0);
+    
     try {
-      console.log('🔧 [ProfileHead] Force processing banner through server for standardization...');
+      console.log('🔧 [ProfileHead-handleBannerChange] Force processing banner through server for standardization...');
       const serverResult = await serverFixImage(file);
-      console.log('✅ [ProfileHead] Banner image standardized on server:', serverResult.url);
+      console.log('✅ [ProfileHead-handleBannerChange] Banner image standardized on server:', {
+        url: serverResult.url,
+        fileName: serverResult.fileName
+      });
       
       hide();
       
-      // After server processing, show crop modal with the server-processed image
+      // After server processing, ALWAYS show crop modal
+      console.log('🎭 [ProfileHead-handleBannerChange] Opening crop modal with server-processed banner image');
+      console.log('🎭 [ProfileHead-handleBannerChange] Setting crop modal state:', {
+        currentShowCropModal: showCropModal,
+        serverImageUrl: serverResult.url
+      });
+      
       setCropImageUrl(serverResult.url);
       setShowCropModal(true);
       
       // Store server data for later use after crop
       window.tempBannerServerData = serverResult;
-      message.success(t('profileEdit.bannerStandardizedServer') || 'Banner image standardized successfully! ✨');
+      console.log('💾 [ProfileHead-handleBannerChange] Stored banner server data in window.tempBannerServerData:', window.tempBannerServerData);
+      
+      message.success(t('profileEdit.bannerStandardizedServer') || 'Banner image standardized successfully! Now crop it ✨');
+      console.log('🎭 [ProfileHead-handleBannerChange] Crop modal should be visible now');
       
     } catch (serverError) {
-      console.error('❌ [ProfileHead] Server processing failed:', serverError);
+      console.error('❌ [ProfileHead-handleBannerChange] Server processing failed:', {
+        error: serverError,
+        message: serverError.message,
+        stack: serverError.stack
+      });
       hide();
       message.error('This banner image cannot be processed. Please try a different image.');
       return;
     }
     
     // Clear the input value so the same file can be selected again
+    console.log('🧹 [ProfileHead-handleBannerChange] Clearing input value for reuse');
     e.target.value = '';
+    console.log('✅ [ProfileHead-handleBannerChange] COMPLETED - Banner processing initiated');
   };
 
   // Function to get profile image with multiple fallbacks
@@ -269,28 +305,55 @@ const ProfileHead = ({
       <SimpleImageCrop
         visible={showCropModal}
         onCancel={() => {
+          console.log('❌ [ProfileHead-CropModal] User cancelled banner crop modal');
           setShowCropModal(false);
           setCropImageUrl(null);
+          console.log('🧹 [ProfileHead-CropModal] Cleaned up banner crop modal state');
         }}
         onCropComplete={(cropResult) => {
+          console.log('🎭 [ProfileHead-onCropComplete] STARTING - Banner crop completed with result:', {
+            hasPreview: !!cropResult.preview,
+            hasFile: !!cropResult.file,
+            fileSize: cropResult.file?.size,
+            fileName: cropResult.file?.name,
+            previewUrlLength: cropResult.preview?.length
+          });
+          
           // Check if we have server data from forced processing
           const serverData = window.tempBannerServerData;
+          console.log('💾 [ProfileHead-onCropComplete] Checking for banner server data:', {
+            hasServerData: !!serverData,
+            serverUrl: serverData?.url,
+            serverFileName: serverData?.fileName
+          });
           
           if (serverData) {
+            console.log('🌐 [ProfileHead-onCropComplete] Using server-processed banner data');
             // Use server-processed image URL directly for banner
-            console.log('📸 [ProfileHead] Using server-processed banner data:', serverData);
+            console.log('📸 [ProfileHead-onCropComplete] Setting banner to server URL:', serverData.url);
             setBanner(serverData.url);
+            
+            console.log('💾 [ProfileHead-onCropComplete] Calling mutate with banner data:', {
+              userId: currentUser?.id,
+              bannerUrl: serverData.url,
+              prevBannerId: data?.data?.banner_id
+            });
+            
             mutate({
               id: currentUser?.id,
               banner: serverData.url, // Use server URL directly
               prevBannerId: data?.data?.banner_id,
             });
+            
             // Clean up temp data
             delete window.tempBannerServerData;
+            console.log('🧹 [ProfileHead-onCropComplete] Cleaned up window.tempBannerServerData');
           } else {
+            console.log('📁 [ProfileHead-onCropComplete] Using cropped file for banner (fallback)');
             // Convert cropped file to base64 for upload (fallback)
             const reader = new FileReader();
             reader.onload = () => {
+              console.log('📸 [ProfileHead-onCropComplete] FileReader completed, setting banner');
               setBanner(reader.result);
               mutate({
                 id: currentUser?.id,
@@ -302,11 +365,13 @@ const ProfileHead = ({
           }
           
           // Close modal and cleanup
+          console.log('🎭 [ProfileHead-onCropComplete] Closing crop modal and cleaning up...');
           setShowCropModal(false);
           setCropImageUrl(null);
           
           // Show success message
           message.success(t('imageCrop.cropSuccessful') || 'Banner cropped successfully!');
+          console.log('✅ [ProfileHead-onCropComplete] COMPLETED - Banner crop process finished successfully');
         }}
         imageUrl={cropImageUrl}
         title={t('imageCrop.cropBannerImage') || 'Crop Banner Image'}

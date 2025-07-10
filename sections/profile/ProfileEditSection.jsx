@@ -82,6 +82,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [mainImageIndex, setMainImageIndex] = useState(0);
+  const [mainImageId, setMainImageId] = useState(null); // Track main image by ID instead of index
   const [previewImages, setPreviewImages] = useState([]);
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
   const [showGpsInfo, setShowGpsInfo] = useState(false);
@@ -244,7 +245,8 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
           name: image.fileName,
           status: 'done',
           url: image.fileUri,
-          isExisting: true
+          isExisting: true,
+          fileName: image.fileName // Add fileName for ID tracking
         }));
 
         setPreviewImages(existingPreviews);
@@ -252,6 +254,10 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
         const mainIndex = user.images.findIndex(img => img.isMain);
         setMainImageIndex(mainIndex >= 0 ? mainIndex : 0);
+        
+        // Set main image ID using fileName for existing images, uid for new images
+        const mainImage = existingFileList[mainIndex >= 0 ? mainIndex : 0];
+        setMainImageId(mainImage?.fileName || mainImage?.uid);
 
         console.log("✅ Synced with Firestore images:", user.images.length);
       } else {
@@ -264,6 +270,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         setPreviewImages([]);
         setUploadedImages([]);
         setMainImageIndex(0);
+        setMainImageId(null);
         console.log("🧹 Cleared local previews - no Firestore images");
       }
     }
@@ -334,7 +341,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             serverProcessed: true
           };
           
-          setUploadedImages(prev => [...prev, fileObject]);
+          setUploadedImages(prev => {
+            const newImages = [...prev, fileObject];
+            // If this is the first image, make it main
+            if (prev.length === 0) {
+              setMainImageId(fileObject.uid);
+              setMainImageIndex(0);
+            }
+            return newImages;
+          });
           setPreviewImages(prev => [...prev, {
             url: serverResult.url,
             file: fileObject,
@@ -371,7 +386,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       originFileObj: workingFile instanceof File ? workingFile : undefined,
       url: !(workingFile instanceof File) ? previewUrl : undefined
     };
-    setUploadedImages(prev => [...prev, fileObject]);
+    setUploadedImages(prev => {
+      const newImages = [...prev, fileObject];
+      // If this is the first image, make it main
+      if (prev.length === 0) {
+        setMainImageId(fileObject.uid);
+        setMainImageIndex(0);
+      }
+      return newImages;
+    });
     setPreviewImages(prev => [...prev, {url: previewUrl, file: fileObject, uid: fileObject.uid}]);
   };
 
@@ -440,20 +463,51 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
 
   const handleSetMainImage = (index) => {
     setMainImageIndex(index);
+    
+    // Also set the main image ID for reliable tracking
+    const selectedImage = uploadedImages[index];
+    const imageId = selectedImage?.fileName || selectedImage?.uid;
+    setMainImageId(imageId);
+    
+    console.log('🔄 [ProfileEdit] Main image changed:', {
+      index,
+      imageId,
+      imageName: selectedImage?.name
+    });
   };
 
   const handleRemoveImage = (indexToRemove) => {
+    const imageToRemove = uploadedImages[indexToRemove];
+    const removedImageId = imageToRemove?.fileName || imageToRemove?.uid;
+    
     const newUploadedImages = uploadedImages.filter((_, index) => index !== indexToRemove);
     const newPreviewImages = previewImages.filter((_, index) => index !== indexToRemove);
     
     setUploadedImages(newUploadedImages);
     setPreviewImages(newPreviewImages);
     
-    if (mainImageIndex >= newUploadedImages.length) {
-      setMainImageIndex(Math.max(0, newUploadedImages.length - 1));
-    } else if (mainImageIndex > indexToRemove) {
-      setMainImageIndex(mainImageIndex - 1);
+    // Update main image logic using ID instead of index
+    if (mainImageId === removedImageId) {
+      // The main image was removed, set first available image as main
+      const newMainImage = newUploadedImages[0];
+      const newMainImageId = newMainImage?.fileName || newMainImage?.uid;
+      setMainImageId(newMainImageId);
+      setMainImageIndex(0);
+      console.log('🔄 [ProfileEdit] Main image was removed, new main:', newMainImageId);
+    } else {
+      // Find new index of the current main image
+      const newMainIndex = newUploadedImages.findIndex(img => 
+        (img.fileName || img.uid) === mainImageId
+      );
+      setMainImageIndex(newMainIndex >= 0 ? newMainIndex : 0);
     }
+    
+    console.log('🗑️ [ProfileEdit] Removed image:', {
+      removedImageId,
+      removedIndex: indexToRemove,
+      newMainImageId: mainImageId,
+      newLength: newUploadedImages.length
+    });
   };
 
   const handleAdditionalPhotos = async (e) => {
@@ -614,6 +668,16 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       if (uploadedImages.length > 0) {
         for (let i = 0; i < uploadedImages.length; i++) {
           const file = uploadedImages[i];
+          const fileId = file.fileName || file.uid;
+          const isMainImage = fileId === mainImageId;
+          
+          console.log('📸 [ProfileEdit] Processing image:', {
+            index: i,
+            fileId,
+            mainImageId,
+            isMainImage,
+            fileName: file.name
+          });
           
           if (file.isExisting) {
             // Keep existing image
@@ -621,7 +685,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             if (existingImage) {
               imageObjects.push({
                 ...existingImage,
-                isMain: i === mainImageIndex
+                isMain: isMainImage
               });
             }
           } else {
@@ -631,7 +695,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
               const storageRef = ref(storage, `images/${fileName}`);
               const snapshot = await uploadBytes(storageRef, file.originFileObj);
               const downloadURL = await getDownloadURL(snapshot.ref);
-              const imageObject = createImageObject(fileName, downloadURL, i === mainImageIndex);
+              const imageObject = createImageObject(fileName, downloadURL, isMainImage);
               imageObjects.push(imageObject);
             } else if (file.url) {
               // Use serverFileName if available, otherwise extract from URL
@@ -650,7 +714,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                 }
               }
               console.log('📁 Using fileName for server image:', fileName);
-              imageObjects.push(createImageObject(fileName, file.url, i === mainImageIndex));
+              imageObjects.push(createImageObject(fileName, file.url, isMainImage));
             }
           }
         }
@@ -1221,7 +1285,15 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             
             console.log('📸 [ProfileEdit] Adding to preview images:', previewObject);
             
-            setUploadedImages(prev => [...prev, fileObject]);
+            setUploadedImages(prev => {
+              const newImages = [...prev, fileObject];
+              // If this is the first image, make it main
+              if (prev.length === 0) {
+                setMainImageId(fileObject.uid);
+                setMainImageIndex(0);
+              }
+              return newImages;
+            });
             setPreviewImages(prev => [...prev, previewObject]);
             
             setShowCropModal(false);

@@ -413,65 +413,82 @@ const UserProfileBody = ({
             )}
           </Card>
 
-          {/* Photo Gallery */}
-          {user.images && user.images.length > 1 && (
-            <Card
-              title={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Iconify icon="eva:image-fill" width="20px" />
-                  Photos ({user.images.length})
-                </div>
-              }
-              style={{ marginBottom: '24px' }}
-            >
-              <Row gutter={[12, 12]}>
-                {user.images.map((image, index) => (
-                  <Col xs={12} sm={8} md={6} key={index}>
-                    <div style={{ 
-                      position: 'relative',
-                      aspectRatio: '1',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      background: '#f5f5f5'
-                    }}>
-                      <Image
-                        src={image.fileUri}
-                        alt={`Photo ${index + 1}`}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover'
-                        }}
-                        preview={{
-                          mask: (
-                            <div style={{ color: 'white', textAlign: 'center' }}>
-                              <Iconify icon="eva:eye-fill" width="20px" />
-                              <div style={{ fontSize: '12px', marginTop: '4px' }}>View</div>
-                            </div>
-                          )
-                        }}
-                      />
-                      {image.isMain && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '6px',
-                          left: '6px',
-                          background: 'linear-gradient(135deg, #1890ff, #40a9ff)',
-                          color: 'white',
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '10px',
-                          fontWeight: '600'
+          {/* Photo Gallery - Show all photos with main photo first */}
+          {user.images && user.images.length > 0 && (() => {
+            // Sort images: main photo first, then the rest
+            const sortedImages = [...user.images].sort((a, b) => {
+              if (a.isMain && !b.isMain) return -1; // Main photo first
+              if (!a.isMain && b.isMain) return 1;  // Main photo first
+              return 0; // Keep original order for non-main photos
+            });
+
+            // Create preview group for Image.PreviewGroup (enables slide functionality)
+            return (
+              <Card
+                title={
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Iconify icon="eva:image-fill" width="20px" />
+                    Photos ({user.images.length})
+                  </div>
+                }
+                style={{ marginBottom: '24px' }}
+              >
+                <Image.PreviewGroup>
+                  <Row gutter={[12, 12]}>
+                    {sortedImages.map((image, index) => (
+                      <Col xs={12} sm={8} md={6} key={`${image.fileName || index}`}>
+                        <div style={{ 
+                          position: 'relative',
+                          aspectRatio: '1',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          background: '#f5f5f5',
+                          cursor: 'pointer'
                         }}>
-                          Main
+                          <Image
+                            src={image.fileUri}
+                            alt={`Photo ${index + 1}`}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                            preview={{
+                              mask: (
+                                <div style={{ color: 'white', textAlign: 'center' }}>
+                                  <Iconify icon="eva:eye-fill" width="20px" />
+                                  <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                                    {index === 0 && image.isMain ? 'View All Photos' : 'View Photo'}
+                                  </div>
+                                </div>
+                              )
+                            }}
+                          />
+                          {image.isMain && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '6px',
+                              left: '6px',
+                              background: 'linear-gradient(135deg, #1890ff, #40a9ff)',
+                              color: 'white',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '10px',
+                              fontWeight: '600',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}>
+                              <Iconify icon="eva:star-fill" width="8px" style={{ marginRight: '2px' }} />
+                              Main
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </Col>
-                ))}
-              </Row>
-            </Card>
-          )}
+                      </Col>
+                    ))}
+                  </Row>
+                </Image.PreviewGroup>
+              </Card>
+            );
+          })()}
         </Col>
 
         {/* Right Column - Compatibility & Stats */}

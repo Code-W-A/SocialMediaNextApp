@@ -76,56 +76,51 @@ const SimpleImageCrop = ({
     console.log('⏳ [SimpleImageCrop-createCroppedImage] Set loading to true');
     
     try {
-      // For server URLs, fetch and convert to blob first
-      let imageBlob;
-      let imgSrc;
-      
       console.log('🔍 [SimpleImageCrop-createCroppedImage] Analyzing image URL type:', {
         isServerUrl: imageUrl.startsWith('http'),
+        isFirebaseStorage: imageUrl.includes('firebasestorage.googleapis.com'),
         imageUrl: imageUrl.substring(0, 100) + '...'
       });
-      
-      if (imageUrl.startsWith('http')) {
-        console.log('🌐 [SimpleImageCrop-createCroppedImage] It\'s a server URL - fetching...');
-        // It's a server URL - fetch it first
-        const response = await fetch(imageUrl);
-        console.log('📡 [SimpleImageCrop-createCroppedImage] Fetch response:', {
-          ok: response.ok,
-          status: response.status,
-          contentType: response.headers.get('content-type')
-        });
-        
-        imageBlob = await response.blob();
-        imgSrc = URL.createObjectURL(imageBlob);
-        console.log('✅ [SimpleImageCrop-createCroppedImage] Created blob URL:', imgSrc);
-      } else {
-        console.log('📁 [SimpleImageCrop-createCroppedImage] It\'s already a blob URL');
-        // It's already a blob URL
-        imgSrc = imageUrl;
-      }
 
       console.log('🖼️ [SimpleImageCrop-createCroppedImage] Creating canvas and image elements...');
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const img = new Image();
       
-      console.log('⏳ [SimpleImageCrop-createCroppedImage] Loading image...');
+      // For Firebase Storage URLs, use direct loading with crossOrigin
+      if (imageUrl.includes('firebasestorage.googleapis.com')) {
+        console.log('🔥 [SimpleImageCrop-createCroppedImage] Firebase Storage URL detected - using direct loading');
+        img.crossOrigin = 'anonymous';
+      } else if (imageUrl.startsWith('http')) {
+        console.log('🌐 [SimpleImageCrop-createCroppedImage] External URL detected - using crossOrigin');
+        img.crossOrigin = 'anonymous';
+      } else {
+        console.log('📁 [SimpleImageCrop-createCroppedImage] Local blob URL detected');
+      }
+      
+      console.log('⏳ [SimpleImageCrop-createCroppedImage] Loading image directly...');
       await new Promise((resolve, reject) => {
         img.onload = () => {
           console.log('✅ [SimpleImageCrop-createCroppedImage] Image loaded successfully:', {
             width: img.width,
             height: img.height,
             naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight
+            naturalHeight: img.naturalHeight,
+            complete: img.complete
           });
           resolve();
         };
         img.onerror = (e) => {
-          console.error('❌ [SimpleImageCrop-createCroppedImage] Image failed to load:', e);
-          reject(e);
+          console.error('❌ [SimpleImageCrop-createCroppedImage] Image failed to load:', {
+            error: e,
+            src: img.src,
+            crossOrigin: img.crossOrigin
+          });
+          reject(new Error('Failed to load image for cropping'));
         };
-        img.crossOrigin = 'anonymous';
-        img.src = imgSrc;
+        
+        // Set src after setting up event handlers
+        img.src = imageUrl;
       });
 
       const { width, height, x, y } = croppedAreaPixels;
@@ -166,17 +161,11 @@ const SimpleImageCrop = ({
         console.error('❌ [SimpleImageCrop-createCroppedImage] Canvas appears to be empty/black');
         console.log('🔍 [SimpleImageCrop-createCroppedImage] Canvas dimensions:', { width, height });
         console.log('🔍 [SimpleImageCrop-createCroppedImage] Crop area:', croppedAreaPixels);
-        console.log('🔍 [SimpleImageCrop-createCroppedImage] Image src:', imgSrc);
+        console.log('🔍 [SimpleImageCrop-createCroppedImage] Image src:', imageUrl);
         throw new Error('Cropped area appears to be empty');
       }
       
       console.log('✅ [SimpleImageCrop-createCroppedImage] Canvas contains valid image data');
-
-      // Cleanup blob URL if we created one
-      if (imgSrc !== imageUrl) {
-        console.log('🧹 [SimpleImageCrop-createCroppedImage] Cleaning up temporary blob URL');
-        URL.revokeObjectURL(imgSrc);
-      }
 
       console.log('📦 [SimpleImageCrop-createCroppedImage] Converting canvas to blob...');
       canvas.toBlob((blob) => {

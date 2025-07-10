@@ -36,7 +36,6 @@ const ProfileHead = ({
   const router = useRouter();
   const inputRef = useRef(null);
   const [banner, setBanner] = useState(null);
-  const [bannerLoading, setBannerLoading] = useState(false);
   // Crop functionality state
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropImageUrl, setCropImageUrl] = useState(null);
@@ -68,28 +67,19 @@ const ProfileHead = ({
     console.log('📊 [ProfileHead] Current banner state:', banner);
     console.log('📊 [ProfileHead] Is loading:', isLoading);
     
-    // Set loading state based on whether we're waiting for data
-    if (isLoading || (!data && !isError)) {
-      setBannerLoading(true);
-      setBanner(null);
-      console.log('⏳ [ProfileHead] Setting banner loading state');
-    } else if (data) {
-      // Data is available, process banner
+    // Only update banner if not loading and data is available
+    if (!isLoading && data) {
       if (data?.data?.banner_url) {
         console.log('🖼️ [ProfileHead] Setting banner to:', data.data.banner_url);
-        setBannerLoading(true); // Show loading while image loads
         setBanner(data.data.banner_url);
       } else {
-        console.log('🚫 [ProfileHead] No banner URL, using default');
-        setBannerLoading(false);
+        console.log('🚫 [ProfileHead] No banner URL, setting to null');
         setBanner(null);
       }
     } else {
-      console.log('❌ [ProfileHead] Error state, using default banner');
-      setBannerLoading(false);
-      setBanner(null);
+      console.log('⏳ [ProfileHead] Still loading or no data, skipping banner update');
     }
-  }, [data?.data?.banner_url, userId, isLoading, isError]);
+  }, [data?.data?.banner_url, userId, isLoading]); // Added isLoading dependency
 
   // Additional useEffect to handle profile changes
   useEffect(() => {
@@ -98,7 +88,6 @@ const ProfileHead = ({
     
     // Reset banner state when profile changes
     setBanner(null);
-    setBannerLoading(true);
     setBannerPreview(false);
   }, [userId]);
 
@@ -240,57 +229,22 @@ const ProfileHead = ({
   return (
     <div className={css.container}>
       <Spin spinning={isPending}>
-        <div className={css.banner} onClick={() => !bannerLoading && setBannerPreview(true)}>
-          {bannerLoading ? (
-            // Show skeleton during loading
-            <div style={{ 
-              width: '100%', 
-              height: '15rem', 
-              position: 'relative',
-              overflow: 'hidden'
-            }}>
-              <Skeleton.Image 
-                style={{ 
-                  width: '100%', 
-                  height: '100%',
-                  borderRadius: '1rem 1rem 0 0'
-                }}
-                active
-              />
-              {/* Overlay for better skeleton appearance */}
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.3) 100%)',
-                borderRadius: '1rem 1rem 0 0'
-              }} />
-            </div>
-          ) : (
-            <Image
-              src={bannerSrc}
-              alt="banner"
-              preview={{
-                mask: null,
-                visible: bannerPreview,
-                onVisibleChange: (visible) => setBannerPreview(visible),
-              }}
-              width={"100%"}
-              height={"15rem"}
-              onLoad={() => {
-                console.log('✅ [ProfileHead] Banner image loaded:', bannerSrc);
-                setBannerLoading(false);
-              }}
-              onError={(e) => {
-                console.error('❌ [ProfileHead] Banner image failed to load:', bannerSrc, e);
-                setBannerLoading(false);
-              }}
-            />
-          )}
+        <div className={css.banner} onClick={() => setBannerPreview(true)}>
+          <Image
+            src={bannerSrc}
+            alt="banner"
+            preview={{
+              mask: null,
+              visible: bannerPreview,
+              onVisibleChange: (visible) => setBannerPreview(visible),
+            }}
+            width={"100%"}
+            height={"15rem"}
+            onLoad={() => console.log('✅ [ProfileHead] Banner image loaded:', bannerSrc)}
+            onError={(e) => console.error('❌ [ProfileHead] Banner image failed to load:', bannerSrc, e)}
+          />
 
-          {isCurrentUserProfile && !bannerLoading && (
+          {isCurrentUserProfile && (
             <div
               className={css.editButton}
               onClick={(e) => {

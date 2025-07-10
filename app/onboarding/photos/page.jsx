@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Button, Typography, Upload, message, Progress, Image, Modal } from "antd";
+import { Button, Typography, Upload, message, Progress, Image } from "antd";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useFirebaseAuth";
 import Iconify from "@/components/Iconify";
@@ -272,31 +272,9 @@ export default function PhotosPage() {
 
     // Only enable cropping for images that were successfully decoded locally
     if (ENABLE_CROP && previewUrl && !serverProcessedData) {
-      // Test if the image is actually loadable before opening crop
-      const testImg = new Image();
-      testImg.onload = () => {
-        console.log('✅ [OnboardingPhotos] Image validated, opening crop modal');
-        setCropImageUrl(previewUrl);
-        setCropOriginalFile(workingFile);
-        setShowCropModal(true);
-      };
-      testImg.onerror = (e) => {
-        console.error('❌ [OnboardingPhotos] Image failed validation test:', e);
-        URL.revokeObjectURL(previewUrl);
-        
-        // Show error modal for failed images
-        Modal.confirm({
-          title: t('profileEdit.imageNotWorkingTitle'),
-          content: t('profileEdit.imageNotWorkingMessage'),
-          okText: t('profileEdit.tryDifferentImage'),
-          cancelText: t('common.cancel'),
-          icon: <Iconify icon="eva:alert-triangle-fill" style={{ color: '#faad14' }} />,
-          onOk: () => {
-            // User acknowledges, nothing else to do
-          }
-        });
-      };
-      testImg.src = previewUrl;
+      setCropImageUrl(previewUrl);
+      setCropOriginalFile(workingFile);
+      setShowCropModal(true);
       return;
     }
 

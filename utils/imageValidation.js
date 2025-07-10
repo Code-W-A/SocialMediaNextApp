@@ -98,7 +98,7 @@ export const validateImageFile = (file, context = 'post') => {
 
   if (!hasValidMime) {
     // Fallback: validate by extension if MIME type is missing or not recognized
-    if (!extension || !SUPPORTED_IMAGE_EXTENSIONS.includes(extension)) {
+  if (!extension || !SUPPORTED_IMAGE_EXTENSIONS.includes(extension)) {
       result.error = `Unsupported image format. Accepted extensions: ${SUPPORTED_IMAGE_EXTENSIONS.join(', ')}`;
       return result;
     }

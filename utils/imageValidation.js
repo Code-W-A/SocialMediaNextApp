@@ -357,6 +357,112 @@ export const smartCompressImage = async (canvas, fileName, originalFile, context
 };
 
 /**
+ * Quick test to verify if image can be properly displayed (not broken/corrupted)
+ * This runs BEFORE any repair attempts to reject truly broken images
+ * @param {File} file - Image file to test
+ * @returns {Promise<boolean>} True if image is acceptable, false if broken
+ */
+export const testImageIntegrity = async (file) => {
+  console.log(`🔍 [ImageIntegrity] Testing: ${file.name} (${file.type})`);
+  
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    
+    // Set timeout for test (faster than repair)
+    const timeout = setTimeout(() => {
+      img.onload = img.onerror = null;
+      URL.revokeObjectURL(url);
+      console.log('⏰ [ImageIntegrity] Test timeout - rejecting');
+      resolve(false);
+    }, 3000); // Shorter timeout for quick test
+    
+    img.onload = () => {
+      clearTimeout(timeout);
+      
+      try {
+        // Check basic image properties
+        if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+          console.log('❌ [ImageIntegrity] Zero dimensions - rejecting');
+          URL.revokeObjectURL(url);
+          resolve(false);
+          return;
+        }
+        
+        // Check if dimensions are reasonable (not corrupted metadata)
+        if (img.naturalWidth > 20000 || img.naturalHeight > 20000) {
+          console.log('❌ [ImageIntegrity] Unreasonable dimensions - rejecting');
+          URL.revokeObjectURL(url);
+          resolve(false);
+          return;
+        }
+        
+        // Test canvas rendering to detect black/corrupted images
+        const testCanvas = document.createElement('canvas');
+        const testSize = Math.min(100, img.naturalWidth, img.naturalHeight);
+        testCanvas.width = testSize;
+        testCanvas.height = testSize;
+        const ctx = testCanvas.getContext('2d');
+        
+        // Draw a small portion of the image
+        ctx.drawImage(img, 0, 0, testSize, testSize);
+        
+        // Get pixel data to check if image is completely black (common corruption)
+        const imageData = ctx.getImageData(0, 0, testSize, testSize);
+        const pixels = imageData.data;
+        
+        let nonBlackPixels = 0;
+        let totalNonAlphaPixels = 0;
+        
+        // Check every 4th pixel to speed up
+        for (let i = 0; i < pixels.length; i += 16) { // Skip more pixels for speed
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          const a = pixels[i + 3];
+          
+          if (a > 0) { // Only count visible pixels
+            totalNonAlphaPixels++;
+            if (r > 10 || g > 10 || b > 10) { // Not completely black
+              nonBlackPixels++;
+            }
+          }
+        }
+        
+        URL.revokeObjectURL(url);
+        
+        // If more than 95% of visible pixels are black, likely corrupted
+        if (totalNonAlphaPixels > 0) {
+          const blackRatio = 1 - (nonBlackPixels / totalNonAlphaPixels);
+          if (blackRatio > 0.95) {
+            console.log(`❌ [ImageIntegrity] Too many black pixels (${(blackRatio * 100).toFixed(1)}%) - rejecting`);
+            resolve(false);
+            return;
+          }
+        }
+        
+        console.log(`✅ [ImageIntegrity] Image passes integrity test - accepting`);
+        resolve(true);
+        
+      } catch (error) {
+        console.log(`❌ [ImageIntegrity] Canvas test failed: ${error.message} - rejecting`);
+        URL.revokeObjectURL(url);
+        resolve(false);
+      }
+    };
+    
+    img.onerror = () => {
+      clearTimeout(timeout);
+      URL.revokeObjectURL(url);
+      console.log('❌ [ImageIntegrity] Image failed to load - rejecting');
+      resolve(false);
+    };
+    
+    img.src = url;
+  });
+};
+
+/**
  * Robust image processing pipeline with multiple fallback strategies
  * Handles problematic images that normal browser loading can't process
  */

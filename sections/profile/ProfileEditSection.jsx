@@ -32,7 +32,7 @@ import css from "@/styles/ProfileEdit.module.css";
 import photoCss from "@/styles/PhotoUpload.module.css";
 import { useLanguage } from "@/lib/i18n";
 import SimpleImageCrop from "@/components/ImageCrop/SimpleImageCrop";
-import { validateImageFile, standardizeImage } from "@/utils/imageValidation";
+import { validateImageFile, standardizeImage, testImageIntegrity } from "@/utils/imageValidation";
 import { canDecodeImage, tryRepairJpeg } from "@/utils/simpleImageRepair";
 
 const serverFixImage = async (file) => {
@@ -308,6 +308,18 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       return;
     }
 
+    // FIRST: Test image integrity before any processing
+    console.log('🔍 [ProfileEdit] Testing image integrity before processing...');
+    const isImageAcceptable = await testImageIntegrity(file);
+    
+    if (!isImageAcceptable) {
+      console.log('❌ [ProfileEdit] Image failed integrity test - rejecting immediately');
+      message.error(t('profileEdit.imageNotAccepted'));
+      return;
+    }
+    
+    console.log('✅ [ProfileEdit] Image passed integrity test - continuing with processing');
+
     const hide = message.loading(t('profileEdit.processingImage') || 'Processing image...', 0);
 
     let workingFile = file;
@@ -365,7 +377,7 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         } catch (errFinal) {
           console.error('❌ All repair steps failed:', errFinal);
           hide();
-          message.error(t('imageCrop.imageNotAccepted') || 'This image cannot be accepted.');
+          message.error(t('profileEdit.imageNotAccepted'));
           return;
         }
       }
@@ -581,6 +593,16 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
     const validation = validateImageFile(file, 'profile');
     if (!validation.isValid) {
       message.error(validation.error);
+      return;
+    }
+    
+    // Test image integrity before processing
+    console.log('🔍 [ProfileEdit] Testing additional image integrity...');
+    const isImageAcceptable = await testImageIntegrity(file);
+    
+    if (!isImageAcceptable) {
+      console.log('❌ [ProfileEdit] Additional image failed integrity test - rejecting');
+      message.error(t('profileEdit.imageNotAccepted'));
       return;
     }
     

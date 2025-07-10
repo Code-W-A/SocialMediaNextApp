@@ -262,9 +262,8 @@ const SimpleImageCrop = ({
       const expectedRatio = selectedAspectRatio;
       const ratioTolerance = 0.1;
       
-      // If crop ratio is way off from expected, recalculate
-      if (Math.abs(cropAreaRatio - expectedRatio) > ratioTolerance || 
-          width > maxWidth * 0.8 || height > maxHeight * 0.8) {
+      // Recalculează doar dacă raportul deviază semnificativ; nu penaliza crop-uri care ocupă întreaga imagine
+      if (Math.abs(cropAreaRatio - expectedRatio) > ratioTolerance) {
         
         console.log('⚠️ [SimpleImageCrop-createCroppedImage] Crop area seems wrong, recalculating:', {
           cropAreaRatio,

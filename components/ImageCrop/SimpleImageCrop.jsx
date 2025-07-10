@@ -192,29 +192,132 @@ const SimpleImageCrop = ({
           width, height, x, y, maxWidth, maxHeight
         });
         
-        // Fallback: Use center crop with maximum possible square
-        const fallbackSize = Math.min(maxWidth, maxHeight);
-        const fallbackX = Math.max(0, (maxWidth - fallbackSize) / 2);
-        const fallbackY = Math.max(0, (maxHeight - fallbackSize) / 2);
+        // Smart fallback: Calculate proper center crop based on aspect ratio
+        let fallbackWidth, fallbackHeight, fallbackX, fallbackY;
         
-        console.log('🔄 [SimpleImageCrop-createCroppedImage] Using fallback center crop:', {
-          fallbackSize,
-          fallbackX,
-          fallbackY,
-          originalCrop: { width: croppedAreaPixels.width, height: croppedAreaPixels.height, x: croppedAreaPixels.x, y: croppedAreaPixels.y }
+        if (selectedAspectRatio === 1) {
+          // Square crop - use largest possible square
+          const fallbackSize = Math.min(maxWidth, maxHeight);
+          fallbackWidth = fallbackHeight = fallbackSize;
+          fallbackX = Math.max(0, (maxWidth - fallbackSize) / 2);
+          fallbackY = Math.max(0, (maxHeight - fallbackSize) / 2);
+        } else if (selectedAspectRatio < 1) {
+          // Portrait crop (e.g., 4:5 = 0.8)
+          // Width should be smaller than height
+          if (maxWidth * (1/selectedAspectRatio) <= maxHeight) {
+            // Image is wide enough for portrait crop
+            fallbackWidth = maxWidth;
+            fallbackHeight = maxWidth * (1/selectedAspectRatio);
+            fallbackX = 0;
+            fallbackY = Math.max(0, (maxHeight - fallbackHeight) / 2);
+          } else {
+            // Image is too tall, crop by height
+            fallbackHeight = maxHeight;
+            fallbackWidth = maxHeight * selectedAspectRatio;
+            fallbackX = Math.max(0, (maxWidth - fallbackWidth) / 2);
+            fallbackY = 0;
+          }
+        } else {
+          // Landscape crop
+          if (maxHeight * selectedAspectRatio <= maxWidth) {
+            // Image is tall enough for landscape crop
+            fallbackHeight = maxHeight;
+            fallbackWidth = maxHeight * selectedAspectRatio;
+            fallbackX = Math.max(0, (maxWidth - fallbackWidth) / 2);
+            fallbackY = 0;
+          } else {
+            // Image is too wide, crop by width
+            fallbackWidth = maxWidth;
+            fallbackHeight = maxWidth * (1/selectedAspectRatio);
+            fallbackX = 0;
+            fallbackY = Math.max(0, (maxHeight - fallbackHeight) / 2);
+          }
+        }
+        
+        console.log('🔄 [SimpleImageCrop-createCroppedImage] Using smart fallback center crop:', {
+          selectedAspectRatio,
+          imageSize: { maxWidth, maxHeight },
+          fallbackCrop: { 
+            width: fallbackWidth, 
+            height: fallbackHeight, 
+            x: fallbackX, 
+            y: fallbackY 
+          },
+          originalCrop: { 
+            width: croppedAreaPixels.width, 
+            height: croppedAreaPixels.height, 
+            x: croppedAreaPixels.x, 
+            y: croppedAreaPixels.y 
+          }
         });
         
-        width = fallbackSize;
-        height = fallbackSize;
-        x = fallbackX;
-        y = fallbackY;
+        width = Math.floor(fallbackWidth);
+        height = Math.floor(fallbackHeight);
+        x = Math.floor(fallbackX);
+        y = Math.floor(fallbackY);
+      }
+      
+      // Additional validation for questionable crop areas even if they pass basic checks
+      const cropAreaRatio = width / height;
+      const expectedRatio = selectedAspectRatio;
+      const ratioTolerance = 0.1;
+      
+      // If crop ratio is way off from expected, recalculate
+      if (Math.abs(cropAreaRatio - expectedRatio) > ratioTolerance || 
+          width > maxWidth * 0.8 || height > maxHeight * 0.8) {
+        
+        console.log('⚠️ [SimpleImageCrop-createCroppedImage] Crop area seems wrong, recalculating:', {
+          cropAreaRatio,
+          expectedRatio,
+          ratioDiff: Math.abs(cropAreaRatio - expectedRatio),
+          currentCrop: { width, height, x, y },
+          imageSize: { maxWidth, maxHeight }
+        });
+        
+        // Smart recalculation based on aspect ratio
+        let newWidth, newHeight, newX, newY;
+        
+        if (selectedAspectRatio === 1) {
+          // Square crop
+          const size = Math.min(maxWidth, maxHeight) * 0.8; // Use 80% of smaller dimension
+          newWidth = newHeight = size;
+          newX = (maxWidth - size) / 2;
+          newY = (maxHeight - size) / 2;
+        } else if (selectedAspectRatio < 1) {
+          // Portrait crop
+          const targetHeight = Math.min(maxHeight * 0.9, maxWidth * (1/selectedAspectRatio));
+          newHeight = targetHeight;
+          newWidth = targetHeight * selectedAspectRatio;
+          newX = (maxWidth - newWidth) / 2;
+          newY = (maxHeight - newHeight) / 2;
+        } else {
+          // Landscape crop
+          const targetWidth = Math.min(maxWidth * 0.9, maxHeight * selectedAspectRatio);
+          newWidth = targetWidth;
+          newHeight = targetWidth * (1/selectedAspectRatio);
+          newX = (maxWidth - newWidth) / 2;
+          newY = (maxHeight - newHeight) / 2;
+        }
+        
+        width = Math.floor(newWidth);
+        height = Math.floor(newHeight);
+        x = Math.floor(newX);
+        y = Math.floor(newY);
+        
+        console.log('🔄 [SimpleImageCrop-createCroppedImage] Recalculated crop area:', {
+          newCrop: { width, height, x, y },
+          newRatio: width / height,
+          targetRatio: selectedAspectRatio
+        });
       }
       
       console.log('📐 [SimpleImageCrop-createCroppedImage] Final crop dimensions:', {
         width, height, x, y,
         canvasSize: { width, height },
         sourceRect: { x, y, width, height },
-        targetRect: { x: 0, y: 0, width, height }
+        targetRect: { x: 0, y: 0, width, height },
+        finalRatio: width / height,
+        expectedRatio: selectedAspectRatio
       });
       
       console.log('📐 [SimpleImageCrop-createCroppedImage] Setting canvas dimensions:', {

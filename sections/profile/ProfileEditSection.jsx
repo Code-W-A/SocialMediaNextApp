@@ -1547,16 +1547,17 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
             let previewObject;
             
             if (serverData) {
-              console.log('🌐 [ProfileEdit-onCropComplete] Using server-processed data with crop preview');
-              // Use server data with cropped image for preview
+              console.log('🌐 [ProfileEdit-onCropComplete] Using server-processed data with crop result');
+              // FIXED: For server-processed images, use the cropped file for actual saving
+              // Don't save the original server URL - save the cropped result
               fileObject = {
                 uid: `server-cropped-${Date.now()}`,
-                name: serverData.fileName || `server_cropped_${Date.now()}.jpg`,
+                name: `cropped_${serverData.fileName || Date.now()}.jpg`,
                 status: 'done',
-                url: serverData.url, // Keep original server URL for upload
-                serverFileName: serverData.fileName,
+                originFileObj: cropResult.file, // Use cropped file for upload, not server URL
                 serverProcessed: true,
-                cropData: cropResult // Store crop data for reference
+                cropData: cropResult,
+                originalServerUrl: serverData.url // Keep reference for debugging
               };
               
               // For preview, use the cropped image preview URL
@@ -1566,11 +1567,12 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
                 uid: fileObject.uid 
               };
               
-              console.log('📸 [ProfileEdit-onCropComplete] Created server-processed objects:', {
+              console.log('📸 [ProfileEdit-onCropComplete] Created server-processed objects (FIXED):', {
                 fileObject,
                 previewObject,
-                serverUrl: serverData.url,
-                previewUrl: cropResult.preview
+                originalServerUrl: serverData.url,
+                croppedPreviewUrl: cropResult.preview,
+                willUploadCroppedFile: true
               });
               
               // Clean up temp data

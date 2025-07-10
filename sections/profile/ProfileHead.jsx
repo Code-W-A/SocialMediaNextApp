@@ -327,41 +327,32 @@ const ProfileHead = ({
             serverFileName: serverData?.fileName
           });
           
-          if (serverData) {
-            console.log('🌐 [ProfileHead-onCropComplete] Using server-processed banner data');
-            // Use server-processed image URL directly for banner
-            console.log('📸 [ProfileHead-onCropComplete] Setting banner to server URL:', serverData.url);
-            setBanner(serverData.url);
+          // FIXED: Always use the cropped file, regardless of server processing
+          console.log('📁 [ProfileHead-onCropComplete] Using cropped file for banner upload (FIXED)');
+          // Convert cropped file to base64 for upload
+          const reader = new FileReader();
+          reader.onload = () => {
+            console.log('📸 [ProfileHead-onCropComplete] FileReader completed, setting banner to cropped result');
+            setBanner(reader.result);
             
-            console.log('💾 [ProfileHead-onCropComplete] Calling mutate with banner data:', {
+            console.log('💾 [ProfileHead-onCropComplete] Calling mutate with cropped banner data:', {
               userId: currentUser?.id,
-              bannerUrl: serverData.url,
+              bannerIsFromCrop: true,
               prevBannerId: data?.data?.banner_id
             });
             
             mutate({
               id: currentUser?.id,
-              banner: serverData.url, // Use server URL directly
+              banner: reader.result, // Use cropped result
               prevBannerId: data?.data?.banner_id,
             });
-            
-            // Clean up temp data
+          };
+          reader.readAsDataURL(cropResult.file);
+          
+          // Clean up temp data if it exists
+          if (serverData) {
             delete window.tempBannerServerData;
             console.log('🧹 [ProfileHead-onCropComplete] Cleaned up window.tempBannerServerData');
-          } else {
-            console.log('📁 [ProfileHead-onCropComplete] Using cropped file for banner (fallback)');
-            // Convert cropped file to base64 for upload (fallback)
-            const reader = new FileReader();
-            reader.onload = () => {
-              console.log('📸 [ProfileHead-onCropComplete] FileReader completed, setting banner');
-              setBanner(reader.result);
-              mutate({
-                id: currentUser?.id,
-                banner: reader.result,
-                prevBannerId: data?.data?.banner_id,
-              });
-            };
-            reader.readAsDataURL(cropResult.file);
           }
           
           // Close modal and cleanup

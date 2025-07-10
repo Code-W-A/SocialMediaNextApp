@@ -225,6 +225,19 @@ export default function PhotosPage() {
         
         hide();
         
+        // After server processing, show crop modal with the server-processed image
+        if (ENABLE_CROP) {
+          setCropImageUrl(serverResult.url);
+          setCropOriginalFile(file); // Keep original file reference
+          setShowCropModal(true);
+          
+          // Store server data for later use after crop
+          window.tempServerData = serverResult;
+          message.success(t('onboarding.imageStandardizedServer') || 'Image standardized successfully! ✨');
+          return;
+        }
+        
+        // If crop is disabled, add directly
         const fileObject = {
           uid: `direct-${Date.now()}`,
           name: serverResult.fileName || `image_${Date.now()}.jpg`,
@@ -913,12 +926,33 @@ export default function PhotosPage() {
             fileName: cropResult.file.name
           });
           
-          const fileObject = {
-            uid: `cropped-${Date.now()}`,
-            name: `cropped_${Date.now()}.jpg`,
-            status: 'done',
-            originFileObj: cropResult.file
-          };
+          // Check if we have server data from forced processing
+          const serverData = window.tempServerData;
+          let fileObject;
+          
+          if (serverData) {
+            // Use server data with cropped image
+            fileObject = {
+              uid: `server-cropped-${Date.now()}`,
+              name: serverData.fileName || `server_cropped_${Date.now()}.jpg`,
+              status: 'done',
+              url: serverData.url, // Keep original server URL for upload
+              serverFileName: serverData.fileName,
+              serverProcessed: true,
+              originFileObj: cropResult.file // Use cropped file for display
+            };
+            console.log('📸 [OnboardingPhotos] Using server-processed data with crop:', serverData);
+            // Clean up temp data
+            delete window.tempServerData;
+          } else {
+            // Regular crop without server processing
+            fileObject = {
+              uid: `cropped-${Date.now()}`,
+              name: `cropped_${Date.now()}.jpg`,
+              status: 'done',
+              originFileObj: cropResult.file
+            };
+          }
           
           const previewObject = { 
             url: cropResult.preview, 

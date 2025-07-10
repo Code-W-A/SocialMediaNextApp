@@ -105,6 +105,15 @@ const ProfileHead = ({
     router.push('/onboarding/questionnaire');
   };
 
+  const serverFixImage = async (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/fix-image', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('Server processing failed');
+    const data = await res.json();
+    return { url: data.url, fileName: data.fileName };
+  };
+
   const handleBannerChange = async (e) => {
     console.log('📸 [ProfileHead] Banner change triggered');
     const file = e.target.files[0];
@@ -134,10 +143,29 @@ const ProfileHead = ({
       validation.warnings.forEach(warning => message.warning(warning));
     }
 
-    console.log('✅ [ProfileHead] Valid image file, opening crop modal...');
-    const previewUrl = URL.createObjectURL(file);
-    setCropImageUrl(previewUrl);
-    setShowCropModal(true);
+    // Force server processing for all banner images
+    const hide = message.loading('Processing banner image...', 0);
+    try {
+      console.log('🔧 [ProfileHead] Force processing banner through server for standardization...');
+      const serverResult = await serverFixImage(file);
+      console.log('✅ [ProfileHead] Banner image standardized on server:', serverResult.url);
+      
+      hide();
+      
+      // After server processing, show crop modal with the server-processed image
+      setCropImageUrl(serverResult.url);
+      setShowCropModal(true);
+      
+      // Store server data for later use after crop
+      window.tempBannerServerData = serverResult;
+      message.success(t('profileEdit.bannerStandardizedServer') || 'Banner image standardized successfully! ✨');
+      
+    } catch (serverError) {
+      console.error('❌ [ProfileHead] Server processing failed:', serverError);
+      hide();
+      message.error('This banner image cannot be processed. Please try a different image.');
+      return;
+    }
     
     // Clear the input value so the same file can be selected again
     e.target.value = '';
@@ -245,17 +273,33 @@ const ProfileHead = ({
           setCropImageUrl(null);
         }}
         onCropComplete={(cropResult) => {
-          // Convert cropped file to base64 for upload
-          const reader = new FileReader();
-          reader.onload = () => {
-            setBanner(reader.result);
+          // Check if we have server data from forced processing
+          const serverData = window.tempBannerServerData;
+          
+          if (serverData) {
+            // Use server-processed image URL directly for banner
+            console.log('📸 [ProfileHead] Using server-processed banner data:', serverData);
+            setBanner(serverData.url);
             mutate({
               id: currentUser?.id,
-              banner: reader.result,
+              banner: serverData.url, // Use server URL directly
               prevBannerId: data?.data?.banner_id,
             });
-          };
-          reader.readAsDataURL(cropResult.file);
+            // Clean up temp data
+            delete window.tempBannerServerData;
+          } else {
+            // Convert cropped file to base64 for upload (fallback)
+            const reader = new FileReader();
+            reader.onload = () => {
+              setBanner(reader.result);
+              mutate({
+                id: currentUser?.id,
+                banner: reader.result,
+                prevBannerId: data?.data?.banner_id,
+              });
+            };
+            reader.readAsDataURL(cropResult.file);
+          }
           
           // Close modal and cleanup
           setShowCropModal(false);

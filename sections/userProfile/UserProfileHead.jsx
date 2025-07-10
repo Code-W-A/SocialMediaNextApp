@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import css from "@/styles/UserProfileHead.module.css";
 import { Button, Image, Skeleton, Typography, Space, Modal, message, Avatar } from "antd";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -23,7 +23,13 @@ const UserProfileHead = ({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [messageModalVisible, setMessageModalVisible] = useState(false);
+  const [bannerLoading, setBannerLoading] = useState(true);
   const { t } = useLanguage();
+
+  // Reset banner loading when user changes
+  useEffect(() => {
+    setBannerLoading(true);
+  }, [userId, userData?.data?.banner_url]);
 
   // Create conversation mutation
   const createConversationMutation = useMutation({
@@ -138,21 +144,52 @@ const UserProfileHead = ({
         {/* Banner Section */}
         <div className={css.bannerSection}>
           <div className={css.bannerImage}>
-            <Image
-              src={user.banner_url || "https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"}
-              alt={t('userProfile.profileBanner')}
-              preview={false}
-              fallback="https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
-              style={{
-                width: '100%',
-                height: '200px',
-                objectFit: 'cover',
-                borderRadius: '12px 12px 0 0'
-              }}
-              onError={(e) => {
-                e.target.src = 'https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80';
-              }}
-            />
+            {bannerLoading ? (
+              // Show skeleton during loading
+              <div style={{ 
+                width: '100%', 
+                height: '200px', 
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <Skeleton.Image 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%',
+                    borderRadius: '12px 12px 0 0'
+                  }}
+                  active
+                />
+                {/* Overlay for better skeleton appearance */}
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.3) 100%)',
+                  borderRadius: '12px 12px 0 0'
+                }} />
+              </div>
+            ) : (
+              <Image
+                src={user.banner_url || "https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"}
+                alt={t('userProfile.profileBanner')}
+                preview={false}
+                fallback="https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80"
+                style={{
+                  width: '100%',
+                  height: '200px',
+                  objectFit: 'cover',
+                  borderRadius: '12px 12px 0 0'
+                }}
+                onLoad={() => setBannerLoading(false)}
+                onError={(e) => {
+                  e.target.src = 'https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80';
+                  setBannerLoading(false);
+                }}
+              />
+            )}
           </div>
           
           {/* Action buttons overlay */}

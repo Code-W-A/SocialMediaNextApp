@@ -277,7 +277,7 @@ const NotificationPopup = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Iconify icon="eva:heart-fill" width="20px" style={{ color: '#ff6b6b' }} />
               <span style={{ fontWeight: '600', fontSize: '16px' }}>
-                💕 {t('matches.newCompatibilityFound')}
+                💕 {t('notifications.newCompatibilityFound')}
               </span>
             </div>
           ),

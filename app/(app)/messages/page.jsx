@@ -4,8 +4,10 @@ import css from "@/styles/Messages.module.css";
 import { Typography, Alert, Spin, Button } from "antd";
 import ConversationsList from "@/components/Messages/ConversationsList";
 import ChatArea from "@/components/Messages/ChatArea";
-import { subscribeToUserConversations, markMessagesAsRead } from "@/actions/chat";
+import { subscribeToUserConversations, markMessagesAsRead, getUserConversations } from "@/actions/chat";
 import { setUserOnline, setUserOffline } from "@/actions/user";
+import { getMyCompatibleUsers } from "@/actions/admin";
+import { createConversation } from "@/actions/chat";
 import { useUser } from "@/hooks/useFirebaseAuth";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n";
@@ -35,7 +37,7 @@ const MessagesPage = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Subscribe to user's conversations in real-time
+  // Load conversations initially and subscribe to updates
   useEffect(() => {
     console.log("Messages useEffect triggered, currentUser:", currentUser);
     
@@ -50,6 +52,7 @@ const MessagesPage = () => {
     setLoading(true);
     setError(null);
 
+    // Setup real-time subscription directly
     try {
       const unsubscribe = subscribeToUserConversations(
         currentUser.id,
@@ -208,11 +211,23 @@ const MessagesPage = () => {
                 </Typography.Title>
                 {/* Debug buttons */}
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                  <Button size="small" onClick={handleSetOnline} type="primary">
-                    {t('messages.setOnline')}
-                  </Button>
-                  <Button size="small" onClick={handleSetOffline}>
-                    {t('messages.setOffline')}
+               
+            
+            
+                  <Button size="small" onClick={async () => {
+                    console.log("🔍 Manual debug: Reloading conversations...");
+                    setLoading(true);
+                    try {
+                      const conversations = await getUserConversations(currentUser.id);
+                      console.log("🔍 Manual debug: Reloaded conversations:", conversations);
+                      setConversations(conversations);
+                      setLoading(false);
+                    } catch (error) {
+                      console.error("🔍 Manual debug: Error:", error);
+                      setLoading(false);
+                    }
+                  }}>
+                    Reload Conversations
                   </Button>
                 </div>
               </div>

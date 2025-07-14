@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Alert, Skeleton, Typography, Card, Button, Avatar, Space, Tag, Row, Col, Modal, message } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMyCompatibilities } from "@/actions/admin";
@@ -15,10 +15,11 @@ import OnlineStatusIndicator, { OnlineStatusAvatar } from "@/components/OnlineSt
 import PremiumBadge from "@/components/PremiumBadge";
 import css from "@/styles/Home.module.css";
 import { useLanguage } from "@/lib/i18n";
+import { useNotifications } from "@/hooks/useNotifications";
 
 const { Title, Text, Paragraph } = Typography;
 
-const MatchCard = ({ user, currentUser, onStartChat }) => {
+const MatchCard = ({ user, currentUser, onStartChat, isNewCompatibility }) => {
   const router = useRouter();
   const [showCompatibility, setShowCompatibility] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -51,10 +52,10 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
     overflow: 'hidden',
     cursor: 'pointer',
     background: '#fff',
-    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.12)',
+    boxShadow: isNewCompatibility ? '0 8px 30px rgba(99, 102, 241, 0.3)' : '0 8px 30px rgba(0, 0, 0, 0.12)',
     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
     transform: isHovered ? 'translateY(-8px) scale(1.02)' : 'translateY(0) scale(1)',
-    border: '1px solid #f0f0f0',
+    border: isNewCompatibility ? '2px solid #6366f1' : '1px solid #f0f0f0',
     display: 'flex',
     flexDirection: 'column'
   };
@@ -141,12 +142,35 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
             style={imageStyle}
           />
           
+          {/* New Compatibility Badge */}
+          {isNewCompatibility && (
+            <div style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: 'white',
+              padding: '4px 8px',
+              borderRadius: '12px',
+              fontSize: '10px',
+              fontWeight: '600',
+              zIndex: 4,
+              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <span style={{ fontSize: '12px' }}>✨</span>
+              NEW
+            </div>
+          )}
+          
           {/* Verification Badge */}
           {user.verified && (
             <div style={{
               position: 'absolute',
               top: '8px',
-              right: '8px',
+              right: isNewCompatibility ? '52px' : '8px',
               background: 'linear-gradient(135deg, #1890ff, #40a9ff)',
               borderRadius: '50%',
               width: '24px',
@@ -347,8 +371,29 @@ const MatchCard = ({ user, currentUser, onStartChat }) => {
           style={imageStyle}
         />
         
-        {/* Compatibility Tags */}
+        {/* NEW Badge and Compatibility Tags */}
         <div style={tagsStyle}>
+          {/* New Compatibility Badge */}
+          {isNewCompatibility && (
+            <div style={{
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: '700',
+              margin: 0,
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 2px 8px rgba(99, 102, 241, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: '14px' }}>✨</span>
+              NEW
+            </div>
+          )}
           {compatibility.astrology && (
             <div style={tagStyle('#722ed1')}>
               <Iconify icon="eva:star-fill" width="14px" style={{ marginRight: '6px' }} />
@@ -1038,6 +1083,7 @@ const MatchesPage = () => {
   const router = useRouter();
   const [isMobile, setIsMobile] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const { newCompatibilities, markCompatibilitiesAsSeen } = useNotifications(currentUser);
 
   // Check for mobile screen size and iOS
   useEffect(() => {
@@ -1088,12 +1134,61 @@ const MatchesPage = () => {
     });
   };
 
-  // Filter compatible users
-  const compatibleUsers = allUsers?.filter(user => 
-    compatibleUserIds?.includes(user.id) && user.id !== currentUser?.id
-  ) || [];
+  // Filter compatible users and sort with new compatibilities first
+  const compatibleUsers = useMemo(() => {
+    const filtered = allUsers?.filter(user => 
+      compatibleUserIds?.includes(user.id) && user.id !== currentUser?.id
+    ) || [];
+    
+    // Sort: new compatibilities first, then regular ones
+    return filtered.sort((a, b) => {
+      const aIsNew = newCompatibilities.some(newComp => newComp.id === a.id);
+      const bIsNew = newCompatibilities.some(newComp => newComp.id === b.id);
+      
+      if (aIsNew && !bIsNew) return -1;
+      if (!aIsNew && bIsNew) return 1;
+      return 0;
+    });
+  }, [allUsers, compatibleUserIds, currentUser?.id, newCompatibilities]);
 
   const isLoading = loadingCompatibilities || loadingUsers;
+
+  // Mark compatibilities as seen when user actually views them
+  useEffect(() => {
+    if (compatibleUsers.length > 0 && newCompatibilities.length > 0) {
+      let timer;
+      let hasInteracted = false;
+      
+      // Mark as seen after user interaction or after 10 seconds
+      const markAsSeen = () => {
+        if (!hasInteracted) {
+          hasInteracted = true;
+          markCompatibilitiesAsSeen();
+        }
+      };
+      
+      // Mark as seen on user interaction
+      const handleInteraction = () => {
+        clearTimeout(timer);
+        markAsSeen();
+      };
+      
+      // Add event listeners for user interaction
+      document.addEventListener('click', handleInteraction);
+      document.addEventListener('scroll', handleInteraction);
+      document.addEventListener('touchstart', handleInteraction);
+      
+      // Fallback: mark as seen after 10 seconds even without interaction
+      timer = setTimeout(markAsSeen, 10000);
+      
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('click', handleInteraction);
+        document.removeEventListener('scroll', handleInteraction);
+        document.removeEventListener('touchstart', handleInteraction);
+      };
+    }
+  }, [compatibleUsers.length, newCompatibilities.length, markCompatibilitiesAsSeen]);
 
   return (
     <div style={{ 
@@ -1206,6 +1301,7 @@ const MatchesPage = () => {
                   user={user}
                   currentUser={currentUser}
                   onStartChat={handleStartChat}
+                  isNewCompatibility={newCompatibilities.some(newComp => newComp.id === user.id)}
                 />
               </Col>
             ))}

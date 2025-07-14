@@ -14,6 +14,8 @@ import { useUser, useAuth } from "@/hooks/useFirebaseAuth";
 import { getUserDisplayName, shouldBlockNavigation } from "@/utils/profileHelpers";
 import { useLanguage } from "@/lib/i18n";
 import LanguageSwitcher from "./LanguageSwitcher";
+import { useNotifications } from "@/hooks/useNotifications";
+import NotificationBadge from "./NotificationBadge";
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -22,6 +24,7 @@ const Sidebar = () => {
   const { user } = useUser();
   const { signOut } = useAuth();
   const { t } = useLanguage();
+  const { unreadMessagesCount, newCompatibilitiesCount } = useNotifications(user);
   
   useEffect(() => {
     setMounted(true);
@@ -77,6 +80,35 @@ const Sidebar = () => {
     return isActive(route) && "var(--primary)";
   };
 
+  // Helper function to render icon with notification badge
+  const renderIconWithBadge = (route) => {
+    if (route.route === '/messages') {
+      return (
+        <NotificationBadge
+          icon={route.icon}
+          width="20px"
+          color={activeColor(route)}
+          count={unreadMessagesCount}
+          size="small"
+        />
+      );
+    } else if (route.route === '/matches') {
+      return (
+        <NotificationBadge
+          icon={route.icon}
+          width="20px"
+          color={activeColor(route)}
+          count={newCompatibilitiesCount}
+          size="small"
+        />
+      );
+    } else {
+      return (
+        <Iconify icon={route.icon} width={"20px"} />
+      );
+    }
+  };
+
   return (
     mounted && (
       <SidebarContainer
@@ -104,7 +136,7 @@ const Sidebar = () => {
               >
                 {/* icon */}
                 <Typography style={{ color: activeColor(route) }}>
-                  <Iconify icon={route.icon} width={"20px"} />
+                  {renderIconWithBadge(route)}
                 </Typography>
 
                 {/* name */}

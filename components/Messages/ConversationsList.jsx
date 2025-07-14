@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import css from "@/styles/ConversationsList.module.css";
-import { Avatar, Badge, Typography, Input, Empty, Tabs, Button } from "antd";
+import { Avatar, Badge, Typography, Input, Empty, Button } from "antd";
 import Iconify from "../Iconify";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getDisplayName } from "@/utils/profileHelpers";
@@ -22,7 +22,6 @@ dayjs.extend(relativeTime);
 
 const ConversationsList = ({ conversations, onSelectConversation, selectedId, currentUser }) => {
   const { settings: { theme: currentTheme } } = useSettingsContext();
-  const [activeTab, setActiveTab] = useState("conversations");
   const [compatibleUsers, setCompatibleUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -150,9 +149,6 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         console.log("Selecting new conversation:", newConversation);
         onSelectConversation(newConversation);
         
-        // Switch to conversations tab to show the new conversation
-        setActiveTab("conversations");
-        
         // Remove user from compatible users list since they now have a conversation
         setCompatibleUsers(prev => prev.filter(u => u.id !== user.id));
         
@@ -197,7 +193,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
   // Memoized filtered compatible users
   const filteredCompatibleUsers = useMemo(() => {
     // First filter out users who already have conversations
-    const existingConversationUserIds = conversations.map(conv => conv.otherUser?.id);
+    const existingConversationUserIds = conversations.map(conv => conv.otherUser?.id).filter(Boolean);
     const availableUsers = compatibleUsers.filter(user => !existingConversationUserIds.includes(user.id));
     
     // Then apply search filter if needed
@@ -398,79 +394,21 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
     );
   }, [handleStartConversation, t]);
 
-  // Memoized tab items
-  const tabItems = useMemo(() => [
-    {
-      key: 'conversations',
-      label: searchText.trim() ? 
-        `${t('messages.messagesTab')} (${filteredConversations.length}/${conversations.length})` : 
-        `${t('messages.messagesTab')} (${conversations.length})`,
-      children: (
-        <div className={css.conversationsContainer}>
-          {filteredConversations.length === 0 ? (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '200px',
-              padding: '1rem'
-            }}>
-              <Empty 
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <Typography.Text type="secondary">
-                    {searchText.trim() ? 
-                      `${t('messages.noConversationsFound')} "${searchText}"` : 
-                      t('messages.noConversationsYet')
-                    }
-                  </Typography.Text>
-                }
-              />
-            </div>
-          ) : (
-            filteredConversations.map(renderConversationItem)
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'compatible',
-      label: searchText.trim() ? 
-        `${t('messages.compatibleTab')} (${filteredCompatibleUsers.length}/${compatibleUsers.length})` : 
-        `${t('messages.compatibleTab')} (${compatibleUsers.length})`,
-      children: (
-        <div className={css.conversationsContainer}>
-          {loading ? (
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-              <Typography.Text type="secondary">{t('messages.loadingCompatibleUsers')}</Typography.Text>
-            </div>
-          ) : filteredCompatibleUsers.length === 0 ? (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '200px',
-              padding: '1rem'
-            }}>
-              <Empty 
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <Typography.Text type="secondary">
-                    {searchText.trim() ? 
-                      `${t('messages.noCompatibleUsersFound')} "${searchText}"` : 
-                      t('messages.noCompatibleUsers')
-                    }
-                  </Typography.Text>
-                }
-              />
-            </div>
-          ) : (
-            filteredCompatibleUsers.map(renderCompatibleUserItem)
-          )}
-        </div>
-      )
-    }
-  ], [searchText, filteredConversations, conversations.length, loading, filteredCompatibleUsers, compatibleUsers.length, renderConversationItem, renderCompatibleUserItem, t]);
+  // Memoized unified list that shows conversations first, then compatible users
+  const unifiedList = useMemo(() => {
+    const hasConversations = filteredConversations.length > 0;
+    const hasCompatibleUsers = filteredCompatibleUsers.length > 0;
+    
+
+    
+    return {
+      conversations: filteredConversations,
+      compatibleUsers: filteredCompatibleUsers,
+      hasConversations,
+      hasCompatibleUsers,
+      isEmpty: !hasConversations && !hasCompatibleUsers && !loading
+    };
+  }, [filteredConversations, filteredCompatibleUsers, loading]);
 
   return (
     <div className={css.wrapper}>
@@ -486,17 +424,88 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
         />
       </div>
 
-      {/* Tabs for Conversations and Compatible Users */}
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={tabItems}
-        style={{ 
-          padding: '0 16px',
-          '--ant-primary-color': 'var(--primary)'
-        }}
-        size="small"
-      />
+      {/* Unified List - Conversations and Compatible Users */}
+      <div className={css.conversationsContainer} style={{ padding: '0 16px' }}>
+        {loading ? (
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <Typography.Text type="secondary">{t('messages.loadingCompatibleUsers')}</Typography.Text>
+          </div>
+        ) : unifiedList.isEmpty ? (
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            height: '200px',
+            padding: '1rem'
+          }}>
+            <Empty 
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <Typography.Text type="secondary">
+                  {searchText.trim() ? 
+                    `${t('messages.noResultsFound')} "${searchText}"` : 
+                    t('messages.noConversationsYet')
+                  }
+                </Typography.Text>
+              }
+            />
+          </div>
+        ) : (
+          <>
+            {/* Conversations Section */}
+            {unifiedList.hasConversations && (
+              <>
+                {!searchText.trim() && (
+                  <div style={{ 
+                    padding: '8px 0 4px 0', 
+                    borderBottom: '1px solid #f0f0f0', 
+                    marginBottom: '8px' 
+                  }}>
+                    <Typography.Text 
+                      type="secondary" 
+                      style={{ 
+                        fontSize: '12px', 
+                        fontWeight: '500',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}
+                    >
+                      {t('messages.messagesTab')} ({unifiedList.conversations.length})
+                    </Typography.Text>
+                  </div>
+                )}
+                {unifiedList.conversations.map(renderConversationItem)}
+              </>
+            )}
+
+            {/* Compatible Users Section */}
+            {unifiedList.hasCompatibleUsers && (
+              <>
+                {!searchText.trim() && unifiedList.hasConversations && (
+                  <div style={{ 
+                    padding: '16px 0 4px 0', 
+                    borderBottom: '1px solid #f0f0f0', 
+                    marginBottom: '8px' 
+                  }}>
+                    <Typography.Text 
+                      type="secondary" 
+                      style={{ 
+                        fontSize: '12px', 
+                        fontWeight: '500',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}
+                    >
+                      {t('messages.compatibleTab')} ({unifiedList.compatibleUsers.length})
+                    </Typography.Text>
+                  </div>
+                )}
+                {unifiedList.compatibleUsers.map(renderCompatibleUserItem)}
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };

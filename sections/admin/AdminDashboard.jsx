@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   Table, 
   Button, 
@@ -28,6 +28,8 @@ import {
 } from "antd";
 import { UserOutlined, HeartOutlined, SearchOutlined, CrownOutlined, MessageOutlined, DeleteOutlined, EyeOutlined, WarningOutlined, HeartFilled } from "@ant-design/icons";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser, getAllPostsForAdmin, deletePostAsAdmin, deleteCommentAsAdmin, getAllResonanceRequests } from "@/actions/admin";
 // Removed admin settings import - simplified feed system
 import { getMainProfileImage } from "@/utils/imageHelpers";
@@ -37,6 +39,88 @@ import ErrorsManagement from "./ErrorsManagement";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
+
+// Separate component to avoid hooks in render method
+const CompatibilityCell = ({ userId }) => {
+  const [compatibilityData, setCompatibilityData] = useState({ count: 0, lastDate: null, loading: true });
+  
+  useEffect(() => {
+    const fetchCompatibilityData = async () => {
+      try {
+        const compatibilitiesRef = collection(db, "Compatibilities");
+        const q = query(compatibilitiesRef, where("userId", "==", userId));
+        const snapshot = await getDocs(q);
+        const count = snapshot.size;
+        
+        // Get last compatibility date
+        const qLast = query(
+          compatibilitiesRef,
+          where("userId", "==", userId),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        );
+        const lastSnapshot = await getDocs(qLast);
+        const lastDate = lastSnapshot.empty ? null : lastSnapshot.docs[0].data().createdAt?.toDate();
+        
+        setCompatibilityData({ count, lastDate, loading: false });
+      } catch (error) {
+        console.error('Error fetching compatibility data:', error);
+        setCompatibilityData({ count: 0, lastDate: null, loading: false });
+      }
+    };
+    
+    fetchCompatibilityData();
+  }, [userId]);
+
+  if (compatibilityData.loading) {
+    return <Spin size="small" />;
+  }
+
+  const { count, lastDate } = compatibilityData;
+  
+  let lastCompatibilityText = 'Never';
+  let lastCompatibilityColor = 'default';
+  
+  if (lastDate) {
+    const now = new Date();
+    const timeDiff = now - lastDate;
+    const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff === 0) {
+      lastCompatibilityText = 'Today';
+      lastCompatibilityColor = 'green';
+    } else if (daysDiff === 1) {
+      lastCompatibilityText = 'Yesterday';
+      lastCompatibilityColor = 'blue';
+    } else if (daysDiff <= 7) {
+      lastCompatibilityText = `${daysDiff} days ago`;
+      lastCompatibilityColor = 'orange';
+    } else if (daysDiff <= 30) {
+      lastCompatibilityText = `${daysDiff} days ago`;
+      lastCompatibilityColor = 'red';
+    } else {
+      lastCompatibilityText = lastDate.toLocaleDateString();
+      lastCompatibilityColor = 'default';
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <HeartFilled style={{ color: count > 0 ? '#ff4d4f' : '#d9d9d9' }} />
+        <Text strong style={{ color: count > 0 ? '#ff4d4f' : '#999' }}>
+          {count}
+        </Text>
+      </div>
+      <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
+        <Text type="secondary">Last: </Text>
+        <Tag color={lastCompatibilityColor} size="small">
+          {lastCompatibilityText}
+        </Tag>
+      </div>
+    </div>
+  );
+};
 
 const AdminDashboard = () => {
   const [selectedUser, setSelectedUser] = useState(null);
@@ -56,6 +140,12 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'moderation' or 'chats'
   const [selectedPost, setSelectedPost] = useState(null);
   const [postDetailsModalVisible, setPostDetailsModalVisible] = useState(false);
+  
+  // New compatibility filters
+  const [hasCompatibilitiesFilter, setHasCompatibilitiesFilter] = useState(null); // 'has' | 'none' | null
+  const [lastCompatibilityPeriod, setLastCompatibilityPeriod] = useState(null); // 'week' | 'month' | '3months' | '6months' | 'year' | null
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [filteringUsers, setFilteringUsers] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch all users
@@ -63,6 +153,13 @@ const AdminDashboard = () => {
     queryKey: ["admin-users"],
     queryFn: getAllUsers,
   });
+
+  // Initialize filteredUsers with all users when users data is loaded
+  useEffect(() => {
+    if (users && filteredUsers.length === 0 && !filteringUsers) {
+      setFilteredUsers(users);
+    }
+  }, [users, filteredUsers.length, filteringUsers]);
 
   // Fetch all posts for moderation
   const { data: postsData, isLoading: postsLoading, refetch: refetchPosts } = useQuery({
@@ -324,6 +421,65 @@ const AdminDashboard = () => {
     const status = user.subscription.status;
     return status === 'active' || status === 'trialing';
   };
+
+  // Helper function to check if user matches compatibility filters
+  const checkCompatibilityFilters = useCallback(async (user) => {
+    if (!hasCompatibilitiesFilter && !lastCompatibilityPeriod) return true;
+    
+    try {
+      const compatibilitiesRef = collection(db, "Compatibilities");
+      const q = query(compatibilitiesRef, where("userId", "==", user.id));
+      const snapshot = await getDocs(q);
+      const compatibilitiesCount = snapshot.size;
+      
+      // Check has/no compatibilities filter
+      if (hasCompatibilitiesFilter) {
+        if (hasCompatibilitiesFilter === 'has' && compatibilitiesCount === 0) return false;
+        if (hasCompatibilitiesFilter === 'none' && compatibilitiesCount > 0) return false;
+      }
+      
+      // Check last compatibility period filter
+      if (lastCompatibilityPeriod) {
+        const qLast = query(
+          compatibilitiesRef,
+          where("userId", "==", user.id),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        );
+        const lastSnapshot = await getDocs(qLast);
+        const lastCompatibilityDate = lastSnapshot.empty ? null : lastSnapshot.docs[0].data().createdAt?.toDate();
+        
+        if (!lastCompatibilityDate) {
+          // No compatibility found, this matches period filters only if looking for users with no recent activity
+          return true;
+        }
+        
+        const now = new Date();
+        const timeDiff = now - lastCompatibilityDate;
+        const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
+        
+        switch (lastCompatibilityPeriod) {
+          case 'week':
+            return daysDiff > 7;
+          case 'month':
+            return daysDiff > 30;
+          case '3months':
+            return daysDiff > 90;
+          case '6months':
+            return daysDiff > 180;
+          case 'year':
+            return daysDiff > 365;
+          default:
+            return true;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error checking compatibility filters:', error);
+      return true;
+    }
+  }, [hasCompatibilitiesFilter, lastCompatibilityPeriod]);
 
   // Get premium subscription details
   const getPremiumDetails = (user) => {
@@ -789,6 +945,19 @@ const AdminDashboard = () => {
       width: 120,
     },
     {
+      title: "Compatibilities",
+      key: "compatibilities",
+      render: (_, record) => {
+        return <CompatibilityCell userId={record.id} />;
+      },
+      sorter: (a, b) => {
+        // Note: This will be async, so sorting might not work perfectly
+        // For better sorting, we'd need to preload compatibility data
+        return 0;
+      },
+      width: 140,
+    },
+    {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
@@ -877,30 +1046,65 @@ const AdminDashboard = () => {
   };
 
   // Filter users for search and criteria
-  const filteredUsers = users?.filter(user => {
-    if (!user) return false;
+  const applyFilters = useCallback(async () => {
+    if (!users) {
+      setFilteredUsers([]);
+      return;
+    }
     
-    const fullName = (user.firstName && user.lastName) 
-      ? `${user.firstName} ${user.lastName}` 
-      : user.displayName || user.name || "";
-    const username = user.username || user.email?.split('@')[0] || "";
+    setFilteringUsers(true);
     
-    // Text search
-    const matchesSearch = searchText === "" || 
-      fullName.toLowerCase().includes(searchText.toLowerCase()) ||
-      username.toLowerCase().includes(searchText.toLowerCase()) ||
-      user.bio?.toLowerCase().includes(searchText.toLowerCase());
-    
-    // Gender filter
-    const matchesGender = !genderFilter || user.gender === genderFilter;
-    
-    // Age filter
-    const userAge = user.age || user.dateOfBirth ? 
-      (user.age || new Date().getFullYear() - new Date(user.dateOfBirth).getFullYear()) : null;
-    const matchesAge = !userAge || (userAge >= ageRange[0] && userAge <= ageRange[1]);
-    
-    return matchesSearch && matchesGender && matchesAge;
-  }) || [];
+    try {
+      const filtered = [];
+      
+      for (const user of users) {
+        if (!user) continue;
+        
+        const fullName = (user.firstName && user.lastName) 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.displayName || user.name || "";
+        const username = user.username || user.email?.split('@')[0] || "";
+        
+        // Text search
+        const matchesSearch = !searchText || 
+          fullName.toLowerCase().includes(searchText.toLowerCase()) ||
+          username.toLowerCase().includes(searchText.toLowerCase()) ||
+          (user.bio && user.bio.toLowerCase().includes(searchText.toLowerCase()));
+        
+        // Gender filter
+        const matchesGender = !genderFilter || user.gender === genderFilter;
+        
+        // Age filter
+        const userAge = user.age || user.dateOfBirth ? 
+          (user.age || new Date().getFullYear() - new Date(user.dateOfBirth).getFullYear()) : null;
+        const matchesAge = !userAge || (userAge >= ageRange[0] && userAge <= ageRange[1]);
+        
+        // Basic filters
+        const matchesBasicFilters = matchesSearch && matchesGender && matchesAge;
+        
+        if (!matchesBasicFilters) continue;
+        
+        // Compatibility filters (async)
+        const matchesCompatibilityFilters = await checkCompatibilityFilters(user);
+        
+        if (matchesCompatibilityFilters) {
+          filtered.push(user);
+        }
+      }
+      
+      setFilteredUsers(filtered);
+    } catch (error) {
+      console.error('Error filtering users:', error);
+      setFilteredUsers(users || []);
+    } finally {
+      setFilteringUsers(false);
+    }
+  }, [users, searchText, genderFilter, ageRange, checkCompatibilityFilters]);
+  
+  // Apply filters when users or filter criteria change
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   // Get available users for compatibility (exclude current user and already compatible)
   const availableUsers = users?.filter(user => {
@@ -1160,7 +1364,7 @@ const AdminDashboard = () => {
 
         
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col span={8}>
+          <Col span={6}>
             <Search
               placeholder="Search users by name, username, or bio..."
               value={searchText}
@@ -1168,7 +1372,7 @@ const AdminDashboard = () => {
               style={{ width: '100%' }}
             />
           </Col>
-          <Col span={4}>
+          <Col span={3}>
             <Select
               placeholder="Filter by gender"
               value={genderFilter}
@@ -1181,7 +1385,7 @@ const AdminDashboard = () => {
               <Select.Option value="other">Other</Select.Option>
             </Select>
           </Col>
-          <Col span={6}>
+          <Col span={4}>
             <div>
               <Text strong style={{ marginBottom: 8, display: 'block' }}>Age Range: {ageRange[0]} - {ageRange[1]}</Text>
               <Slider
@@ -1193,10 +1397,40 @@ const AdminDashboard = () => {
               />
             </div>
           </Col>
-          <Col span={6}>
+          <Col span={3}>
+            <Select
+              placeholder="Compatibilities"
+              value={hasCompatibilitiesFilter}
+              onChange={setHasCompatibilitiesFilter}
+              allowClear
+              style={{ width: '100%' }}
+            >
+              <Select.Option value="has">Has Compatibilities</Select.Option>
+              <Select.Option value="none">No Compatibilities</Select.Option>
+            </Select>
+          </Col>
+          <Col span={4}>
+            <Select
+              placeholder="Last Compatibility"
+              value={lastCompatibilityPeriod}
+              onChange={setLastCompatibilityPeriod}
+              allowClear
+              style={{ width: '100%' }}
+            >
+              <Select.Option value="week">No compatibility for 1 week</Select.Option>
+              <Select.Option value="month">No compatibility for 1 month</Select.Option>
+              <Select.Option value="3months">No compatibility for 3 months</Select.Option>
+              <Select.Option value="6months">No compatibility for 6 months</Select.Option>
+              <Select.Option value="year">No compatibility for 1 year</Select.Option>
+            </Select>
+          </Col>
+          <Col span={4}>
             <div style={{ textAlign: 'right' }}>
               <Text strong>Total Users: {users?.length || 0}</Text><br/>
-              <Text type="secondary">Filtered: {filteredUsers.length}</Text>
+              <Text type="secondary">
+                Filtered: {filteredUsers.length}
+                {filteringUsers && <Spin size="small" style={{ marginLeft: 8 }} />}
+              </Text>
             </div>
           </Col>
         </Row>
@@ -1242,7 +1476,7 @@ const AdminDashboard = () => {
         <Table
           columns={userColumns}
           dataSource={filteredUsers}
-          loading={usersLoading}
+          loading={usersLoading || filteringUsers}
           rowKey="id"
           pagination={{
             pageSize: 10,

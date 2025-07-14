@@ -6,6 +6,7 @@ import Box from "@/components/Box";
 import Sidebar from "@/components/Sidebar";
 import BottomNavbar from "@/components/BottomNavbar";
 import AdminChatSupport from "@/components/AdminChatSupport";
+import NotificationManager from "@/components/NotificationManager";
 import { SettingsContextProvider } from "@/context/settings/settings-provider";
 import { Toaster } from "react-hot-toast";
 import {
@@ -59,6 +60,9 @@ const HomeLayout = async ({ children }) => {
                 
                 {/* Admin Chat Support - Hidden, used via dropdown triggers */}
                 <AdminChatSupport trigger="hidden" />
+                
+                {/* Notification Manager for popup notifications */}
+                <NotificationManager />
               </div>
             </Box>
           </HydrationBoundary>

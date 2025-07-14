@@ -53,6 +53,7 @@ export const createConversation = async ({ user1Id, user2Id }) => {
     }
 
     // Create new conversation
+    const now = new Date();
     const newConversation = {
       participants: [user1Id, user2Id],
       createdAt: serverTimestamp(),
@@ -64,8 +65,11 @@ export const createConversation = async ({ user1Id, user2Id }) => {
         [user2Id]: 0
       }
     };
+    
+    console.log("🔍 [createConversation] Creating new conversation:", newConversation);
 
     const docRef = await addDoc(conversationsRef, newConversation);
+    console.log("🔍 [createConversation] New conversation created with ID:", docRef.id);
     
     return { 
       success: true, 
@@ -83,25 +87,34 @@ export const getUserConversations = async (userId) => {
   try {
     if (!userId) return [];
     
+    console.log("🔍 [getUserConversations] Fetching conversations for user:", userId);
+    
     const conversationsRef = collection(db, "Conversations");
     const q = query(
       conversationsRef, 
-      where("participants", "array-contains", userId),
-      orderBy("updatedAt", "desc")
+      where("participants", "array-contains", userId)
     );
     
     const snapshot = await getDocs(q);
+    console.log("🔍 [getUserConversations] Found", snapshot.docs.length, "conversations");
+    
     const conversations = [];
     
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
+      console.log("🔍 [getUserConversations] Processing conversation:", docSnapshot.id, data);
       
       // Get the other participant's info
       const otherUserId = data.participants.find(id => id !== userId);
+      if (!otherUserId) {
+        console.log("🔍 [getUserConversations] No other user found for conversation:", docSnapshot.id);
+        continue;
+      }
+      
       const otherUserDoc = await getDoc(doc(db, "Users", otherUserId));
       
       if (otherUserDoc.exists()) {
-        conversations.push({
+        const conversation = {
           id: docSnapshot.id,
           ...data,
           otherUser: {
@@ -109,11 +122,24 @@ export const getUserConversations = async (userId) => {
             ...otherUserDoc.data()
           },
           unreadCount: data.unreadCounts?.[userId] || 0
-        });
+        };
+        
+        console.log("🔍 [getUserConversations] Adding conversation:", conversation.id, "with user:", otherUserDoc.data().firstName);
+        conversations.push(conversation);
+      } else {
+        console.log("🔍 [getUserConversations] User not found:", otherUserId);
       }
     }
     
-    return conversations;
+    // Sort conversations by updatedAt manually
+    const sortedConversations = conversations.sort((a, b) => {
+      const aTime = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
+      const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
+      return bTime - aTime;
+    });
+    
+    console.log("🔍 [getUserConversations] Final conversations count:", sortedConversations.length);
+    return sortedConversations;
   } catch (error) {
     console.error("Error fetching conversations:", error);
     throw error;
@@ -237,34 +263,49 @@ export const subscribeToUserConversations = (userId, callback) => {
     return () => {};
   }
   
+  console.log("🔍 [subscribeToUserConversations] Starting subscription for user:", userId);
+  
   const conversationsRef = collection(db, "Conversations");
+  
+  // Try query without orderBy first to see if that's the issue
   const q = query(
     conversationsRef, 
-    where("participants", "array-contains", userId),
-    orderBy("updatedAt", "desc")
+    where("participants", "array-contains", userId)
   );
   
   return onSnapshot(q, async (snapshot) => {
     try {
+      console.log("🔍 [subscribeToUserConversations] Snapshot received, docs count:", snapshot.docs.length);
+      
       const conversations = [];
       
       if (snapshot.empty) {
+        console.log("🔍 [subscribeToUserConversations] No conversations found");
         callback([]);
         return;
       }
       
       for (const docSnapshot of snapshot.docs) {
         const data = docSnapshot.data();
+        console.log("🔍 [subscribeToUserConversations] Processing conversation:", {
+          id: docSnapshot.id,
+          participants: data.participants,
+          updatedAt: data.updatedAt,
+          lastMessage: data.lastMessage
+        });
         
         // Get the other participant's info
         const otherUserId = data.participants.find(id => id !== userId);
-        if (!otherUserId) continue;
+        if (!otherUserId) {
+          console.log("🔍 [subscribeToUserConversations] No other user found for conversation:", docSnapshot.id);
+          continue;
+        }
         
         try {
           const otherUserDoc = await getDoc(doc(db, "Users", otherUserId));
           
           if (otherUserDoc.exists()) {
-            conversations.push({
+            const conversation = {
               id: docSnapshot.id,
               ...data,
               otherUser: {
@@ -272,7 +313,12 @@ export const subscribeToUserConversations = (userId, callback) => {
                 ...otherUserDoc.data()
               },
               unreadCount: data.unreadCounts?.[userId] || 0
-            });
+            };
+            
+            console.log("🔍 [subscribeToUserConversations] Adding conversation:", conversation.id, "with user:", otherUserDoc.data().firstName);
+            conversations.push(conversation);
+          } else {
+            console.log("🔍 [subscribeToUserConversations] User not found:", otherUserId);
           }
         } catch (userError) {
           console.error(`Error fetching user ${otherUserId}:`, userError);
@@ -280,7 +326,15 @@ export const subscribeToUserConversations = (userId, callback) => {
         }
       }
       
-      callback(conversations);
+      // Sort conversations by updatedAt manually
+      const sortedConversations = conversations.sort((a, b) => {
+        const aTime = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
+        const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
+        return bTime - aTime;
+      });
+      
+      console.log("🔍 [subscribeToUserConversations] Final conversations count:", sortedConversations.length);
+      callback(sortedConversations);
     } catch (error) {
       console.error("Error in conversations subscription:", error);
       callback([]); // Return empty array on error

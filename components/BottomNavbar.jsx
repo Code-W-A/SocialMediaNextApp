@@ -13,6 +13,8 @@ import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getUserDisplayName, shouldBlockNavigation } from "@/utils/profileHelpers";
 import { openSupport } from "@/utils/supportHelpers";
 import { useLanguage } from "@/lib/i18n";
+import { useNotifications } from "@/hooks/useNotifications";
+import NotificationBadge from "./NotificationBadge";
 
 const BottomNavbar = () => {
   const pathname = usePathname();
@@ -23,6 +25,7 @@ const BottomNavbar = () => {
   const [isVisible, setIsVisible] = useState(true);
   const { settings: { theme } } = useSettingsContext();
   const { t } = useLanguage();
+  const { unreadMessagesCount, newCompatibilitiesCount, markCompatibilitiesAsSeen } = useNotifications(user);
 
   useEffect(() => {
     setMounted(true);
@@ -128,6 +131,39 @@ const BottomNavbar = () => {
     return theme === 'dark' ? '#ccc' : '#666';
   };
 
+  // Helper function to render icon with notification badge
+  const renderIconWithBadge = (route) => {
+    if (route.route === '/messages') {
+      return (
+        <NotificationBadge
+          icon={route.icon}
+          width="24px"
+          color={activeColor(route)}
+          count={unreadMessagesCount}
+          size="small"
+        />
+      );
+    } else if (route.route === '/matches') {
+      return (
+        <NotificationBadge
+          icon={route.icon}
+          width="24px"
+          color={activeColor(route)}
+          count={newCompatibilitiesCount}
+          size="small"
+        />
+      );
+    } else {
+      return (
+        <Iconify 
+          icon={route.icon} 
+          width="24px" 
+          style={{ color: activeColor(route) }}
+        />
+      );
+    }
+  };
+
   if (!mounted) return null;
 
   const routes = sidebarRoutes(user);
@@ -172,11 +208,7 @@ const BottomNavbar = () => {
               aria-label={route.name}
             >
               <div className={css.iconContainer}>
-                <Iconify 
-                  icon={route.icon} 
-                  width="24px" 
-                  style={{ color: activeColor(route) }}
-                />
+                {renderIconWithBadge(route)}
                 {isActive(route) && <div className={css.activeIndicator} />}
               </div>
               <Typography.Text 
@@ -201,11 +233,7 @@ const BottomNavbar = () => {
               aria-label={route.name}
             >
               <div className={css.iconContainer}>
-                <Iconify 
-                  icon={route.icon} 
-                  width="24px" 
-                  style={{ color: activeColor(route) }}
-                />
+                {renderIconWithBadge(route)}
                 {isActive(route) && <div className={css.activeIndicator} />}
               </div>
               <Typography.Text 

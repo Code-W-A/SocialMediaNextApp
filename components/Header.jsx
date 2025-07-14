@@ -17,6 +17,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/lib/i18n";
 import { openSupport } from "@/utils/supportHelpers";
 import PWAInstallButton from "@/components/PWAInstallButton";
+import NotificationIcon from "@/components/NotificationIcon";
 
 const Header = () => {
   const { user } = useUser();
@@ -194,6 +195,10 @@ const Header = () => {
                 minWidth: isMobile ? '45px' : '120px'
               }}
             />
+            
+            {/* Notification Icon */}
+            <NotificationIcon user={user} isMobile={isMobile} />
+            
             <Dropdown
               menu={{ items: userMenuItems }}
               placement="bottomRight"

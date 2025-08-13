@@ -15,10 +15,28 @@ import {
   or,
   and,
   writeBatch,
-  setDoc
+  setDoc,
+  startAfter
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
+// Simple in-memory cache for user documents to avoid repeated fetches during snapshots
+const userDocCache = new Map(); // userId -> { data, time }
+
+const getUserDocCached = async (userId) => {
+  if (!userId) return null;
+  const cached = userDocCache.get(userId);
+  const nowTs = Date.now();
+  // 10 minutes TTL
+  if (cached && (nowTs - cached.time) < 10 * 60 * 1000) {
+    return cached.data;
+  }
+  const snap = await getDoc(doc(db, "Users", userId));
+  const data = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  userDocCache.set(userId, { data, time: nowTs });
+  return data;
+};
 
 // Create a new conversation between two users
 export const createConversation = async ({ user1Id, user2Id }) => {
@@ -98,38 +116,32 @@ export const getUserConversations = async (userId) => {
     const snapshot = await getDocs(q);
     console.log("🔍 [getUserConversations] Found", snapshot.docs.length, "conversations");
     
-    const conversations = [];
-    
-    for (const docSnapshot of snapshot.docs) {
+    // Fetch other users in parallel to avoid sequential latency
+    const conversations = (await Promise.all(snapshot.docs.map(async (docSnapshot) => {
       const data = docSnapshot.data();
       console.log("🔍 [getUserConversations] Processing conversation:", docSnapshot.id, data);
-      
-      // Get the other participant's info
       const otherUserId = data.participants.find(id => id !== userId);
       if (!otherUserId) {
         console.log("🔍 [getUserConversations] No other user found for conversation:", docSnapshot.id);
-        continue;
+        return null;
       }
-      
-      const otherUserDoc = await getDoc(doc(db, "Users", otherUserId));
-      
-      if (otherUserDoc.exists()) {
-        const conversation = {
+      try {
+        const otherUserData = await getUserDocCached(otherUserId);
+        if (!otherUserData) {
+          console.log("🔍 [getUserConversations] User not found:", otherUserId);
+          return null;
+        }
+        return {
           id: docSnapshot.id,
           ...data,
-          otherUser: {
-            id: otherUserDoc.id,
-            ...otherUserDoc.data()
-          },
+          otherUser: otherUserData,
           unreadCount: data.unreadCounts?.[userId] || 0
         };
-        
-        console.log("🔍 [getUserConversations] Adding conversation:", conversation.id, "with user:", otherUserDoc.data().firstName);
-        conversations.push(conversation);
-      } else {
-        console.log("🔍 [getUserConversations] User not found:", otherUserId);
+      } catch (error) {
+        console.error(`Error fetching user ${otherUserId}:`, error);
+        return null;
       }
-    }
+    }))).filter(Boolean);
     
     // Sort conversations by updatedAt manually
     const sortedConversations = conversations.sort((a, b) => {
@@ -228,6 +240,33 @@ export const getConversationMessages = async (conversationId, limitCount = 50) =
   }
 };
 
+// Paginated fetch for older messages (for infinite scroll)
+export const getConversationMessagesPage = async (conversationId, cursorTimestamp = null, pageSize = 25) => {
+  try {
+    if (!conversationId) return { messages: [], nextCursor: null, hasMore: false };
+
+    const messagesRef = collection(db, "Conversations", conversationId, "Messages");
+    const constraints = [orderBy("timestamp", "desc"), limit(pageSize)];
+    if (cursorTimestamp) {
+      constraints.splice(1, 0, startAfter(cursorTimestamp));
+    }
+    const q = query(messagesRef, ...constraints);
+
+    const snapshot = await getDocs(q);
+    const docs = snapshot.docs;
+    const messagesDesc = docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const messagesAsc = messagesDesc.reverse();
+
+    const nextCursor = docs.length > 0 ? docs[docs.length - 1].data().timestamp : null;
+    const hasMore = docs.length === pageSize;
+
+    return { messages: messagesAsc, nextCursor, hasMore };
+  } catch (error) {
+    console.error("Error fetching paginated messages:", error);
+    return { messages: [], nextCursor: null, hasMore: false };
+  }
+};
+
 // Mark messages as read in a conversation
 export const markMessagesAsRead = async (conversationId, userId) => {
   try {
@@ -276,16 +315,13 @@ export const subscribeToUserConversations = (userId, callback) => {
   return onSnapshot(q, async (snapshot) => {
     try {
       console.log("🔍 [subscribeToUserConversations] Snapshot received, docs count:", snapshot.docs.length);
-      
-      const conversations = [];
-      
       if (snapshot.empty) {
         console.log("🔍 [subscribeToUserConversations] No conversations found");
         callback([]);
         return;
       }
-      
-      for (const docSnapshot of snapshot.docs) {
+      // Fetch other users in parallel for all conversations
+      const conversations = (await Promise.all(snapshot.docs.map(async (docSnapshot) => {
         const data = docSnapshot.data();
         console.log("🔍 [subscribeToUserConversations] Processing conversation:", {
           id: docSnapshot.id,
@@ -293,51 +329,38 @@ export const subscribeToUserConversations = (userId, callback) => {
           updatedAt: data.updatedAt,
           lastMessage: data.lastMessage
         });
-        
-        // Get the other participant's info
         const otherUserId = data.participants.find(id => id !== userId);
         if (!otherUserId) {
           console.log("🔍 [subscribeToUserConversations] No other user found for conversation:", docSnapshot.id);
-          continue;
+          return null;
         }
-        
         try {
-          const otherUserDoc = await getDoc(doc(db, "Users", otherUserId));
-          
-          if (otherUserDoc.exists()) {
-            const conversation = {
-              id: docSnapshot.id,
-              ...data,
-              otherUser: {
-                id: otherUserDoc.id,
-                ...otherUserDoc.data()
-              },
-              unreadCount: data.unreadCounts?.[userId] || 0
-            };
-            
-            console.log("🔍 [subscribeToUserConversations] Adding conversation:", conversation.id, "with user:", otherUserDoc.data().firstName);
-            conversations.push(conversation);
-          } else {
+          const otherUserData = await getUserDocCached(otherUserId);
+          if (!otherUserData) {
             console.log("🔍 [subscribeToUserConversations] User not found:", otherUserId);
+            return null;
           }
+          return {
+            id: docSnapshot.id,
+            ...data,
+            otherUser: otherUserData,
+            unreadCount: data.unreadCounts?.[userId] || 0
+          };
         } catch (userError) {
           console.error(`Error fetching user ${otherUserId}:`, userError);
-          // Continue with other conversations even if one user fetch fails
+          return null;
         }
-      }
-      
-      // Sort conversations by updatedAt manually
+      }))).filter(Boolean);
       const sortedConversations = conversations.sort((a, b) => {
         const aTime = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
         const bTime = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
         return bTime - aTime;
       });
-      
       console.log("🔍 [subscribeToUserConversations] Final conversations count:", sortedConversations.length);
       callback(sortedConversations);
     } catch (error) {
       console.error("Error in conversations subscription:", error);
-      callback([]); // Return empty array on error
+      callback([]);
     }
   }, (error) => {
     console.error("Conversations subscription error:", error);

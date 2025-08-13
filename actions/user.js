@@ -777,3 +777,27 @@ export const getUsersWithPresence = async (userIds) => {
     return [];
   }
 };
+
+// Activate a temporary Boost for a user (makes them more visible)
+// Safe server-side action: only writes a couple of fields in the user doc
+export const activateBoost = async (userId, durationMinutes = 30) => {
+  try {
+    if (!userId) throw new Error('User ID is required');
+    const userRef = doc(db, 'Users', userId);
+
+    // Compute boost end time client-independently
+    const boostUntil = new Date(Date.now() + durationMinutes * 60 * 1000);
+
+    await updateDoc(userRef, {
+      boostUntil,
+      boostActivatedAt: serverTimestamp(),
+      boostDurationMin: durationMinutes,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true, boostUntil };
+  } catch (error) {
+    console.error('❌ Error activating boost:', error);
+    throw new Error(error.message || 'Failed to activate boost');
+  }
+};

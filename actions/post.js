@@ -456,26 +456,33 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 3) 
       );
     });
 
-    // Execute all comment AND like queries in parallel
+    // Helper: timeout wrapper to avoid hanging UI if a subquery is slow
+    const withTimeout = async (promise, ms, fallback) => {
+      return Promise.race([
+        promise,
+        new Promise((resolve) => setTimeout(() => resolve(fallback), ms))
+      ]);
+    };
+
+    // Execute comment AND like queries in parallel with timeouts
     const [allCommentsResults, allLikesResults] = await Promise.all([
-      Promise.all(postCommentPromises),
-      Promise.all(postLikePromises)
+      withTimeout(Promise.all(postCommentPromises), 3000, []),
+      withTimeout(Promise.all(postLikePromises), 3000, [])
     ]);
 
-    console.log("👍 Likes data loaded:", {
-      postsWithLikes: allLikesResults.length,
-      totalLikes: allLikesResults.reduce((sum, result) => sum + result.likes.length, 0)
-    });
+    // Ensure arrays on fallback
+    const safeLikesResults = Array.isArray(allLikesResults) ? allLikesResults : [];
+    const safeCommentsResults = Array.isArray(allCommentsResults) ? allCommentsResults : [];
 
     // Collect author IDs from comments and likes
-    allCommentsResults.forEach(({ comments }) => {
+    safeCommentsResults.forEach(({ comments } = { comments: [] }) => {
       comments.forEach(commentDoc => {
         const commentData = commentDoc.data();
         allUserIds.add(commentData.authorId);
       });
     });
 
-    allLikesResults.forEach(({ likes }) => {
+    safeLikesResults.forEach(({ likes } = { likes: [] }) => {
       likes.forEach(likeDoc => {
         const likeData = likeDoc.data();
         allUserIds.add(likeData.authorId);
@@ -487,8 +494,9 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 3) 
     const userMap = await batchGetUsers(Array.from(allUserIds));
 
     // Process each post with its comments and likes and return them
-    const postsWithDetails = allCommentsResults.map(({ postId, comments }) => {
+    const postsWithDetails = safeCommentsResults.map(({ postId, comments } = { postId: null, comments: [] }) => {
       const docSnap = relevantDocs.find(doc => doc.id === postId);
+      if (!docSnap) return null;
       const postData = docSnap.data();
       
       const processedComments = comments.map(commentDoc => {
@@ -528,7 +536,7 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 3) 
       });
 
       // Get likes for this post
-      const likesResult = allLikesResults.find(result => result.postId === postId);
+      const likesResult = safeLikesResults.find(result => result.postId === postId);
       const processedLikes = [];
       if (likesResult) {
         likesResult.likes.forEach(likeDoc => {
@@ -584,7 +592,7 @@ export const getMyPostsFeed = async (userId, lastCursor = null, limitCount = 3) 
         },
         comments: processedComments
       };
-    });
+    }).filter(Boolean);
 
     console.log("🎯 Returning posts with details:", {
       count: postsWithDetails.length,
@@ -962,7 +970,19 @@ export const canUserComment = async (postId, userId) => {
       return { canComment: true, reason: "Own post" };
     }
 
-    // Check compatibility between commenter and post author
+    // Premium users can comment anywhere
+    try {
+      const userDoc = await getDoc(doc(db, 'Users', userId));
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      const isPremium = Boolean(userData?.subscription?.isPremium) ||
+                        ['active','trialing','past_due'].includes((userData?.subscription?.status||'').toLowerCase()) ||
+                        userData?.subscriptionActive !== undefined;
+      if (isPremium) {
+        return { canComment: true, reason: "Premium user" };
+      }
+    } catch (_) {}
+
+    // Check compatibility between commenter and post author (for non-premium)
     const { areUsersCompatible } = await import('./admin');
     const isCompatible = await areUsersCompatible(userId, postAuthorId);
     
@@ -1010,23 +1030,42 @@ export const addComment = async (postId, comment, userId) => {
     if (userId === postAuthorId) {
       console.log("✅ User is commenting on their own post - allowed");
     } else {
-      // Check compatibility between commenter and post author
-      console.log("🔍 Checking compatibility between users...");
-      const { areUsersCompatible } = await import('./admin');
-      const isCompatible = await areUsersCompatible(userId, postAuthorId);
-      
-      console.log("🤝 Compatibility result:", { 
-        commenterId: userId, 
-        postAuthorId, 
-        isCompatible 
-      });
-
-      if (!isCompatible) {
-        console.error("❌ Users are not compatible - comment not allowed");
-        throw new Error("You can only comment on posts from people you're compatible with");
+      // Premium users can comment anywhere
+      try {
+        const userDoc = await getDoc(doc(db, 'Users', userId));
+        const userData = userDoc.exists() ? userDoc.data() : {};
+        const isPremium = Boolean(userData?.subscription?.isPremium) ||
+                          ['active','trialing','past_due'].includes((userData?.subscription?.status||'').toLowerCase()) ||
+                          userData?.subscriptionActive !== undefined;
+        if (isPremium) {
+          console.log("✅ Premium user - bypassing compatibility check");
+        } else {
+          // Check compatibility between commenter and post author
+          console.log("🔍 Checking compatibility between users...");
+          const { areUsersCompatible } = await import('./admin');
+          const isCompatible = await areUsersCompatible(userId, postAuthorId);
+          
+          console.log("🤝 Compatibility result:", { 
+            commenterId: userId, 
+            postAuthorId, 
+            isCompatible 
+          });
+  
+          if (!isCompatible) {
+            console.error("❌ Users are not compatible - comment not allowed");
+            throw new Error("You can only comment on posts from people you're compatible with");
+          }
+          
+          console.log("✅ Users are compatible - comment allowed");
+        }
+      } catch (e) {
+        // If any error occurs in checking premium, fallback to compatibility check
+        const { areUsersCompatible } = await import('./admin');
+        const isCompatible = await areUsersCompatible(userId, postAuthorId);
+        if (!isCompatible) {
+          throw new Error("You can only comment on posts from people you're compatible with");
+        }
       }
-      
-      console.log("✅ Users are compatible - comment allowed");
     }
 
     // Get user data from cache

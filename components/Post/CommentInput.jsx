@@ -6,6 +6,8 @@ import { getMainProfileImage } from "@/utils/imageHelpers";
 import CommentDialog from "./CommentDialog";
 import { canUserComment } from "@/actions/post";
 import { useLanguage } from "@/lib/i18n";
+import { useSubscription } from "@/hooks/useSubscription";
+import { FEATURE_FLAGS, loadFlagsFromEnv } from "@/utils/featureFlags";
 
 const CommentInput = ({ postId, setExpanded, queryId, postAuthorId }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -13,6 +15,8 @@ const CommentInput = ({ postId, setExpanded, queryId, postAuthorId }) => {
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
   const { user } = useUser();
   const { t } = useLanguage();
+  const { isPremium } = useSubscription();
+  const flags = loadFlagsFromEnv();
   
   // Memoized user profile image to prevent recalculation
   const userProfileImage = useMemo(() => getMainProfileImage(user?.images), [user?.images]);
@@ -81,22 +85,46 @@ const CommentInput = ({ postId, setExpanded, queryId, postAuthorId }) => {
   // Show restriction message if user cannot comment
   if (!commentPermission.canComment) {
     return (
-      <Alert
-        message={t('comments.cannotComment')}
-        description={
-          commentPermission.reason === "You can only comment on posts from people you're compatible with" 
-            ? (
-              <>
-                <div>{t('comments.compatibilityRequired')}</div>
-                <div style={{ marginTop: '8px' }}>{t('comments.likeToGetCompatible')}</div>
-              </>
-            )
-            : commentPermission.reason
-        }
-        type="info"
-        showIcon
-        style={{ marginTop: '8px' }}
-      />
+      <div style={{ width: '100%' }}>
+        <Alert
+          message={t('comments.cannotComment')}
+          description={
+            commentPermission.reason === "You can only comment on posts from people you're compatible with" 
+              ? (
+                <>
+                  <div>{t('comments.compatibilityRequired')}</div>
+                  <div style={{ marginTop: '8px' }}>{t('comments.likeToGetCompatible')}</div>
+                </>
+              )
+              : commentPermission.reason
+          }
+          type="info"
+          showIcon
+          style={{ marginTop: '8px', marginBottom: '8px' }}
+        />
+        {/* Premium hint to comment anywhere (non-intrusive) */}
+        {flags.PREMIUM_INLINE_UPSELLS && (
+          <div
+            onClick={() => window.location.assign('/premium')}
+            style={{
+              background: 'linear-gradient(135deg, #fffbea, #ffffff)',
+              border: '1px solid #ffe58f',
+              borderRadius: 999,
+              padding: '8px 12px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#ad6800',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer'
+            }}
+          >
+            <Iconify icon="mdi:crown" width="14px" />
+            {t('comments.premiumCommentAnywhere')}
+          </div>
+        )}
+      </div>
     );
   }
 

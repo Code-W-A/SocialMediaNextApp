@@ -62,7 +62,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Special handling for images - cache for performance
+  // Special handling for images - cache for performance (REVERT TO ORIGINAL)
   if (request.destination === 'image') {
     event.respondWith(
       fetch(request)

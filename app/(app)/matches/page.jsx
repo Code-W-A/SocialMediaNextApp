@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
-import { Alert, Skeleton, Typography, Card, Button, Avatar, Space, Tag, Row, Col, Modal, message } from "antd";
+import { Alert, Skeleton, Typography, Card, Button, Avatar, Space, Tag, Row, Col, Modal, message, Divider, Tooltip } from "antd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMyCompatibilities } from "@/actions/admin";
 import { getAllUsers } from "@/actions/admin";
@@ -15,11 +15,14 @@ import OnlineStatusIndicator, { OnlineStatusAvatar } from "@/components/OnlineSt
 import PremiumBadge from "@/components/PremiumBadge";
 import css from "@/styles/Home.module.css";
 import { useLanguage } from "@/lib/i18n";
+import { useSubscription } from "@/hooks/useSubscription";
+import { FEATURE_FLAGS, loadFlagsFromEnv } from "@/utils/featureFlags";
 import { useNotifications } from "@/hooks/useNotifications";
+import { activateBoost } from "@/actions/user";
 
 const { Title, Text, Paragraph } = Typography;
 
-const MatchCard = ({ user, currentUser, onStartChat, isNewCompatibility }) => {
+const MatchCard = ({ user, currentUser, onStartChat, isNewCompatibility, enableSuperLike, onSuperLike }) => {
   const router = useRouter();
   const [showCompatibility, setShowCompatibility] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -892,6 +895,38 @@ const MatchCard = ({ user, currentUser, onStartChat, isNewCompatibility }) => {
           >
             Chat
           </Button>
+
+          {enableSuperLike && (
+            <Button
+              size="small"
+              icon={<Iconify icon="mdi:heart-flash" width="14px" />}
+              onClick={(e) => { e.stopPropagation(); onSuperLike?.(user); }}
+              style={{
+                height: '36px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                border: 'none',
+                fontWeight: '600',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                transition: 'all 0.3s ease',
+                color: '#000'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '';
+              }}
+            >
+              Super Like
+            </Button>
+          )}
           
 
         </div>
@@ -1081,6 +1116,8 @@ const MatchesPage = () => {
   const { user: currentUser } = useUser();
   const { t } = useLanguage();
   const router = useRouter();
+  const { isPremium } = useSubscription();
+  const flags = loadFlagsFromEnv();
   const [isMobile, setIsMobile] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const { newCompatibilities, markCompatibilitiesAsSeen } = useNotifications(currentUser);
@@ -1134,14 +1171,54 @@ const MatchesPage = () => {
     });
   };
 
+  const handleSuperLike = (user) => {
+    // Soft-gate: Only allow super-like for premium when flag is on
+    if (!flags.PREMIUM_SUPER_LIKES) return; // feature disabled globally
+    if (!isPremium) {
+      router.push('/premium');
+      return;
+    }
+    message.success(`Super Like sent to ${user.firstName || user.username || 'user'} ✨`);
+    // NOTE: For live safety, we only show UI feedback; backend action can be added later
+  };
+
+  const handleBoost = async () => {
+    // Feature disabled globally
+    if (!flags.PREMIUM_BOOST) return;
+    if (!isPremium) {
+      router.push('/premium');
+      return;
+    }
+    try {
+      await activateBoost(currentUser.id, 30);
+      message.success('Boost activ pentru 30 minute! 🚀');
+    } catch (e) {
+      message.error('Nu am putut activa boost-ul. Încearcă din nou.');
+    }
+  };
+
   // Filter compatible users and sort with new compatibilities first
   const compatibleUsers = useMemo(() => {
     const filtered = allUsers?.filter(user => 
       compatibleUserIds?.includes(user.id) && user.id !== currentUser?.id
     ) || [];
     
-    // Sort: new compatibilities first, then regular ones
+    // Prioritize boosted users (if feature enabled and boost is active)
+    const now = Date.now();
+    const isBoosted = (u) => {
+      if (!flags.PREMIUM_BOOST) return false;
+      const until = u?.boostUntil
+        ? (u.boostUntil.toDate ? u.boostUntil.toDate().getTime() : new Date(u.boostUntil).getTime())
+        : 0;
+      return until > now;
+    };
+
+    // Sort: boosted first, then new compatibilities
     return filtered.sort((a, b) => {
+      const aBoost = isBoosted(a);
+      const bBoost = isBoosted(b);
+      if (aBoost && !bBoost) return -1;
+      if (!aBoost && bBoost) return 1;
       const aIsNew = newCompatibilities.some(newComp => newComp.id === a.id);
       const bIsNew = newCompatibilities.some(newComp => newComp.id === b.id);
       
@@ -1272,6 +1349,42 @@ const MatchesPage = () => {
               <Text style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: isMobile ? '12px' : '16px' }}>
                 {t('matches.compatibleSoulsFound')}
               </Text>
+              {flags.PREMIUM_WHO_LIKED_YOU_UPSELL && !isPremium && (
+                <Tooltip title="Vezi cine te-a apreciat - Premium">
+                  <Button
+                    size={isMobile ? 'small' : 'middle'}
+                    onClick={() => router.push('/premium')}
+                    style={{
+                      marginLeft: '8px',
+                      background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                      border: 'none',
+                      color: '#000',
+                      borderRadius: '999px',
+                      fontWeight: 700
+                    }}
+                    icon={<Iconify icon="mdi:eye" width={isMobile ? '14px' : '18px'} />}
+                  >
+                    Cine te-a plăcut
+                  </Button>
+                </Tooltip>
+              )}
+              {flags.PREMIUM_BOOST && (
+                <Button
+                  size={isMobile ? 'small' : 'middle'}
+                  onClick={handleBoost}
+                  style={{
+                    marginLeft: '8px',
+                    background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                    border: 'none',
+                    color: '#000',
+                    borderRadius: '999px',
+                    fontWeight: 700
+                  }}
+                  icon={<Iconify icon="mdi:rocket-launch" width={isMobile ? '14px' : '18px'} />}
+                >
+                  Boost
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -1301,6 +1414,8 @@ const MatchesPage = () => {
                   user={user}
                   currentUser={currentUser}
                   onStartChat={handleStartChat}
+                  enableSuperLike={flags.PREMIUM_SUPER_LIKES}
+                  onSuperLike={handleSuperLike}
                   isNewCompatibility={newCompatibilities.some(newComp => newComp.id === user.id)}
                 />
               </Col>

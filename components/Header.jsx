@@ -18,6 +18,7 @@ import { useLanguage } from "@/lib/i18n";
 import { openSupport } from "@/utils/supportHelpers";
 import PWAInstallButton from "@/components/PWAInstallButton";
 import NotificationIcon from "@/components/NotificationIcon";
+import { FEATURE_FLAGS, loadFlagsFromEnv } from "@/utils/featureFlags";
 
 const Header = () => {
   const { user } = useUser();
@@ -26,6 +27,7 @@ const Header = () => {
   const { isPremium, subscription } = useSubscription();
   const { t } = useLanguage();
   const [isMobile, setIsMobile] = useState(false);
+  const flags = loadFlagsFromEnv();
 
   // Hook for mobile detection
   useEffect(() => {
@@ -174,6 +176,22 @@ const Header = () => {
               >
                 {!isMobile && <span className={css.premiumText}>{t('common.premium')}</span>}
               </Button>
+            )}
+
+            {/* Inline, non-intrusive upsell hint */}
+            {!isPremium && flags.PREMIUM_INLINE_UPSELLS && !isMobile && (
+              <div style={{
+                background: 'linear-gradient(135deg, #fef7e0, #fff)',
+                border: '1px solid #ffe58f',
+                color: '#ad6800',
+                borderRadius: '10px',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600
+              }}>
+                <span style={{ marginRight: 6 }}>👑</span>
+                {t('premium.increasedVisibility')}
+              </div>
             )}
 
             {/* PWA Install Button */}

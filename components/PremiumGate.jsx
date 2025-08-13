@@ -28,7 +28,7 @@ const PremiumGate = ({
     return children;
   }
 
-  const upgradePrompt = getPremiumUpgradePrompt(feature);
+  const upgradePrompt = getPremiumUpgradePrompt(feature, t);
   const featureInfo = PREMIUM_FEATURES_DESCRIPTIONS[feature];
 
   const handleUpgrade = async () => {
@@ -129,7 +129,7 @@ const PremiumGate = ({
             </Title>
             
             <Row gutter={[12, 12]}>
-              {Object.values(PREMIUM_FEATURES_DESCRIPTIONS).slice(0, 6).map((benefit, index) => (
+              {Object.keys(PREMIUM_FEATURES_DESCRIPTIONS).slice(0, 6).map((key, index) => (
                 <Col xs={12} key={index}>
                   <div style={{ 
                     display: 'flex', 
@@ -140,7 +140,9 @@ const PremiumGate = ({
                     borderRadius: '8px'
                   }}>
                     <CheckOutlined style={{ color: '#52c41a', fontSize: '14px' }} />
-                    <Text style={{ fontSize: '13px' }}>{benefit.title}</Text>
+                    <Text style={{ fontSize: '13px' }}>
+                      {t(`premium.${key}`)}
+                    </Text>
                   </div>
                 </Col>
               ))}

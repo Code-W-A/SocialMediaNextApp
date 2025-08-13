@@ -309,7 +309,7 @@ export const cleanupImagePreview = (url) => {
 export const getIntelligentQuality = (file, context = 'post') => {
   const fileSizeMB = file.size / 1024 / 1024;
   
-  // Base quality by context
+  // Base quality by context - ORIGINAL SETTINGS (REVERT)
   const baseQuality = {
     profile: 0.85,
     post: 0.85,
@@ -552,8 +552,8 @@ export const getImageFileInfo = (file) => {
  */
 export const standardizeImage = async (file, options = {}) => {
   const {
-    maxWidthOrHeight = 2000,
-    quality = 0.9
+    maxWidthOrHeight = 2000, // REVERT: Keep original settings for live app
+    quality = 0.9 // REVERT: Keep original quality
   } = options;
 
   console.time(`[StandardizeImage] ${file.name}`);
@@ -677,5 +677,50 @@ export const standardizeImages = async (files, options = {}) => {
     errors,
     successCount: results.length,
     errorCount: errors.length
+  };
+}; 
+
+/**
+ * Check if browser supports WebP format
+ * @returns {boolean} True if WebP is supported
+ */
+export const supportsWebP = () => {
+  if (typeof window === 'undefined') return false;
+  
+  // Check if browser supports WebP via canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  
+  try {
+    return canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+  } catch (e) {
+    return false;
+  }
+};
+
+/**
+ * Get optimal image format and quality based on browser support and context
+ * @param {string} context - Image context (profile, post, banner, message)
+ * @returns {Object} Optimal format and quality settings
+ */
+export const getOptimalImageSettings = (context = 'post') => {
+  const webpSupported = supportsWebP();
+  
+  // Use WebP if supported, JPEG otherwise
+  const format = webpSupported ? 'image/webp' : 'image/jpeg';
+  
+  // Quality settings optimized for bandwidth savings
+  const qualitySettings = {
+    profile: webpSupported ? 0.75 : 0.7,   // Higher quality for profile images
+    post: webpSupported ? 0.7 : 0.65,      // Good quality for posts
+    banner: webpSupported ? 0.8 : 0.75,    // Higher quality for banners
+    message: webpSupported ? 0.65 : 0.6    // Lower quality for messages
+  };
+  
+  return {
+    format,
+    quality: qualitySettings[context] || qualitySettings.post,
+    extension: webpSupported ? '.webp' : '.jpg'
   };
 }; 

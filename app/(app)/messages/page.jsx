@@ -21,6 +21,7 @@ const MessagesPage = () => {
   const [conversations, setConversations] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState(null);
 
   console.log("MessagesPage render - currentUser:", currentUser, "loading:", loading);
@@ -60,14 +61,28 @@ const MessagesPage = () => {
           console.log("Received conversations update:", updatedConversations);
           setConversations(updatedConversations);
           setLoading(false);
+          setInitializing(false);
         }
       );
+
+      // Fire an initial one-time fetch to populate UI faster while waiting for RT snapshot
+      (async () => {
+        try {
+          const initialConversations = await getUserConversations(currentUser.id);
+          setConversations(prev => (prev && prev.length > 0 ? prev : initialConversations));
+          setLoading(false);
+          setInitializing(false);
+        } catch (initialErr) {
+          console.warn('Initial conversations fetch failed:', initialErr);
+        }
+      })();
 
       return unsubscribe;
     } catch (error) {
       console.error("Error subscribing to conversations:", error);
       setError(t('messages.errorLoadingMessages'));
       setLoading(false);
+      setInitializing(false);
     }
   }, [currentUser?.id, t]);
 
@@ -131,21 +146,38 @@ const MessagesPage = () => {
     }
   };
 
-  // Loading state
+  // Loading state with skeleton layout for improved UX
   if (loading) {
     return (
       <div className={css.wrapper}>
         <div className={css.container}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            height: '100%',
-            flexDirection: 'column',
-            gap: '16px'
-          }}>
-            <Spin size="large" />
-            <Typography.Text type="secondary">{t('messages.loadingConversations')}</Typography.Text>
+          <div className={css.leftPanel}>
+            <div className={css.header}>
+              <Typography.Title level={3} className={css.title}>
+                {t('messages.title')}
+              </Typography.Title>
+            </div>
+            <div style={{ padding: '0 16px' }}>
+              {[...Array(8)].map((_, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#f0f0f0' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ height: 12, background: '#f0f0f0', borderRadius: 6, marginBottom: 6 }} />
+                    <div style={{ height: 12, background: '#f0f0f0', borderRadius: 6, width: '60%' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className={css.rightPanel}>
+            <div className={css.emptyState}>
+              <Typography.Title level={4} type="secondary">
+                {t('messages.selectConversation')}
+              </Typography.Title>
+              <Typography.Text type="secondary">
+                {t('messages.chooseConversation')}
+              </Typography.Text>
+            </div>
           </div>
         </div>
       </div>
@@ -210,26 +242,7 @@ const MessagesPage = () => {
                   {t('messages.title')}
                 </Typography.Title>
                 {/* Debug buttons */}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-               
-            
-            
-                  <Button size="small" onClick={async () => {
-                    console.log("🔍 Manual debug: Reloading conversations...");
-                    setLoading(true);
-                    try {
-                      const conversations = await getUserConversations(currentUser.id);
-                      console.log("🔍 Manual debug: Reloaded conversations:", conversations);
-                      setConversations(conversations);
-                      setLoading(false);
-                    } catch (error) {
-                      console.error("🔍 Manual debug: Error:", error);
-                      setLoading(false);
-                    }
-                  }}>
-                    Reload Conversations
-                  </Button>
-                </div>
+      
               </div>
               <ConversationsList 
                 conversations={conversations}

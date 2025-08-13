@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { STRIPE_CONFIG } from '@/lib/stripe';
 import { currentUser } from '@/lib/firebaseAuth';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export async function POST(request) {
   console.log('\n🛒 ===== API: CREATE CHECKOUT SESSION =====');
@@ -35,6 +37,37 @@ export async function POST(request) {
       finalEmail: customerEmail || user.email
     });
 
+    // Determine trial eligibility (ULTRA SAFE: only if user has no prior subscription/trial)
+    let trialDaysToOffer = 0; // default no trial
+    try {
+      const userRef = doc(db, 'Users', user.id);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const data = userSnap.data() || {};
+        const sub = data.subscription || {};
+
+        const hasAnySubscriptionRecord = Boolean(
+          sub.subscriptionId || sub.status || sub.customerId || data.subscriptionActive !== undefined
+        );
+        const hadTrialBefore = Boolean(sub.trialEnd);
+        const status = (sub.status || '').toLowerCase();
+        const validActiveStatuses = ['active', 'trialing', 'past_due'];
+        const hasActivePremium = validActiveStatuses.includes(status);
+
+        const eligibleForTrial = !hasAnySubscriptionRecord && !hadTrialBefore && !hasActivePremium;
+
+        if (eligibleForTrial) {
+          trialDaysToOffer = 7; // set to 3-7 as desired; currently 7 days
+        }
+      } else {
+        // No user doc yet → first-time checkout, allow trial
+        trialDaysToOffer = 7;
+      }
+    } catch (e) {
+      console.warn('⚠️ Could not determine trial eligibility, defaulting to no trial. Error:', e?.message || e);
+    }
+
     // Create checkout session
     console.log('🌐 Creating Stripe checkout session...');
     const session = await stripe.checkout.sessions.create({
@@ -66,6 +99,9 @@ export async function POST(request) {
           userId: user.id,
           userEmail: user.email,
         },
+        ...(trialDaysToOffer > 0
+          ? { trial_period_days: trialDaysToOffer }
+          : {}),
       },
     });
 

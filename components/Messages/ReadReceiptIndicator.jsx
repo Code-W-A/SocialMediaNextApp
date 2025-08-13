@@ -2,9 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { CheckOutlined } from "@ant-design/icons";
 import { subscribeToReadReceipts } from "@/actions/chat";
+import { FEATURE_FLAGS, loadFlagsFromEnv } from "@/utils/featureFlags";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const ReadReceiptIndicator = ({ conversationId, messageId, senderId, currentUserId, otherUserId }) => {
   const [readReceipts, setReadReceipts] = useState([]);
+  const { isPremium } = useSubscription();
+  const flags = loadFlagsFromEnv();
   
   // Only show read receipts for messages sent by current user
   const isCurrentUserMessage = senderId === currentUserId;
@@ -23,7 +27,9 @@ const ReadReceiptIndicator = ({ conversationId, messageId, senderId, currentUser
     return unsubscribe;
   }, [conversationId, messageId, isCurrentUserMessage]);
 
+  // If gated by premium-only flag, hide indicator for non-premium users
   if (!isCurrentUserMessage) return null;
+  if (flags.PREMIUM_READ_RECEIPTS_ONLY && !isPremium) return null;
 
   // Check if other user has read the message
   const isReadByOther = readReceipts.some(receipt => receipt.userId === otherUserId);

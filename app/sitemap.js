@@ -1,12 +1,9 @@
 export default function sitemap() {
-  const baseUrl = 'https://destiny.ro';
+  const baseUrl = 'https://ydestiny.ro';
   
-  // Orașele pentru care avem pagini de matrimoniale
-  const cities = [
-    'bucuresti', 'targoviste', 'ploiesti', 'constanta', 'cluj-napoca', 
-    'timisoara', 'iasi', 'brasov', 'galati', 'craiova', 'oradea', 
-    'arad', 'pitesti', 'bacau', 'sibiu', 'baia-mare', 'suceava', 'dambovita'
-  ];
+  // Import location slugs from centralized list
+  const { getAllLocationSlugs } = require('../data/locations');
+  const cities = getAllLocationSlugs();
 
   // Paginile statice
   const staticPages = [
@@ -38,7 +35,7 @@ export default function sitemap() {
 
   // Paginile dinamice de matrimoniale
   const matrimonialPages = cities.map((city) => ({
-    url: `${baseUrl}/matrimoniale-${city}`,
+    url: `${baseUrl}/matrimoniale/${city}`,
     lastModified: new Date(),
     changeFrequency: 'weekly',
     priority: 0.8,

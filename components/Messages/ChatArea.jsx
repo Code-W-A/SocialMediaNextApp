@@ -8,7 +8,8 @@ import {
   sendMessage as sendFirebaseMessage,
   setTyping,
   subscribeToTyping,
-  markConversationAsRead
+  markConversationAsRead,
+  getConversationMessagesPage
 } from "@/actions/chat";
 import ReadReceiptIndicator from "./ReadReceiptIndicator";
 import ChatSearch from "./ChatSearch";
@@ -20,8 +21,11 @@ import OnlineStatusIndicator, { OnlineStatusAvatar } from "../OnlineStatusIndica
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { useSettingsContext } from "@/context/settings/settings-context";
 import { useLanguage } from "@/lib/i18n";
+import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import useBottomNavbarHeight from "@/hooks/useBottomNavbarHeight";
+import { FEATURE_FLAGS, loadFlagsFromEnv } from "@/utils/featureFlags";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const { useToken } = theme;
 
@@ -67,9 +71,16 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
   const { settings: { theme: currentTheme } } = useSettingsContext();
   const { token } = useToken();
   const { t } = useLanguage();
+  const { isPremium } = useSubscription();
+  const router = useRouter();
+  const flags = loadFlagsFromEnv();
   const viewportHeight = useViewportHeight();
   const { height: bottomNavbarHeight } = useBottomNavbarHeight();
   const [messages, setMessages] = useState([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [nextCursor, setNextCursor] = useState(null);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
@@ -109,19 +120,53 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
     };
   }, [isMobile, viewportHeight, bottomNavbarHeight]);
 
-  // Subscribe to messages in real-time
+  // Subscribe to messages in real-time with initial placeholder for perceived speed
   useEffect(() => {
     if (!conversation?.id) return;
-
-    const unsubscribe = subscribeToConversationMessages(
-      conversation.id,
-      (updatedMessages) => {
-        setMessages(updatedMessages);
+    let unsub;
+    (async () => {
+      setIsLoadingMessages(true);
+      setMessages([]);
+      setNextCursor(null);
+      setHasMore(true);
+      try {
+        // Initial page
+        const { messages: firstPage, nextCursor: cursor, hasMore: more } = await getConversationMessagesPage(conversation.id, null, 25);
+        setMessages(firstPage);
+        setNextCursor(cursor);
+        setHasMore(more);
+      } finally {
+        setIsLoadingMessages(false);
       }
-    );
+      // Realtime for new messages at the bottom
+      unsub = subscribeToConversationMessages(conversation.id, (updated) => {
+        // Keep only the latest if we already have older pages
+        // Merge smartly: replace existing by id, append new
+        setMessages((prev) => {
+          const byId = new Map(prev.map((m) => [m.id, m]));
+          updated.forEach((m) => byId.set(m.id, m));
+          return Array.from(byId.values());
+        });
+      }, 25);
+    })();
 
-    return unsubscribe;
+    return () => {
+      unsub?.();
+    };
   }, [conversation?.id]);
+
+  const loadMoreMessages = async () => {
+    if (!conversation?.id || !hasMore || isLoadingMore || !nextCursor) return;
+    setIsLoadingMore(true);
+    try {
+      const { messages: page, nextCursor: cursor, hasMore: more } = await getConversationMessagesPage(conversation.id, nextCursor, 25);
+      setMessages((prev) => [...page, ...prev]);
+      setNextCursor(cursor);
+      setHasMore(more);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Subscribe to typing indicators
   useEffect(() => {
@@ -140,7 +185,11 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Use requestAnimationFrame to avoid jank during heavy updates
+    const id = window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(id);
   }, [messages]);
 
   // Mark messages as read when conversation is viewed
@@ -178,6 +227,8 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
         text: messageText,
         type: "text"
       });
+      // Optimistic scroll bottom to keep UX snappy
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (error) {
       console.error("Error sending message:", error);
       message.error(t('chat.failedToSendMessage'));
@@ -413,6 +464,30 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
         </div>
 
         <div className={css.actions}>
+          {!isPremium && flags.PREMIUM_INLINE_UPSELLS && (
+            <Button
+              type="default"
+              size="small"
+              icon={<Iconify icon="mdi:check-all" width="14px" />}
+              onClick={() => router.push('/premium')}
+              style={{
+                background: currentTheme === 'dark' ? 'linear-gradient(135deg, #2b2b29 0%, #1f1f1f 100%)' : 'linear-gradient(135deg, #fff7e6 0%, #fff1b8 100%)',
+                border: `1px solid ${currentTheme === 'dark' ? '#434343' : '#ffd591'}`,
+                color: currentTheme === 'dark' ? '#ffd666' : '#ad6800',
+                fontWeight: 700,
+                borderRadius: 999,
+                padding: '0 12px',
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginRight: 8,
+                boxShadow: currentTheme === 'dark' ? '0 2px 6px rgba(0,0,0,0.3)' : '0 2px 6px rgba(255, 173, 51, 0.25)'
+              }}
+            >
+              {t('chat.premiumBadge')}
+            </Button>
+          )}
           <Button 
             type="text" 
             icon={<Iconify icon="eva:search-fill" width="20px" />}
@@ -439,9 +514,30 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       </div>
 
       {/* Messages Area */}
-      <div className={css.messagesContainer} style={messagesContainerStyle}>
+      <div 
+        className={css.messagesContainer} 
+        style={messagesContainerStyle}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (el.scrollTop < 50 && hasMore && !isLoadingMore && !isLoadingMessages) {
+            loadMoreMessages();
+          }
+        }}
+      >
         <div className={css.messagesContent}>
-          {messages.length === 0 ? (
+          {isLoadingMessages ? (
+            <>
+              {[...Array(6)].map((_, idx) => (
+                <div className={css.messageSkeleton} key={idx}>
+                  <div className={css.messageSkeletonAvatar} />
+                  <div className={css.messageSkeletonBubble}>
+                    <div className={css.messageSkeletonLine} />
+                    <div className={`${css.messageSkeletonLine} ${css.messageSkeletonLineShort}`} />
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : messages.length === 0 ? (
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
@@ -640,6 +736,8 @@ const ChatArea = ({ conversation, onBack, isMobile, currentUser }) => {
       {/* Message Input */}
       <div className={css.inputContainer}>
         <div className={css.inputWrapper} style={inputWrapperStyle}>
+          
+
           <ImageUpload
             conversation={conversation}
             currentUser={currentUser}

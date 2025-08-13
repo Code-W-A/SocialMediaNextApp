@@ -15,8 +15,8 @@ const PostImageCrop = ({
   file,
   title,
   defaultAspectRatio = 'square',
-  maxWidth = 1080, // Posts can be larger
-  quality = 0.85 // Optimized quality for good size/quality balance
+  maxWidth = 1000, // Conservative reduction from 1080
+  quality = 0.8 // Good quality maintained for posts
 }) => {
   const { t } = useLanguage();
 

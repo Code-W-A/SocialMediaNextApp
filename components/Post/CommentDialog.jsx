@@ -8,6 +8,7 @@ import { useUser } from "@/hooks/useFirebaseAuth";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { now } from "@/utils/dateHelpers";
 import { useLanguage } from "@/lib/i18n";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
   const [value, setValue] = useState("");
@@ -17,6 +18,7 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
   const { user } = useUser();
   const { t } = useLanguage();
+  const { isPremium } = useSubscription();
   const queryClient = useQueryClient();
   const textAreaRef = useRef(null);
 
@@ -344,6 +346,24 @@ const CommentDialog = ({ open, onClose, postId, setExpanded, queryId }) => {
         <Flex align="center" gap="12px">
           <Iconify icon="ph:chat-circle-fill" width="20px" style={{ color: '#667eea' }} />
           <Typography.Text strong>Add a comment</Typography.Text>
+          {isPremium && (
+            <div style={{
+              marginLeft: 'auto',
+              background: 'linear-gradient(135deg, #fff7e6, #ffffff)',
+              border: '1px solid #ffe58f',
+              borderRadius: 999,
+              padding: '2px 10px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#ad6800',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <Iconify icon="mdi:crown" width="14px" />
+              {t('comments.premiumCommentAnywhere')}
+            </div>
+          )}
         </Flex>
       }
       width={isMobile ? '95vw' : 500}

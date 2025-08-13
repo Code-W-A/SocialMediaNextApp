@@ -90,6 +90,31 @@ const PremiumPage = () => {
 
   const premiumFeatures = [
     {
+      icon: <Iconify icon="mdi:message-text" width="24px" style={{ color: '#1890ff' }} />,
+      title: t('premium.unlimitedMessages'),
+      description: t('premium.unlimitedMessagesDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:check-all" width="24px" style={{ color: '#52c41a' }} />,
+      title: t('premium.readReceipts'),
+      description: t('premium.readReceiptsDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:heart" width="24px" style={{ color: '#eb2f96' }} />,
+      title: t('premium.superLikes'),
+      description: t('premium.superLikesDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:account-multiple" width="24px" style={{ color: '#fa8c16' }} />,
+      title: t('premium.unlimitedMatches'),
+      description: t('premium.unlimitedMatchesDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:post-outline" width="24px" style={{ color: '#722ed1' }} />,
+      title: t('premium.unlimitedPosts'),
+      description: t('premium.unlimitedPostsDesc'),
+    },
+    {
       icon: <HeartFilled style={{ fontSize: '24px', color: '#ff4d4f' }} />,
       title: t('premium.priorityCompatibility'),
       description: t('premium.priorityCompatibilityDesc'),
@@ -114,11 +139,6 @@ const PremiumPage = () => {
       title: t('premium.exclusiveFeatures'),
       description: t('premium.exclusiveFeaturesDesc'),
     },
-    {
-      icon: <Iconify icon="eva:heart-fill" width="24px" style={{ color: '#eb2f96' }} />,
-      title: t('premium.moreMatches'),
-      description: t('premium.moreMatchesDesc'),
-    },
   ];
 
   if (isPremium) {
@@ -126,35 +146,56 @@ const PremiumPage = () => {
       <BottomNavbarPaddingWrapper useCSS>
         <div style={{ 
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          padding: '1rem',
+          background: '#fafafa',
+          padding: 'clamp(1rem, 2vw, 2rem)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center'
         }}>
           <Card
             style={{
-              maxWidth: 600,
+              maxWidth: 700,
               width: '100%',
-              borderRadius: '20px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-              border: 'none',
+              borderRadius: '24px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+              border: '1px solid #f0f0f0',
               background: 'white',
               margin: '0 auto'
             }}
           >
-            <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-              <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
-                <CrownOutlined style={{ color: '#FFD700' }} />
+            <div style={{ textAlign: 'center', padding: 'clamp(2rem, 4vw, 3rem)' }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 100,
+                height: 100,
+                borderRadius: 25,
+                background: 'linear-gradient(135deg, #FFD700 0%, #FFA940 100%)',
+                marginBottom: '1.5rem'
+              }}>
+                <CrownOutlined style={{ fontSize: '48px', color: '#000' }} />
               </div>
               
-              <Title level={2} style={{ color: '#667eea', marginBottom: '0.5rem', fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>
+              <Title level={2} style={{ 
+                color: '#262626', 
+                marginBottom: '0.5rem', 
+                fontSize: 'clamp(1.75rem, 4vw, 2.25rem)',
+                fontWeight: 700
+              }}>
                 {t('premium.welcomeToPremium')}
               </Title>
               
-              <PremiumBadge user={user} size="large" style={{ marginBottom: '1rem' }} />
+              <div style={{ marginBottom: '1.5rem' }}>
+                <PremiumBadge user={user} size="large" />
+              </div>
               
-              <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: '2rem' }}>
+              <Paragraph style={{ 
+                fontSize: 'clamp(15px, 3vw, 18px)', 
+                color: '#595959', 
+                marginBottom: '2rem',
+                fontWeight: 500
+              }}>
                 {t('premium.subscriptionActivated')}
               </Paragraph>
 
@@ -227,60 +268,83 @@ const PremiumPage = () => {
               )}
 
               <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
-                <Text strong style={{ fontSize: '18px', color: '#333', marginBottom: '1rem', display: 'block' }}>
+                <Text strong style={{ 
+                  fontSize: '20px', 
+                  color: '#262626', 
+                  marginBottom: '1.5rem', 
+                  display: 'block',
+                  fontWeight: 600
+                }}>
                   {t('premium.yourPremiumBenefits')}
                 </Text>
                 
-                <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                  {premiumFeatures.map((feature, index) => (
-                    <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+                  gap: '16px',
+                  marginBottom: '1rem'
+                }}>
+                  {premiumFeatures.slice(0, 6).map((feature, index) => (
+                    <div key={index} style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '12px',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      background: '#fafafa',
+                      border: '1px solid #f0f0f0'
+                    }}>
                       {feature.icon}
                       <div>
-                        <Text strong style={{ color: '#333' }}>{feature.title}</Text>
-                        <br />
-                        <Text type="secondary" style={{ fontSize: '14px' }}>
-                          {feature.description}
+                        <Text strong style={{ color: '#262626', fontSize: '14px' }}>
+                          {feature.title}
                         </Text>
                       </div>
                     </div>
                   ))}
-                </Space>
+                </div>
               </div>
 
-              <Divider />
-
-              <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                <Text type="secondary">
+              <div style={{
+                background: '#f8f9fa',
+                borderRadius: '16px',
+                padding: '24px',
+                textAlign: 'center'
+              }}>
+                <Text style={{ 
+                  fontSize: '16px', 
+                  color: '#595959', 
+                  marginBottom: '1.5rem',
+                  display: 'block'
+                }}>
                   {t('premium.thankYouSupport')}
                 </Text>
                 
-                <div style={{ marginTop: '1rem' }}>
-                  <Button
-                    type="default"
-                    size="large"
-                    onClick={manageSubscription}
-                    loading={isCreatingPortal}
-                    style={{
-                      borderRadius: '8px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    {t('premium.manageSubscription')}
-                  </Button>
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {isCanceled 
-                        ? t('premium.reactivateManageView')
-                        : t('premium.cancelManageView')
-                      }
-                    </Text>
-                  </div>
+                <Button
+                  type="default"
+                  size="large"
+                  onClick={manageSubscription}
+                  loading={isCreatingPortal}
+                  style={{
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    height: '48px',
+                    paddingLeft: '24px',
+                    paddingRight: '24px',
+                    border: '1px solid #d9d9d9'
+                  }}
+                >
+                  {t('premium.manageSubscription')}
+                </Button>
+                <div style={{ marginTop: '12px' }}>
+                  <Text type="secondary" style={{ fontSize: '13px' }}>
+                    {isCanceled 
+                      ? t('premium.reactivateManageView')
+                      : t('premium.cancelManageView')
+                    }
+                  </Text>
                 </div>
-              </Space>
-
-              <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: '1rem' }}>
-                {t('premium.thankYouSupport')}
-              </Paragraph>
+              </div>
 
             </div>
           </Card>
@@ -293,70 +357,56 @@ const PremiumPage = () => {
     <BottomNavbarPaddingWrapper useCSS>
       <div style={{ 
         minHeight: '100vh',
-        background: '#f5f5f5',
+        background: '#fafafa',
         padding: 'clamp(1rem, 2vw, 2rem)'
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           {/* Hero Section */}
           <Card
             style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              border: 'none',
-              borderRadius: '20px',
+              background: 'white',
+              border: '1px solid #f0f0f0',
+              borderRadius: '24px',
               marginBottom: '2rem',
-              color: 'white',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
               overflow: 'hidden'
             }}
-            styles={{ body: { padding: 'clamp(1.5rem, 4vw, 3rem)' } }}
+            styles={{ body: { padding: 'clamp(2rem, 4vw, 3rem)' } }}
           >
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 80,
+                height: 80,
+                borderRadius: 20,
+                background: 'linear-gradient(135deg, #FFD700 0%, #FFA940 100%)',
+                marginBottom: '1.5rem'
+              }}>
+                <CrownOutlined style={{ fontSize: '36px', color: '#000' }} />
+              </div>
+              <Title level={1} style={{ 
+                color: '#262626', 
+                margin: 0, 
+                fontSize: 'clamp(2rem, 5vw, 2.75rem)',
+                fontWeight: 700,
+                marginBottom: '0.5rem'
+              }}>
+                {t('premium.becomePremium')}
+              </Title>
+              <Paragraph style={{ 
+                fontSize: 'clamp(16px, 3vw, 20px)', 
+                color: '#8c8c8c',
+                margin: 0,
+                fontWeight: 500
+              }}>
+                {t('premium.monthlyPrice')}
+              </Paragraph>
+            </div>
+
             <Row gutter={[32, 32]} align="middle">
-              <Col xs={24} md={12}>
-                <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <CrownOutlined style={{ fontSize: 'clamp(32px, 8vw, 48px)', color: '#FFD700' }} />
-                  </div>
-                  <Title level={1} style={{ 
-                    color: 'white', 
-                    margin: 0, 
-                    fontSize: 'clamp(1.75rem, 5vw, 2.5rem)',
-                    textAlign: 'center'
-                  }}>
-                    {t('premium.becomePremium')}
-                  </Title>
-                  <Paragraph style={{ 
-                    fontSize: 'clamp(14px, 3vw, 18px)', 
-                    color: 'rgba(255,255,255,0.9)',
-                    textAlign: 'center',
-                    margin: '1rem 0'
-                  }}>
-                    {t('premium.monthlyPrice')}
-                  </Paragraph>
-                  <div style={{ textAlign: 'center', width: '100%' }}>
-                    <Button
-                      type="primary"
-                      size="large"
-                      icon={<CrownOutlined />}
-                      onClick={handleUpgrade}
-                      loading={loading}
-                      style={{
-                        background: '#FFD700',
-                        borderColor: '#FFD700',
-                        color: '#000',
-                        fontWeight: 'bold',
-                        height: 'clamp(40px, 8vw, 48px)',
-                        fontSize: 'clamp(14px, 3vw, 16px)',
-                        borderRadius: '24px',
-                        paddingLeft: 'clamp(16px, 4vw, 32px)',
-                        paddingRight: 'clamp(16px, 4vw, 32px)',
-                        minWidth: '200px'
-                      }}
-                    >
-                        {t('premium.activatePremium')}
-                    </Button>
-                  </div>
-                </Space>
-              </Col>
-              <Col xs={24} md={12}>
+              <Col xs={24} md={14}>
                 <div style={{ textAlign: 'center' }}>
                   <img 
                     src="/images/comunity.jpg" 
@@ -364,13 +414,46 @@ const PremiumPage = () => {
                     style={{ 
                       maxWidth: '100%', 
                       height: 'auto',
-                      borderRadius: '16px',
-                      maxHeight: '300px',
+                      borderRadius: '20px',
+                      maxHeight: '280px',
                       objectFit: 'cover',
-                      filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.1))'
+                      boxShadow: '0 12px 40px rgba(0,0,0,0.15)'
                     }} 
                   />
                 </div>
+              </Col>
+              <Col xs={24} md={10}>
+                <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <Button
+                      type="primary"
+                      size="large"
+                      icon={<CrownOutlined />}
+                      onClick={handleUpgrade}
+                      loading={loading}
+                      style={{
+                        background: 'linear-gradient(135deg, #FFD700 0%, #FFA940 100%)',
+                        border: 'none',
+                        color: '#000',
+                        fontWeight: 700,
+                        height: 56,
+                        fontSize: 16,
+                        borderRadius: '16px',
+                        paddingLeft: 32,
+                        paddingRight: 32,
+                        minWidth: '220px',
+                        boxShadow: '0 4px 15px rgba(255, 215, 0, 0.4)'
+                      }}
+                    >
+                        {t('premium.activatePremium')}
+                    </Button>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <Text style={{ color: '#8c8c8c', fontSize: 14 }}>
+                      {t('premium.cancelAnytime')}
+                    </Text>
+                  </div>
+                </Space>
               </Col>
             </Row>
           </Card>
@@ -423,16 +506,25 @@ const PremiumPage = () => {
             style={{
               marginTop: '3rem',
               textAlign: 'center',
-              borderRadius: '16px',
-              background: 'linear-gradient(135deg, #f5f5f5 0%, #fafafa 100%)'
+              borderRadius: '20px',
+              background: 'white',
+              border: '1px solid #f0f0f0',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.06)'
             }}
-            styles={{ body: { padding: 'clamp(2rem, 4vw, 3rem)' } }}
+            styles={{ body: { padding: 'clamp(2rem, 4vw, 2.5rem)' } }}
           >
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              <Title level={3} style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)' }}>
+              <Title level={3} style={{ 
+                fontSize: 'clamp(1.5rem, 4vw, 1.75rem)',
+                color: '#262626',
+                fontWeight: 600
+              }}>
                 {t('premium.readyForMoreCompatibility')}
               </Title>
-              <Paragraph style={{ fontSize: 'clamp(14px, 3vw, 16px)' }}>
+              <Paragraph style={{ 
+                fontSize: 'clamp(15px, 3vw, 16px)',
+                color: '#595959'
+              }}>
                 {t('premium.joinPremiumCommunity')}
               </Paragraph>
               <Button
@@ -442,19 +534,21 @@ const PremiumPage = () => {
                 onClick={handleUpgrade}
                 loading={loading}
                 style={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA940 100%)',
                   border: 'none',
-                  height: 'clamp(40px, 8vw, 48px)',
-                  fontSize: 'clamp(14px, 3vw, 16px)',
-                  borderRadius: '24px',
-                  paddingLeft: 'clamp(16px, 4vw, 32px)',
-                  paddingRight: 'clamp(16px, 4vw, 32px)',
-                  minWidth: '200px'
+                  height: 52,
+                  fontSize: 16,
+                  borderRadius: '16px',
+                  paddingLeft: 28,
+                  paddingRight: 28,
+                  minWidth: '200px',
+                  fontWeight: 700,
+                  boxShadow: '0 4px 15px rgba(255, 215, 0, 0.3)'
                 }}
               >
                 {t('premium.activatePremiumNow')}
               </Button>
-              <Text type="secondary" style={{ fontSize: 'clamp(12px, 2.5vw, 14px)' }}>
+              <Text type="secondary" style={{ fontSize: 14 }}>
                 {t('premium.cancelAnytime')}
               </Text>
             </Space>

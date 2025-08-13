@@ -565,8 +565,8 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
         // Standardize the image to ensure browser compatibility
         console.log('🔄 [ProfileEdit] Standardizing image for compatibility...');
         const standardizedResult = await standardizeImage(file, {
-          maxWidthOrHeight: 2000,
-          quality: 0.9
+          maxWidthOrHeight: 2000, // REVERT: Original settings
+          quality: 0.9 // REVERT: Original quality
         });
         
         // Close loading message
@@ -727,8 +727,8 @@ const ProfileEditSection = ({ userData, onUpdateSuccess, forceEdit = false, from
       // Step 1: Standardize the image to ensure browser compatibility
       console.log('🔄 [ProfileEdit] Standardizing image for compatibility...');
       const standardizedResult = await standardizeImage(file, {
-        maxWidthOrHeight: 2000,
-        quality: 0.9
+        maxWidthOrHeight: 1200, // Reduced for bandwidth savings  
+        quality: 0.7 // Reduced for smaller file sizes
       });
       
       // Close loading message

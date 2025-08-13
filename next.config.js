@@ -19,7 +19,13 @@ const nextConfig = {
   // Transpile antd for better compatibility
   transpilePackages: ['antd'],
   images: {
-    domains: ["res.cloudinary.com"],
+    domains: ["res.cloudinary.com", "firebasestorage.googleapis.com"],
+    formats: ['image/webp', 'image/avif'], // Enable modern formats for better compression
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 86400, // Cache images for 24 hours
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   async headers() {
     return [

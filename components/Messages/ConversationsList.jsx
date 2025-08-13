@@ -6,7 +6,7 @@ import Iconify from "../Iconify";
 import { getMainProfileImage } from "@/utils/imageHelpers";
 import { getDisplayName } from "@/utils/profileHelpers";
 import { useSettingsContext } from "@/context/settings/settings-context";
-import { getMyCompatibleUsers } from "@/actions/admin";
+import { getMyCompatibleUsers, getMyCompatibleUsersPage } from "@/actions/admin";
 import { createConversation } from "@/actions/chat";
 import { OnlineStatusAvatar } from "../OnlineStatusIndicator";
 import dayjs from "dayjs";
@@ -24,7 +24,10 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
   const { settings: { theme: currentTheme } } = useSettingsContext();
   const [compatibleUsers, setCompatibleUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
   const [searchText, setSearchText] = useState("");
+  const [usersCursor, setUsersCursor] = useState(null);
+  const [usersHasMore, setUsersHasMore] = useState(true);
   
   // Memoized cache references
   const compatibleUsersCache = useRef(null);
@@ -64,7 +67,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
     
     try {
       setLoading(true);
-      const users = await getMyCompatibleUsers(currentUser.id);
+      const { users, nextCursor, hasMore } = await getMyCompatibleUsersPage(currentUser.id, null, 30);
       
       // We'll filter the users when displaying them, not here
       // This prevents dependency on conversations array
@@ -74,12 +77,29 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
       lastCompatibleUsersFetch.current = now;
       
       setCompatibleUsers(users);
+      setUsersCursor(nextCursor);
+      setUsersHasMore(hasMore);
     } catch (error) {
       console.error("Error loading compatible users:", error);
     } finally {
       setLoading(false);
     }
   }, [currentUser?.id]);
+  const loadMoreCompatibleUsers = useCallback(async () => {
+    if (!currentUser?.id || !usersHasMore || !usersCursor || loading) return;
+    try {
+      setLoading(true);
+      const { users: page, nextCursor, hasMore } = await getMyCompatibleUsersPage(currentUser.id, usersCursor, 30);
+      compatibleUsersCache.current = [...(compatibleUsersCache.current || []), ...page];
+      setCompatibleUsers((prev) => [...prev, ...page]);
+      setUsersCursor(nextCursor);
+      setUsersHasMore(hasMore);
+    } catch (err) {
+      console.error('Error loading more compatible users:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser?.id, usersHasMore, usersCursor, loading]);
 
   // Load compatible users with dependency optimization
   useEffect(() => {
@@ -425,10 +445,31 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
       </div>
 
       {/* Unified List - Conversations and Compatible Users */}
-      <div className={css.conversationsContainer} style={{ padding: '0 16px' }}>
+      <div
+        className={css.conversationsContainer}
+        style={{ padding: '0 16px' }}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
+            // near bottom
+            setVisibleCount((c) => Math.min(c + 20, unifiedList.conversations.length + unifiedList.compatibleUsers.length));
+            if (usersHasMore) {
+              loadMoreCompatibleUsers();
+            }
+          }
+        }}
+      >
         {loading ? (
-          <div style={{ padding: '20px', textAlign: 'center' }}>
-            <Typography.Text type="secondary">{t('messages.loadingCompatibleUsers')}</Typography.Text>
+          <div style={{ padding: '12px 0' }}>
+            {[...Array(6)].map((_, idx) => (
+              <div className={css.skeletonItem} key={idx}>
+                <div className={css.skeletonAvatar} />
+                <div className={css.skeletonText}>
+                  <div className={css.skeletonLine} />
+                  <div className={`${css.skeletonLine} ${css.skeletonLineShort}`} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : unifiedList.isEmpty ? (
           <div style={{ 
@@ -474,7 +515,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                     </Typography.Text>
                   </div>
                 )}
-                {unifiedList.conversations.map(renderConversationItem)}
+            {unifiedList.conversations.slice(0, visibleCount).map(renderConversationItem)}
               </>
             )}
 
@@ -500,7 +541,7 @@ const ConversationsList = ({ conversations, onSelectConversation, selectedId, cu
                     </Typography.Text>
                   </div>
                 )}
-                {unifiedList.compatibleUsers.map(renderCompatibleUserItem)}
+                {unifiedList.compatibleUsers.slice(0, Math.max(0, visibleCount - unifiedList.conversations.length)).map(renderCompatibleUserItem)}
               </>
             )}
           </>

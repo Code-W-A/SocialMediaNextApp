@@ -388,8 +388,8 @@ export default function PhotosPage() {
         // Standardize the image to ensure browser compatibility
         console.log('🔄 [OnboardingPhotos] Standardizing image for compatibility...');
         const standardizedResult = await standardizeImage(file, {
-          maxWidthOrHeight: 2000,
-          quality: 0.9
+          maxWidthOrHeight: 2000, // REVERT: Original settings
+          quality: 0.9 // REVERT: Original quality
         });
         
         // Close loading message

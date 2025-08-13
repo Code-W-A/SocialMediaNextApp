@@ -216,6 +216,52 @@ export const getMyCompatibleUsers = async (userId) => {
   }
 };
 
+// Paginated compatible users for faster, incremental loading
+export const getMyCompatibleUsersPage = async (userId, cursorCreatedAt = null, pageSize = 20) => {
+  try {
+    if (!userId) return { users: [], nextCursor: null, hasMore: false };
+
+    const compatibilitiesRef = collection(db, "Compatibilities");
+    const constraints = [where("userId", "==", userId), orderBy("createdAt", "desc"), limit(pageSize)];
+    if (cursorCreatedAt) {
+      constraints.splice(2, 0, startAfter(cursorCreatedAt));
+    }
+    const q = query(compatibilitiesRef, ...constraints);
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) return { users: [], nextCursor: null, hasMore: false };
+
+    const users = await Promise.all(snapshot.docs.map(async (docSnapshot) => {
+      const data = docSnapshot.data();
+      const targetUserId = data.targetUserId;
+      try {
+        const userDoc = await getDoc(doc(db, "Users", targetUserId));
+        if (userDoc.exists()) {
+          return {
+            id: userDoc.id,
+            ...userDoc.data(),
+            compatibilityId: docSnapshot.id,
+            compatibilityCreatedAt: data.createdAt
+          };
+        }
+      } catch (err) {
+        console.error(`Error fetching user ${targetUserId}:`, err);
+      }
+      return null;
+    }));
+
+    const cleaned = users.filter(Boolean);
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    const nextCursor = lastDoc?.data()?.createdAt || null;
+    const hasMore = snapshot.docs.length === pageSize;
+
+    return { users: cleaned, nextCursor, hasMore };
+  } catch (error) {
+    console.error("Error fetching paginated compatible users:", error);
+    return { users: [], nextCursor: null, hasMore: false };
+  }
+};
+
 // Check if two users are compatible
 export const areUsersCompatible = async (userId1, userId2) => {
   try {

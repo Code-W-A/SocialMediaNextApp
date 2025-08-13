@@ -12,10 +12,11 @@ export const runtime = 'nodejs';
 async function ensureRgbJpeg(buffer) {
   // Try sharp directly first
   try {
+    // ULTRA-SAFE: Only server-side optimization - minimal change for live app
     return await sharp(buffer)
       .rotate()
-      .resize({ width: 2000, height: 2000, fit: 'inside' })
-      .jpeg({ quality: 90 })
+      .resize({ width: 1600, height: 1600, fit: 'inside' }) // Conservative 20% reduction
+      .jpeg({ quality: 85 }) // Small quality reduction for bandwidth savings
       .toBuffer();
   } catch (err) {
     // If fails due to unsupported format, attempt HEIC conversion or jpeg-js re-encode
@@ -26,8 +27,8 @@ async function ensureRgbJpeg(buffer) {
       const jpgBuffer = await heicConvert({ buffer, format: 'JPEG', quality: 0.9 });
       return await sharp(jpgBuffer)
         .rotate()
-        .resize({ width: 2000, height: 2000, fit: 'inside' })
-        .jpeg({ quality: 90 })
+        .resize({ width: 1600, height: 1600, fit: 'inside' }) // Conservative reduction
+        .jpeg({ quality: 85 }) // Bandwidth savings
         .toBuffer();
     }
     if (ft?.mime === 'image/jpeg') {
@@ -36,8 +37,8 @@ async function ensureRgbJpeg(buffer) {
       const canvasBuffer = Buffer.from(raw.data);
       // Build sharp from raw data
       return await sharp(canvasBuffer, { raw: { width: raw.width, height: raw.height, channels: 4 } })
-        .resize({ width: 2000, height: 2000, fit: 'inside' })
-        .jpeg({ quality: 90 })
+        .resize({ width: 1600, height: 1600, fit: 'inside' }) // Conservative reduction
+        .jpeg({ quality: 85 }) // Bandwidth savings
         .toBuffer();
     }
     throw err; // rethrow if cannot handle

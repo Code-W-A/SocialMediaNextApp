@@ -14,8 +14,8 @@ const BannerImageCrop = ({
   onCropComplete,
   file,
   title,
-  maxWidth = 1200, // Banners can be larger
-  quality = 0.85 // Optimized quality for good size/quality balance
+  maxWidth = 1200, // Maintained for banner quality
+  quality = 0.85 // High quality maintained for banners
 }) => {
   const { t } = useLanguage();
 

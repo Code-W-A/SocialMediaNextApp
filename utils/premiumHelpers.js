@@ -46,15 +46,30 @@ export const FEATURES = {
 
 // Premium feature descriptions for UI
 export const PREMIUM_FEATURES_DESCRIPTIONS = {
-  priority_matching: "Get higher priority in compatibility matching",
-  premium_badge: "Show premium badge on your profile",
-  enhanced_visibility: "Your profile appears higher in searches",
-  priority_support: "Access to dedicated premium support",
-  early_features: "Early access to new features",
-  unlimited_likes: "Unlimited likes and super likes",
-  advanced_filters: "Advanced search and filtering options",
-  read_receipts: "See when messages are read",
-  boost_profile: "Weekly profile boost for better visibility"
+  priorityCompatibility: {
+    key: 'priorityCompatibility',
+    icon: 'fluent:top-speed-20-filled'
+  },
+  premiumBadgeFeature: {
+    key: 'premiumBadgeFeature',
+    icon: 'mdi:crown'
+  },
+  increasedVisibility: {
+    key: 'increasedVisibility',
+    icon: 'mdi:rocket-launch'
+  },
+  prioritySupport: {
+    key: 'prioritySupport',
+    icon: 'mdi:headset'
+  },
+  exclusiveFeatures: {
+    key: 'exclusiveFeatures',
+    icon: 'mdi:star'
+  },
+  moreMatches: {
+    key: 'moreMatches',
+    icon: 'mdi:heart'
+  }
 };
 
 // Subscription status constants
@@ -366,13 +381,14 @@ export const getRemainingDailyActions = (action, count, userSubscription) => {
 };
 
 // Get premium upgrade prompts
-export const getPremiumUpgradePrompt = (feature) => {
+export const getPremiumUpgradePrompt = (feature, t) => {
   const featureInfo = PREMIUM_FEATURES_DESCRIPTIONS[feature];
-  
+  const featureTitle = featureInfo?.key ? t(`premium.${featureInfo.key}`) : t('premium.title');
   return {
-    title: 'Upgrade la Premium',
-    message: `Pentru a accesa ${featureInfo?.title || 'această funcționalitate'}, ai nevoie de un abonament Premium.`,
-    features: Object.values(PREMIUM_FEATURES_DESCRIPTIONS),
+    title: t('premium.title'),
+    message: t('premium.joinPremiumCommunity'),
+    featureTitle,
+    features: Object.keys(PREMIUM_FEATURES_DESCRIPTIONS).map((k) => t(`premium.${PREMIUM_FEATURES_DESCRIPTIONS[k].key}`))
   };
 };
 

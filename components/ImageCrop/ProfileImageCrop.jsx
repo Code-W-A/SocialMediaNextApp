@@ -15,8 +15,8 @@ const ProfileImageCrop = ({
   file,
   title,
   defaultAspectRatio = 'square',
-  maxWidth = 1080, // Same size as post square images for better quality
-  quality = 0.85 // Optimized quality for good size/quality balance
+  maxWidth = 1000, // Conservative reduction from 1080
+  quality = 0.85 // High quality maintained for profile images
 }) => {
   const { t } = useLanguage();
 

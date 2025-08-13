@@ -21,6 +21,31 @@ const PremiumSuccessPage = () => {
   // Premium features - SYNCHRONIZED WITH /premium PAGE - LOCALIZED
   const premiumFeatures = [
     {
+      icon: <Iconify icon="mdi:message-text" width="20px" style={{ color: '#1890ff' }} />,
+      title: t('premium.unlimitedMessages'),
+      description: t('premium.unlimitedMessagesDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:check-all" width="20px" style={{ color: '#52c41a' }} />,
+      title: t('premium.readReceipts'),
+      description: t('premium.readReceiptsDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:heart" width="20px" style={{ color: '#eb2f96' }} />,
+      title: t('premium.superLikes'),
+      description: t('premium.superLikesDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:account-multiple" width="20px" style={{ color: '#fa8c16' }} />,
+      title: t('premium.unlimitedMatches'),
+      description: t('premium.unlimitedMatchesDesc'),
+    },
+    {
+      icon: <Iconify icon="mdi:post-outline" width="20px" style={{ color: '#722ed1' }} />,
+      title: t('premium.unlimitedPosts'),
+      description: t('premium.unlimitedPostsDesc'),
+    },
+    {
       icon: <HeartFilled style={{ fontSize: '20px', color: '#ff4d4f' }} />,
       title: t('premium.priorityCompatibility'),
       description: t('premium.priorityCompatibilityDesc'),
@@ -44,11 +69,6 @@ const PremiumSuccessPage = () => {
       icon: <StarFilled style={{ fontSize: '20px', color: '#faad14' }} />,
       title: t('premium.exclusiveFeatures'),
       description: t('premium.exclusiveFeaturesDesc'),
-    },
-    {
-      icon: <Iconify icon="eva:heart-fill" width="20px" style={{ color: '#eb2f96' }} />,
-      title: t('premium.moreMatches'),
-      description: t('premium.moreMatchesDesc'),
     },
   ];
 

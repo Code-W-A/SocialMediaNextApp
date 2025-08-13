@@ -4,6 +4,7 @@ import React from 'react';
 import { Tag, Tooltip } from 'antd';
 import { CrownOutlined } from '@ant-design/icons';
 import Iconify from '@/components/Iconify';
+import { useLanguage } from '@/lib/i18n';
 
 const PremiumBadge = ({ 
   user, 
@@ -11,6 +12,7 @@ const PremiumBadge = ({
   showText = true, 
   style = {} 
 }) => {
+  const { t } = useLanguage();
   // Check if user has premium subscription
   const isPremium = user?.subscription?.isPremium || 
                    user?.subscription?.status === 'active' || 
@@ -36,10 +38,10 @@ const PremiumBadge = ({
   const fontSize = size === 'small' ? '11px' : size === 'large' ? '14px' : '12px';
 
   return (
-    <Tooltip title="Utilizator Premium - Profil verificat">
+    <Tooltip title={t('premium.premiumBadgeFeature')}>
       <Tag style={{ ...badgeStyle, fontSize }}>
         <CrownOutlined style={{ fontSize: iconSize }} />
-        {showText && 'Premium'}
+        {showText && t('common.premium')}
       </Tag>
     </Tooltip>
   );

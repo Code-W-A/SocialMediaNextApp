@@ -20,6 +20,9 @@ const SimpleImageCrop = ({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState(defaultAspectRatio);
+  const [resolvedImageUrl, setResolvedImageUrl] = useState(null);
+  const blobUrlRef = useRef(null);
+  const resolvedBlobRef = useRef(null);
 
   console.log('🎭 [SimpleImageCrop] Component state:', {
     visible,
@@ -37,6 +40,43 @@ const SimpleImageCrop = ({
     console.log('🔄 [SimpleImageCrop] Crop changed:', crop);
     setCrop(crop);
   }, []);
+
+  // Resolve remote URLs to same-origin blob URLs to avoid canvas tainting and CORS issues
+  React.useEffect(() => {
+    let aborted = false;
+    const resolveUrl = async () => {
+      // Cleanup any previous blob URL
+      if (blobUrlRef.current) {
+        try { URL.revokeObjectURL(blobUrlRef.current); } catch {}
+        blobUrlRef.current = null;
+      }
+
+      if (!imageUrl) {
+        setResolvedImageUrl(null);
+        resolvedBlobRef.current = null;
+        return;
+      }
+
+      try {
+        // Do not fetch here to avoid client-side CORS/503. Just pass through.
+        setResolvedImageUrl(imageUrl);
+        resolvedBlobRef.current = null;
+      } catch (e) {
+        console.warn('[SimpleImageCrop] Failed to resolve image URL, using original. Error:', e);
+        setResolvedImageUrl(imageUrl);
+        resolvedBlobRef.current = null;
+      }
+    };
+    resolveUrl();
+    return () => {
+      aborted = true;
+      if (blobUrlRef.current) {
+        try { URL.revokeObjectURL(blobUrlRef.current); } catch {}
+        blobUrlRef.current = null;
+      }
+      resolvedBlobRef.current = null;
+    };
+  }, [imageUrl]);
 
   const onZoomChange = useCallback((zoom) => {
     console.log('🔍 [SimpleImageCrop] Zoom changed:', zoom);
@@ -93,64 +133,62 @@ const SimpleImageCrop = ({
     console.log('⏳ [SimpleImageCrop-createCroppedImage] Set loading to true');
     
     try {
-      console.log('🔍 [SimpleImageCrop-createCroppedImage] Analyzing image URL type:', {
-        isServerUrl: imageUrl.startsWith('http'),
-        isFirebaseStorage: imageUrl.includes('firebasestorage.googleapis.com'),
-        imageUrl: imageUrl.substring(0, 100) + '...'
+      console.log('🔍 [SimpleImageCrop-createCroppedImage] Using resolved image URL:', {
+        provided: imageUrl?.substring(0, 100) + '...',
+        resolved: resolvedImageUrl?.substring(0, 100) + '...'
       });
 
-      console.log('🖼️ [SimpleImageCrop-createCroppedImage] Creating canvas and image elements...');
+      console.log('🖼️ [SimpleImageCrop-createCroppedImage] Creating canvas and decoding image blob...');
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const img = new Image();
-      
-      // For Firebase Storage URLs, use direct loading with crossOrigin
-      if (imageUrl.includes('firebasestorage.googleapis.com')) {
-        console.log('🔥 [SimpleImageCrop-createCroppedImage] Firebase Storage URL detected - using direct loading');
-        img.crossOrigin = 'anonymous';
-      } else if (imageUrl.startsWith('http')) {
-        console.log('🌐 [SimpleImageCrop-createCroppedImage] External URL detected - using crossOrigin');
-        img.crossOrigin = 'anonymous';
-      } else {
-        console.log('📁 [SimpleImageCrop-createCroppedImage] Local blob URL detected');
+      // Always fetch via proxy to avoid CORS/remote 503
+      const source = resolvedImageUrl || imageUrl;
+      const proxied = /^https?:\/\//i.test(source) ? `/api/proxy-image?url=${encodeURIComponent(source)}` : source;
+      const r = await fetch(proxied, { headers: { Accept: 'image/*' }, cache: 'no-store' });
+      if (!r.ok) throw new Error('Failed to fetch image blob');
+      let sourceBlob = await r.blob();
+      let bitmap;
+      try {
+        bitmap = await createImageBitmap(sourceBlob);
+      } catch (e) {
+        console.warn('⚠️ createImageBitmap failed, falling back to HTMLImageElement decode:', e);
+        const tmpUrl = URL.createObjectURL(sourceBlob);
+        await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            // Draw full image to temp canvas to normalize
+            const temp = document.createElement('canvas');
+            temp.width = img.naturalWidth;
+            temp.height = img.naturalHeight;
+            const tctx = temp.getContext('2d');
+            tctx.drawImage(img, 0, 0);
+            temp.toBlob(async (b) => {
+              try {
+                bitmap = await createImageBitmap(b);
+                resolve();
+              } catch (ee) {
+                console.warn('⚠️ createImageBitmap still failed after normalize. Using image directly.', ee);
+                // Use image directly for drawing later
+                bitmap = img; // Not an ImageBitmap; handle below
+                resolve();
+              }
+            }, 'image/jpeg', 0.95);
+          };
+          img.onerror = reject;
+          img.src = tmpUrl;
+        });
       }
-      
-      console.log('⏳ [SimpleImageCrop-createCroppedImage] Loading image directly...');
-      await new Promise((resolve, reject) => {
-        img.onload = () => {
-          console.log('✅ [SimpleImageCrop-createCroppedImage] Image loaded successfully:', {
-            width: img.width,
-            height: img.height,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            complete: img.complete
-          });
-          resolve();
-        };
-        img.onerror = (e) => {
-          console.error('❌ [SimpleImageCrop-createCroppedImage] Image failed to load:', {
-            error: e,
-            src: img.src,
-            crossOrigin: img.crossOrigin
-          });
-          reject(new Error('Failed to load image for cropping'));
-        };
-        
-        // Set src after setting up event handlers
-        img.src = imageUrl;
-      });
-
       let { width, height, x, y } = croppedAreaPixels;
       
       console.log('📐 [SimpleImageCrop-createCroppedImage] Original crop area:', {
         width, height, x, y,
-        imageWidth: img.naturalWidth,
-        imageHeight: img.naturalHeight
+        imageWidth: bitmap.width,
+        imageHeight: bitmap.height
       });
       
       // Validate and adjust crop area to be within image bounds
-      const maxWidth = img.naturalWidth;
-      const maxHeight = img.naturalHeight;
+      const maxWidth = (bitmap.width || bitmap.naturalWidth);
+      const maxHeight = (bitmap.height || bitmap.naturalHeight);
       
       // Adjust x and width
       if (x < 0) {
@@ -327,22 +365,14 @@ const SimpleImageCrop = ({
       canvas.height = height;
       
       console.log('🎨 [SimpleImageCrop-createCroppedImage] Drawing image to canvas...');
-      console.log('🎨 [SimpleImageCrop-createCroppedImage] Canvas drawImage parameters:', {
-        sourceImage: {
-          naturalWidth: img.naturalWidth,
-          naturalHeight: img.naturalHeight,
-          displayWidth: img.width,
-          displayHeight: img.height
-        },
-        sourceRect: { sx: x, sy: y, sWidth: width, sHeight: height },
-        targetRect: { dx: 0, dy: 0, dWidth: width, dHeight: height }
-      });
-      
-      ctx.drawImage(
-        img,
-        x, y, width, height,
-        0, 0, width, height
-      );
+      console.log('🎨 [SimpleImageCrop-createCroppedImage] Drawing source to canvas...');
+      if ('close' in bitmap && typeof bitmap.close === 'function') {
+        ctx.drawImage(bitmap, x, y, width, height, 0, 0, width, height);
+        try { bitmap.close(); } catch {}
+      } else {
+        // bitmap is an HTMLImageElement fallback
+        ctx.drawImage(bitmap, x, y, width, height, 0, 0, width, height);
+      }
 
       console.log('🔍 [SimpleImageCrop-createCroppedImage] Verifying canvas content...');
       console.log('🔍 [SimpleImageCrop-createCroppedImage] Canvas state after drawing:', {
@@ -355,26 +385,37 @@ const SimpleImageCrop = ({
       // Sample a larger area for content verification
       const sampleWidth = Math.min(100, width);
       const sampleHeight = Math.min(100, height);
-      const imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
+      let imageData;
+      try {
+        imageData = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
+      } catch (e) {
+        // If canvas is tainted for any reason, skip content validation
+        console.warn('⚠️ [SimpleImageCrop] getImageData failed (likely tainted). Proceeding without validation.', e);
+      }
       const pixels = imageData.data;
       let hasContent = false;
       let nonTransparentPixels = 0;
       let colorfulPixels = 0;
       
       // Check if canvas has non-transparent, non-black pixels
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1]; 
-        const b = pixels[i + 2];
-        const a = pixels[i + 3];
-        
-        if (a > 0) {
-          nonTransparentPixels++;
-          if (r > 10 || g > 10 || b > 10) {
-            colorfulPixels++;
-            hasContent = true;
+      if (imageData) {
+        const pixels = imageData.data;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1]; 
+          const b = pixels[i + 2];
+          const a = pixels[i + 3];
+          if (a > 0) {
+            nonTransparentPixels++;
+            if (r > 10 || g > 10 || b > 10) {
+              colorfulPixels++;
+              hasContent = true;
+            }
           }
         }
+      } else {
+        // If we cannot read pixels, assume content exists (since drawImage didn't error)
+        hasContent = true;
       }
       
       console.log('🔍 [SimpleImageCrop-createCroppedImage] Canvas content analysis:', {

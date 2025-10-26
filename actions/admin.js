@@ -510,6 +510,99 @@ export const addSameGenderCompatibilities = async () => {
   }
 };
 
+// Create compatibilities based on relationship intent
+// intent: 'long_term' | 'casual' | 'friendship'
+export const addCompatibilitiesByIntent = async (intent = 'long_term') => {
+  try {
+    const users = await getAllUsers();
+    const compatibilitiesRef = collection(db, "Compatibilities");
+    const addedCount = { total: 0, skipped: 0 };
+
+    const normalizeIntent = (val) => {
+      if (!val) return null;
+      const v = String(val).toLowerCase();
+      if (v.includes('lung') || v.includes('long')) return 'long_term';
+      if (v.includes('casual')) return 'casual';
+      if (v.includes('prieten') || v.includes('friend')) return 'friendship';
+      return null;
+    };
+
+    // Split by gender for faster lookup
+    const males = [];
+    const females = [];
+    const others = [];
+    for (const u of users) {
+      const g = (u.gender || '').toLowerCase();
+      if (g === 'male') males.push(u); else if (g === 'female') females.push(u); else others.push(u);
+    }
+
+    const eligible = users.filter(u => normalizeIntent(u?.questionnaire?.relationshipType) === intent);
+
+    // Helper to add bidirectional if not exists
+    const ensureBidirectional = async (aId, bId, source) => {
+      if (!aId || !bId || aId === bId) return false;
+      const existingQuery = query(
+        compatibilitiesRef,
+        where("userId", "==", aId),
+        where("targetUserId", "==", bId)
+      );
+      const existingSnapshot = await getDocs(existingQuery);
+      if (!existingSnapshot.empty) return false;
+      await addDoc(compatibilitiesRef, { userId: aId, targetUserId: bId, createdAt: new Date(), createdBy: source });
+      await addDoc(compatibilitiesRef, { userId: bId, targetUserId: aId, createdAt: new Date(), createdBy: source });
+      return true;
+    };
+
+    if (intent === 'friendship') {
+      // Same gender compatibilities among users who want friendship
+      const malesEligible = eligible.filter(u => (u.gender || '').toLowerCase() === 'male');
+      const femalesEligible = eligible.filter(u => (u.gender || '').toLowerCase() === 'female');
+
+      // Pair all-to-all within same gender (skip existing)
+      const addWithinList = async (list) => {
+        for (let i = 0; i < list.length; i++) {
+          for (let j = i + 1; j < list.length; j++) {
+            try {
+              const added = await ensureBidirectional(list[i].id, list[j].id, 'admin-intent-friendship');
+              if (added) addedCount.total++; else addedCount.skipped++;
+            } catch (e) {
+              console.error('Error adding friendship compatibility:', e);
+              addedCount.skipped++;
+            }
+          }
+        }
+      };
+      await addWithinList(malesEligible);
+      await addWithinList(femalesEligible);
+    } else {
+      // Opposite gender compatibilities for long_term or casual
+      const source = intent === 'long_term' ? 'admin-intent-long-term' : 'admin-intent-casual';
+      const poolA = males.filter(u => eligible.some(e => e.id === u.id));
+      const poolB = females.filter(u => eligible.some(e => e.id === u.id));
+
+      for (const m of poolA) {
+        for (const f of poolB) {
+          try {
+            const added = await ensureBidirectional(m.id, f.id, source);
+            if (added) addedCount.total++; else addedCount.skipped++;
+          } catch (e) {
+            console.error('Error adding opposite-gender compatibility:', e);
+            addedCount.skipped++;
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Intent ${intent}: added ${addedCount.total}, skipped ${addedCount.skipped}`
+    };
+  } catch (error) {
+    console.error('Error in addCompatibilitiesByIntent:', error);
+    throw error;
+  }
+};
+
 // Get online compatible users for current user
 export const getOnlineCompatibleUsers = async (userId) => {
   try {

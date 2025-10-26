@@ -30,7 +30,7 @@ import { UserOutlined, HeartOutlined, SearchOutlined, CrownOutlined, MessageOutl
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, grantPremiumToUser, removePremiumFromUser, getAllPostsForAdmin, deletePostAsAdmin, deleteCommentAsAdmin, getAllResonanceRequests } from "@/actions/admin";
+import { getAllUsers, addCompatibility, removeCompatibility, getUserCompatibilities, addOppositeGenderCompatibilities, addSameGenderCompatibilities, addCompatibilitiesByIntent, grantPremiumToUser, removePremiumFromUser, getAllPostsForAdmin, deletePostAsAdmin, deleteCommentAsAdmin, getAllResonanceRequests } from "@/actions/admin";
 // Removed admin settings import - simplified feed system
 import { getMainProfileImage } from "@/utils/imageHelpers";
 
@@ -133,6 +133,7 @@ const AdminDashboard = () => {
   const [searchText, setSearchText] = useState("");
   const [genderFilter, setGenderFilter] = useState(null);
   const [ageRange, setAgeRange] = useState([18, 65]);
+  const [intentFilter, setIntentFilter] = useState(null); // 'long_term' | 'casual' | 'friendship'
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [bulkMode, setBulkMode] = useState(false);
   const [sortBy, setSortBy] = useState('lastActive'); // 'name', 'age', 'lastActive'
@@ -236,6 +237,16 @@ const AdminDashboard = () => {
       message.error("Failed to add same gender compatibilities!");
       console.error(error);
     },
+  });
+
+  // Add by intent mutation (long_term / casual / friendship)
+  const addByIntentMutation = useMutation({
+    mutationFn: addCompatibilitiesByIntent,
+    onSuccess: (res) => {
+      message.success(res?.message || 'Compatibilities added by intent');
+      queryClient.invalidateQueries(["user-compatibilities"]);
+    },
+    onError: () => message.error('Failed to add compatibilities by intent')
   });
 
   // Grant premium mutation
@@ -1079,8 +1090,16 @@ const AdminDashboard = () => {
           (user.age || new Date().getFullYear() - new Date(user.dateOfBirth).getFullYear()) : null;
         const matchesAge = !userAge || (userAge >= ageRange[0] && userAge <= ageRange[1]);
         
+        // Relationship intent filter
+        const userIntentRaw = user?.questionnaire?.relationshipType || '';
+        const normIntent = userIntentRaw.toLowerCase().includes('lung') || userIntentRaw.toLowerCase().includes('long') ? 'long_term'
+          : userIntentRaw.toLowerCase().includes('casual') ? 'casual'
+          : userIntentRaw.toLowerCase().includes('prieten') || userIntentRaw.toLowerCase().includes('friend') ? 'friendship'
+          : null;
+        const matchesIntent = !intentFilter || normIntent === intentFilter;
+
         // Basic filters
-        const matchesBasicFilters = matchesSearch && matchesGender && matchesAge;
+        const matchesBasicFilters = matchesSearch && matchesGender && matchesAge && matchesIntent;
         
         if (!matchesBasicFilters) continue;
         
@@ -1099,7 +1118,7 @@ const AdminDashboard = () => {
     } finally {
       setFilteringUsers(false);
     }
-  }, [users, searchText, genderFilter, ageRange, checkCompatibilityFilters]);
+  }, [users, searchText, genderFilter, ageRange, intentFilter, checkCompatibilityFilters]);
   
   // Apply filters when users or filter criteria change
   useEffect(() => {
@@ -1386,6 +1405,19 @@ const AdminDashboard = () => {
             </Select>
           </Col>
           <Col span={4}>
+            <Select
+              placeholder="Filter by intent"
+              value={intentFilter}
+              onChange={setIntentFilter}
+              allowClear
+              style={{ width: '100%' }}
+            >
+              <Select.Option value="long_term">Long-term</Select.Option>
+              <Select.Option value="casual">Casual</Select.Option>
+              <Select.Option value="friendship">Friendship</Select.Option>
+            </Select>
+          </Col>
+          <Col span={4}>
             <div>
               <Text strong style={{ marginBottom: 8, display: 'block' }}>Age Range: {ageRange[0]} - {ageRange[1]}</Text>
               <Slider
@@ -1468,6 +1500,31 @@ const AdminDashboard = () => {
               </Button>
               <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: 4 }}>
                 Adds compatibilities between same genders (any age range)
+              </Text>
+            </Col>
+            <Col span={24}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Button onClick={() => addByIntentMutation.mutate({ intent: 'long_term', ageTolerance: 5, maxPerUser: 0 })} loading={addByIntentMutation.isPending}>
+                  ❤️ Add by Intent: Long-term (opposite genders)
+                </Button>
+                <Button onClick={() => addByIntentMutation.mutate({ intent: 'casual', ageTolerance: 5, maxPerUser: 0 })} loading={addByIntentMutation.isPending}>
+                  🔥 Add by Intent: Casual (opposite genders)
+                </Button>
+                <Button onClick={() => addByIntentMutation.mutate({ intent: 'friendship', maxPerUser: 0 })} loading={addByIntentMutation.isPending}>
+                  🤝 Add by Intent: Friendship (same gender)
+                </Button>
+                <span style={{ marginLeft: 8 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Age tolerance:</Text>
+                  &nbsp;
+                  <Select size="small" defaultValue={5} style={{ width: 80 }} onChange={(v) => addByIntentMutation.mutate({ intent: 'long_term', ageTolerance: v })}>
+                    <Select.Option value={2}>±2</Select.Option>
+                    <Select.Option value={5}>±5</Select.Option>
+                    <Select.Option value={10}>±10</Select.Option>
+                  </Select>
+                </span>
+              </div>
+              <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: 4 }}>
+                Uses users' relationshipType to constrain pairs (detected as long_term / casual / friendship)
               </Text>
             </Col>
           </Row>

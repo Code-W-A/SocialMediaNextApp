@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import BottomNavbar from "@/components/BottomNavbar";
 import AdminChatSupport from "@/components/AdminChatSupport";
 import NotificationManager from "@/components/NotificationManager";
+import AndroidLaunchModal from "@/components/AndroidLaunchModal";
 import { SettingsContextProvider } from "@/context/settings/settings-provider";
 import { Toaster } from "react-hot-toast";
 import {
@@ -63,6 +64,9 @@ const HomeLayout = async ({ children }) => {
                 
                 {/* Notification Manager for popup notifications */}
                 <NotificationManager />
+                
+                {/* Android Launch Modal - Shows once per day */}
+                <AndroidLaunchModal />
               </div>
             </Box>
           </HydrationBoundary>

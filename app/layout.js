@@ -9,6 +9,8 @@ import { LanguageProvider } from "@/lib/i18n";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import PWAServiceWorker from "@/components/PWAServiceWorker";
 import ErrorBoundaryWrapper from "@/components/ErrorBoundaryWrapper";
+import MaintenanceScreen from "@/components/MaintenanceScreen";
+import { MAINTENANCE_MODE } from "@/config/maintenance";
 
 const publicSans = Public_Sans({
   subsets: ["latin"],
@@ -73,16 +75,22 @@ export default function RootLayout({ children }) {
           </head>
           <body className={publicSans.className}>
             <PWAServiceWorker />
-            <QueryProvider>
-              <StyledComponentsRegistry>
-                <ErrorBoundaryWrapper>
-                  <OnlineStatusManager>
-                    {children}
-                    <PWAInstallPrompt />
-                  </OnlineStatusManager>
-                </ErrorBoundaryWrapper>
-              </StyledComponentsRegistry>
-            </QueryProvider>
+            
+            {/* Show Maintenance Screen if MAINTENANCE_MODE is true */}
+            {MAINTENANCE_MODE ? (
+              <MaintenanceScreen />
+            ) : (
+              <QueryProvider>
+                <StyledComponentsRegistry>
+                  <ErrorBoundaryWrapper>
+                    <OnlineStatusManager>
+                      {children}
+                      <PWAInstallPrompt />
+                    </OnlineStatusManager>
+                  </ErrorBoundaryWrapper>
+                </StyledComponentsRegistry>
+              </QueryProvider>
+            )}
           </body>
         </html>
       </LanguageProvider>
